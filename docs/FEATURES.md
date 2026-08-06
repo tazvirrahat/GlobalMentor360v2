@@ -17,17 +17,21 @@ see [TECH-SPEC.md](TECH-SPEC.md) for the data model, stack, and build phases.
 | **P2** | Mature product |
 | **P3** | Mentorship layer and advanced |
 
-## Scoping assumptions
+## Confirmed scope
 
-These shape the catalog. Flag any that are wrong.
+These are decided, not assumed. They shape the whole catalog.
 
-1. **We charge for courses.** A single-org academy still needs commerce, so pricing, cart,
-   checkout, coupons, subscriptions, and refunds are included. If the academy is free or
-   internal-only, delete [section I](#i-commerce--monetization) and roughly 15% of the build
-   goes with it.
-2. **Public-facing, not internal L&D.** Learners self-register. If this is employee training,
-   section A shifts to SSO-first and section I is replaced by seat licensing.
-3. **Web first, mobile later.** Native apps are catalogued but phased last.
+1. **Paid platform, per-course purchase.** Learners buy a course and retain access
+   indefinitely — Udemy's core model. Commerce is in scope: per-course pricing, cart, checkout,
+   coupons, and 30-day refunds, all P0.
+2. **No subscription.** All-access recurring billing is explicitly **out of scope**. See the note
+   under [section I](#i-commerce--monetization) for what it would cost to add later.
+3. **Free previews plus some free courses.** Individual lectures can be flagged as free previews,
+   and a course may be published at price 0 as lead generation. The free-enrollment path stays in
+   P0.
+4. **Public-facing, not internal L&D.** Follows from per-course purchase with coupons and public
+   pricing — learners self-register rather than arriving via SSO and seat licensing.
+5. **Web first, mobile later.** Native apps are catalogued but phased last.
 
 ---
 
@@ -191,14 +195,23 @@ These shape the catalog. Flag any that are wrong.
 | Payment processing (cards, wallets, regional methods) | P0 |
 | Coupon codes: percentage/fixed, expiry, usage caps, course-scoped | P1 |
 | Sitewide promotions and sale pricing | P1 |
-| Subscription plan — all-access monthly/annual | P2 |
-| Free courses and free enrollment path | P0 |
+| Free courses (price 0) and free enrollment path | P0 |
 | Order history, invoices/receipts | P0 |
 | 30-day refund policy with self-serve refund request | P1 |
 | Tax calculation (VAT/GST) and tax-inclusive display | P1 |
 | Gift a course / redeem gift code | P2 |
 | Bulk/team purchase with seat assignment | P2 |
 | Enrollment entitlements decoupled from purchase (grant/revoke) | P0 |
+
+> **Subscriptions are out of scope.** Purchase is one-time and access is permanent, so there is no
+> recurring billing, dunning, proration, or grace-period handling to build — a meaningful P0
+> reduction.
+>
+> If an all-access plan is ever wanted, the entitlement invariant in
+> [TECH-SPEC.md](TECH-SPEC.md#invariants) is what keeps it cheap: playback authorization reads
+> `enrollments` and nothing else, so adding subscriptions means adding one `source` value and a
+> job that grants or revokes enrollments as the plan changes. No change to the player, the
+> progress model, or any authorization path.
 
 ## J. Notifications & messaging
 
@@ -292,7 +305,7 @@ Not built in early phases, but specced now so the schema accommodates it without
 | Cohort-based courses with fixed start dates and shared progress |
 | Group office hours / live workshops with registration |
 | Mentor ratings and session feedback |
-| Mentorship packages (multi-session bundles) and subscriptions |
+| Mentorship packages — multi-session bundles and recurring retainers (distinct from course access, which is never subscription-based) |
 | Mentor earnings and payout |
 
 > **Note:** the last row reintroduces the revenue-share machinery deliberately excluded from the
