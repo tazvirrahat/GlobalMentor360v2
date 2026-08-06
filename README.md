@@ -9,23 +9,34 @@ specced up front so the data model accommodates them.
 
 ## Status
 
-Scaffold stage. The project builds and the full database schema is written, but no features are
-implemented — there are no courses, no player, no checkout.
+Early scaffold. Authentication works end to end; nothing else does.
 
-What exists: Next.js 16 + React 19 + TypeScript, the complete Prisma 7 schema from the spec, and
-Better Auth wired to Postgres. What doesn't: everything in `docs/FEATURES.md`.
+**Works:** registration, sign-in, sign-out, session-gated routes, role assignment, the full
+database schema applied to Postgres, and a seed with a sample course.
+
+**Doesn't exist yet:** the catalog, search, the course player, progress tracking, checkout,
+certificates — effectively all of `docs/FEATURES.md`. The video provider interface is written but
+has never been called against a real Bunny account.
 
 ## Getting started
 
 ```bash
 npm install
-cp .env.example .env   # then fill in DATABASE_URL
-npm run db:generate
+cp .env.example .env
+docker compose up -d
+npm run db:generate && npm run db:push && npm run db:seed
 npm run dev
 ```
 
-You need a Postgres 16+ instance before `db:push` or `db:migrate` will do anything. `db:generate`
-works without one.
+The default `DATABASE_URL` in `.env.example` already matches the compose file, so nothing needs
+editing for local work. `db:generate` works without a database; `db:push` and `db:seed` do not.
+
+The seed creates two accounts, both with password `dev-password-12345`:
+
+| Email | Roles |
+|---|---|
+| `instructor@example.com` | learner, instructor |
+| `admin@example.com` | learner, admin |
 
 | Command | Does |
 |---|---|
@@ -33,9 +44,13 @@ works without one.
 | `npm run build` | Production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
+| `npm run test` | Vitest (unit) |
+| `npm run test:watch` | Vitest in watch mode |
 | `npm run db:generate` | Regenerate the Prisma client (run after schema changes) |
 | `npm run db:push` | Push schema to the database without a migration |
 | `npm run db:migrate` | Create and apply a migration |
+| `npm run db:seed` | Seed taxonomy, staff accounts, and a sample course |
+| `npm run db:studio` | Browse the database |
 
 ## Documentation
 

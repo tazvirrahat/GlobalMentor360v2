@@ -28,6 +28,20 @@ export const auth = betterAuth({
       timezone: { type: "string", required: false, defaultValue: "UTC" },
     },
   },
+
+  databaseHooks: {
+    user: {
+      create: {
+        // Every account is a learner. Instructor and admin are granted separately —
+        // without this, a new user has no roles and every requireRole check fails.
+        after: async (user) => {
+          await db.userRole.create({
+            data: { userId: user.id, role: "LEARNER" },
+          });
+        },
+      },
+    },
+  },
 });
 
 export type Session = typeof auth.$Infer.Session;
