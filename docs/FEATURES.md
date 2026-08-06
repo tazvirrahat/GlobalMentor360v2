@@ -181,7 +181,8 @@ These are decided, not assumed. They shape the whole catalog.
 | Transcode status surfaced in studio, retry on failure | P0 |
 | Automatic speech recognition → caption generation | P1 |
 | Machine translation of captions | P2 |
-| Signed, expiring playback URLs; DRM optional | P1 |
+| Signed, expiring playback URLs | P1 |
+| Studio-grade DRM (Widevine/FairPlay) — paid add-on, see [TECH-SPEC](TECH-SPEC.md#what-content-protection-actually-costs) | P3 |
 | Audio normalization and quality checks (resolution, audio level) | P1 |
 | CDN delivery, geo-distributed | P0 |
 | Storage lifecycle (archive originals to cold storage) | P2 |

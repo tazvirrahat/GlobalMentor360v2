@@ -122,7 +122,7 @@ Greenfield, so these are recommendations rather than constraints inherited from 
 | Database | PostgreSQL 16 | Relational integrity matters for entitlements, orders, progress. JSONB covers the flexible bits. |
 | ORM | Prisma | Migrations and type-safety across a wide schema. Drop to raw SQL for analytics. |
 | Auth | **Better Auth** | Open source (MIT), self-hosted, TypeScript-first, first-class Prisma adapter. User rows live in our Postgres. See note below. |
-| Video | **Bunny Stream** | Do not build transcoding. Native signed URLs *and* Widevine/FairPlay DRM, at roughly half the cost of Cloudflare Stream. Accessed through a provider interface. See note below. |
+| Video | **Bunny Stream** | Do not build transcoding. Signed URLs included, at roughly half the cost of Cloudflare Stream. Accessed through a provider interface. Real DRM is a paid add-on — see note below. |
 | Object storage | S3 or Cloudflare R2 | Resources, captions, certificates, original uploads. R2 for zero egress. |
 | Search | Postgres FTS → Typesense/Meilisearch | FTS suffices at low catalog size. Migrate when facets and typo tolerance start hurting. |
 | Cache/queue | Redis + BullMQ | Sessions, rate limits, and the async pipeline (transcode callbacks, email, ASR, progress rollups). |
@@ -156,9 +156,44 @@ elsewhere: unit cost, because delivery scales directly with revenue-generating u
 protection, because the entire value proposition is behind the paywall.
 
 Bunny Stream is roughly half the cost of Cloudflare Stream and well under Mux, at approximately
-$0.005/GB stored and $0.01/GB delivered, with no per-video fees. It ships signed URLs *and*
-Widevine/FairPlay DRM natively. The distinction matters: signed URLs gate access to the link, while
-DRM encrypts the file itself. For paid course content, we want both.
+$0.005/GB stored and $0.01/GB delivered, with no per-video fees.
+
+### What content protection actually costs
+
+An earlier draft of this document claimed Bunny ships Widevine/FairPlay DRM natively. That was
+wrong, and the correction changes what we can plan for.
+
+Bunny has two tiers, and only one of them is real DRM:
+
+| | MediaCage **Basic** | MediaCage **Enterprise** |
+|---|---|---|
+| Technology | Dynamic *clear key* encryption, session-based keys | Widevine + FairPlay, hardware-backed keys |
+| Cost | Included | $99/mo + $0.005–0.003 per license, tiered |
+| Player | **Bunny's embed only** — third-party players disabled | Works with our own player |
+| Caveats | No MP4 fallback, no Early-Play | Sales contact above 500k licenses/mo |
+
+Two things follow.
+
+**Clear key is not DRM in any meaningful sense.** The decryption key is delivered unprotected, so
+it raises effort above a bare URL and stops nothing else. Do not describe it to stakeholders as
+content protection.
+
+**MediaCage Basic is incompatible with our player.** It mandates playback through Bunny's
+proprietary embed and disables third-party players. Section C of the catalog — timestamped notes,
+interactive transcripts, keyboard shortcuts, playback telemetry feeding section K — all require a
+player we control. Enabling Basic DRM would break those features, so we will not use it.
+
+**What we actually ship at P0: signed, expiring playback URLs.** These are included, work with our
+own player, and are implemented in `lib/video/bunny.ts`. They gate access to the manifest; they do
+not encrypt the file. That is the honest security posture — a determined, technically capable
+learner can retain content they have legitimately paid to access. Every course platform below the
+Enterprise-DRM tier has this property, including ones that market otherwise.
+
+**When to revisit.** If measured piracy justifies $99/mo plus per-license fees, Enterprise DRM
+becomes the answer — and note licenses bill per device *and per key*, so one playback typically
+issues two (video and audio track). Budget roughly double the headline rate. This is not a
+Bunny-specific tax: Mux and most competitors also gate real multi-DRM behind a paid tier, so the
+cost comparison that selected Bunny is unaffected by this correction.
 
 **The tradeoff:** Mux has materially better per-view analytics, and section K of the catalog wants
 drop-off curves and rewatch heatmaps. We take that on ourselves — the player already emits playback
