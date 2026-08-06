@@ -22,11 +22,14 @@ Specification stage. No application code yet.
 
 - **P0 — MVP.** A learner can find, buy, watch, and complete a course.
 - **P1 — Fast follow.** Captions, notes, practice tests, assignments, coupons, analytics.
-- **P2 — Mature.** Subscriptions, learning paths, recommendations, coding exercises, AI assistant.
+- **P2 — Mature.** Learning paths, recommendations, coding exercises, AI assistant, gifting.
 - **P3 — Mentorship.** 1:1 booking, live sessions, cohorts, native apps, offline.
 
-## Open scoping questions
+## Commercial model
 
-The catalog assumes we charge for courses and that the platform is public-facing rather than
-internal L&D. Both assumptions are called out in
-[docs/FEATURES.md](docs/FEATURES.md#scoping-assumptions) and materially change scope if wrong.
+Paid platform, **per-course purchase** — buy a course, keep access indefinitely. Free preview
+lectures are supported, and a course may be published at price 0 as lead generation.
+
+Subscriptions are out of scope. Access is permanent, so there is no recurring billing, dunning, or
+proration to build. Full scope decisions are in
+[docs/FEATURES.md](docs/FEATURES.md#confirmed-scope).

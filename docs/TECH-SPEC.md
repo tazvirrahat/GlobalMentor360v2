@@ -47,8 +47,9 @@ PostgreSQL, single schema, `snake_case` tables, UUIDv7 primary keys.
 
 ### Learning
 
-- `enrollments` — user_id, course_id, source (`purchase`|`grant`|`subscription`|`free`),
-  enrolled_at, archived_at
+- `enrollments` — user_id, course_id, source (`purchase`|`grant`|`free`), enrolled_at, archived_at
+  — a `subscription` source value is deliberately reserved but unused; see
+  [invariant 1](#invariants)
 - `item_progress` — user_id, curriculum_item_id, completed_at, last_position_seconds, watched_seconds
 - `course_progress` — rollup: user_id, course_id, percent, completed_at
 - `notes` — user_id, lecture_id, timestamp_seconds, body
@@ -75,7 +76,9 @@ PostgreSQL, single schema, `snake_case` tables, UUIDv7 primary keys.
 - `coupons` — code, type, value, scope, max_redemptions, valid_from/until
 - `coupon_redemptions` — coupon_id, user_id, order_id
 - `refunds` — order_item_id, amount, reason, status
-- `subscriptions` — user_id, plan_id, status, current_period_end, provider_ref
+
+Purchases are one-time and access is permanent, so there is no `subscriptions` table, no billing
+period state, and no dunning or proration logic.
 
 ### Ops
 
@@ -93,7 +96,13 @@ These are the decisions that are expensive to change later. Treat them as load-b
 
 1. **Entitlement lives on `enrollments`, never inferred from an order.** A learner holds at most
    one enrollment per course, and playback authorization checks only that row. This is what stops
-   grants, refunds, subscriptions, and free courses from each special-casing the auth path.
+   paid purchases, admin grants, refunds, and free courses from each special-casing the auth path.
+
+   It also keeps the door open cheaply. Subscriptions are out of scope today, but if an all-access
+   plan is ever added, it becomes: one new `source` value, plus a job that grants and revokes
+   enrollments as the plan starts and lapses. The player, the progress model, and every
+   authorization path stay untouched. Resist any shortcut that reads `orders` to decide access —
+   that shortcut is what makes the later change expensive.
 2. **`course_progress` is a derived rollup, never the source of truth.** Recomputed on
    `item_progress` write. It exists purely for dashboard read performance, and a background job
    should be able to rebuild it from scratch and get the same answer.
@@ -117,7 +126,7 @@ Greenfield, so these are recommendations rather than constraints inherited from 
 | Object storage | S3 or Cloudflare R2 | Resources, captions, certificates, original uploads. R2 for zero egress. |
 | Search | Postgres FTS → Typesense/Meilisearch | FTS suffices at low catalog size. Migrate when facets and typo tolerance start hurting. |
 | Cache/queue | Redis + BullMQ | Sessions, rate limits, and the async pipeline (transcode callbacks, email, ASR, progress rollups). |
-| Payments | Stripe | Checkout, subscriptions, Stripe Tax, hosted fields so we stay out of PCI scope. |
+| Payments | Stripe | One-time Checkout payments and Stripe Tax. Hosted fields keep us out of PCI scope. No Billing/subscription integration needed. |
 | Email | Resend or Postmark | Transactional + React Email templates. |
 | Uploads | Uppy + tus, or provider direct-upload | Resumable is non-negotiable for multi-GB lecture video. |
 | Certificates | @react-pdf/renderer or headless Chromium | Generate async, store in object storage, serve signed. |
@@ -138,8 +147,8 @@ Captions and transcripts, notes and bookmarks, practice tests, assignments, coup
 notification center, wishlist, engagement analytics, moderation queue, i18n framework, GDPR flows.
 
 **P2 — Mature.**
-Subscriptions, learning paths, recommendations, coding exercises, AI assistant and semantic search,
-streaks and goals, SSO, advanced analytics, PWA.
+Learning paths, recommendations, coding exercises, AI assistant and semantic search, streaks and
+goals, SSO, advanced analytics, gifting, bulk purchase, PWA.
 
 **P3 — Mentorship and advanced.**
 The full mentorship layer, native apps with offline download, labs/workspaces, AI role-play and
@@ -170,7 +179,9 @@ Playwright. Must pass before P0 sign-off.
 ### Targeted checks
 
 - **Entitlement** — signed-out and non-enrolled users both get 403 on a non-preview playback URL;
-  signed playback URLs expire.
+  signed playback URLs expire. A paid course is unplayable until an `enrollments` row exists.
+- **Free course** — a course priced 0 enrolls without touching checkout, and still produces a
+  normal `enrollments` row rather than a special case.
 - **Refund** — refunding an order revokes the enrollment and blocks playback.
 - **Progress rollup** — recompute `course_progress` from `item_progress` in a job and assert it
   matches the live value. Catches rollup drift.
