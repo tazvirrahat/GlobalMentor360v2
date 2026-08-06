@@ -9,7 +9,33 @@ specced up front so the data model accommodates them.
 
 ## Status
 
-Specification stage. No application code yet.
+Scaffold stage. The project builds and the full database schema is written, but no features are
+implemented — there are no courses, no player, no checkout.
+
+What exists: Next.js 16 + React 19 + TypeScript, the complete Prisma 7 schema from the spec, and
+Better Auth wired to Postgres. What doesn't: everything in `docs/FEATURES.md`.
+
+## Getting started
+
+```bash
+npm install
+cp .env.example .env   # then fill in DATABASE_URL
+npm run db:generate
+npm run dev
+```
+
+You need a Postgres 16+ instance before `db:push` or `db:migrate` will do anything. `db:generate`
+works without one.
+
+| Command | Does |
+|---|---|
+| `npm run dev` | Dev server on :3000 |
+| `npm run build` | Production build |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | ESLint |
+| `npm run db:generate` | Regenerate the Prisma client (run after schema changes) |
+| `npm run db:push` | Push schema to the database without a migration |
+| `npm run db:migrate` | Create and apply a migration |
 
 ## Documentation
 

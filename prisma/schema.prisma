@@ -1,0 +1,1053 @@
+// GlobalMentor360 — database schema
+//
+// Translated from docs/TECH-SPEC.md. Tables are snake_case via @@map; Prisma fields stay
+// camelCase so TypeScript reads naturally.
+//
+// Load-bearing invariants encoded here (see TECH-SPEC.md#invariants):
+//   1. Entitlement lives on Enrollment, never inferred from an Order.
+//   2. CourseProgress is a derived rollup, never the source of truth.
+//   3. CurriculumItem is the single ordered spine; typed detail tables hang off it.
+//   4. A Review requires an Enrollment (unique constraint here, check enforced in the service layer).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+// Prisma 7 removed `url` from this block. The connection string for migrate and
+// introspect lives in prisma.config.ts; the runtime client gets a driver adapter
+// (see lib/db.ts).
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+//
+// User / Session / Account / Verification are Better Auth's required core models.
+// Field names match what its Prisma adapter expects — rename with care.
+// ---------------------------------------------------------------------------
+
+enum Role {
+  LEARNER
+  INSTRUCTOR
+  ADMIN
+  SUPPORT
+  MODERATOR
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+model User {
+  id            String     @id @default(uuid(7))
+  name          String
+  email         String     @unique
+  emailVerified Boolean    @default(false)
+  image         String?
+  // Profile (catalog section A)
+  slug          String?    @unique
+  headline      String?
+  bio           String?    @db.Text
+  websiteUrl    String?
+  locale        String     @default("en")
+  timezone      String     @default("UTC")
+  status        UserStatus @default(ACTIVE)
+  profilePublic Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  sessions     Session[]
+  accounts     Account[]
+  roles        UserRole[]
+  authoredCourses Course[]  @relation("CourseInstructor")
+
+  enrollments   Enrollment[]
+  itemProgress  ItemProgress[]
+  courseProgress CourseProgress[]
+  notes         Note[]
+  bookmarks     Bookmark[]
+  certificates  Certificate[]
+  quizAttempts  QuizAttempt[]
+  submissions   AssignmentSubmission[]
+
+  reviews         Review[]
+  reviewResponses ReviewResponse[]
+  reviewVotes     ReviewVote[]
+  threads         QuestionThread[]
+  threadReplies   ThreadReply[]
+  announcements   Announcement[]
+  notifications   Notification[]
+  reportsFiled    ContentReport[]        @relation("ReportAuthor")
+  reportsResolved ContentReport[]        @relation("ReportResolver")
+
+  cart          Cart?
+  orders        Order[]
+  redemptions   CouponRedemption[]
+  auditLogs     AuditLog[]
+
+  @@index([status])
+  @@map("users")
+}
+
+model UserRole {
+  userId String
+  role   Role
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+  @@index([role])
+  @@map("user_roles")
+}
+
+model Session {
+  id        String   @id @default(uuid(7))
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(uuid(7))
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?   @db.Text
+  refreshToken          String?   @db.Text
+  idToken               String?   @db.Text
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(uuid(7))
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+// ---------------------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------------------
+
+enum CourseStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  UNPUBLISHED
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  ALL_LEVELS
+}
+
+model Category {
+  id       String     @id @default(uuid(7))
+  name     String
+  slug     String     @unique
+  parentId String?
+  position Int        @default(0)
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  courses  Course[]
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Topic {
+  id      String        @id @default(uuid(7))
+  name    String
+  slug    String        @unique
+  courses CourseTopic[]
+
+  @@map("topics")
+}
+
+model Skill {
+  id      String        @id @default(uuid(7))
+  name    String
+  slug    String        @unique
+  courses CourseSkill[]
+
+  @@map("skills")
+}
+
+model Course {
+  id                String       @id @default(uuid(7))
+  title             String
+  slug              String       @unique
+  subtitle          String?
+  description       String?      @db.Text
+  level             CourseLevel  @default(ALL_LEVELS)
+  language          String       @default("en")
+  status            CourseStatus @default(DRAFT)
+  primaryCategoryId String?
+  instructorId      String
+  thumbnailUrl      String?
+  promoVideoId      String?      @unique
+  // Denormalised aggregates, recomputed on review write. Display only.
+  ratingAverage     Float        @default(0)
+  ratingCount       Int          @default(0)
+  enrollmentCount   Int          @default(0)
+  publishedAt       DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  primaryCategory Category?   @relation(fields: [primaryCategoryId], references: [id])
+  instructor      User        @relation("CourseInstructor", fields: [instructorId], references: [id])
+  promoVideo      MediaAsset? @relation("CoursePromoVideo", fields: [promoVideoId], references: [id])
+
+  objectives      CourseObjective[]
+  requirements    CourseRequirement[]
+  targetAudience  CourseTargetAudience[]
+  topics          CourseTopic[]
+  skills          CourseSkill[]
+  sections        Section[]
+  prices          Price[]
+
+  enrollments     Enrollment[]
+  courseProgress  CourseProgress[]
+  certificates    Certificate[]
+  reviews         Review[]
+  threads         QuestionThread[]
+  announcements   Announcement[]
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+
+  @@index([status, publishedAt])
+  @@index([primaryCategoryId])
+  @@index([instructorId])
+  @@map("courses")
+}
+
+model CourseObjective {
+  id       String @id @default(uuid(7))
+  courseId String
+  text     String
+  position Int
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@map("course_objectives")
+}
+
+model CourseRequirement {
+  id       String @id @default(uuid(7))
+  courseId String
+  text     String
+  position Int
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@map("course_requirements")
+}
+
+model CourseTargetAudience {
+  id       String @id @default(uuid(7))
+  courseId String
+  text     String
+  position Int
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@map("course_target_audience")
+}
+
+model CourseTopic {
+  courseId String
+  topicId  String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topic    Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, topicId])
+  @@map("course_topics")
+}
+
+model CourseSkill {
+  courseId String
+  skillId  String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  skill    Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, skillId])
+  @@map("course_skills")
+}
+
+model Section {
+  id       String @id @default(uuid(7))
+  courseId String
+  title    String
+  position Int
+
+  course Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  items  CurriculumItem[]
+
+  @@unique([courseId, position])
+  @@index([courseId])
+  @@map("sections")
+}
+
+// ---------------------------------------------------------------------------
+// Curriculum spine (invariant 3)
+//
+// Every item type is a row here with an ordering position. Typed detail lives in
+// the 1:1 tables below, so reordering a section touches exactly one table.
+// ---------------------------------------------------------------------------
+
+enum CurriculumItemType {
+  LECTURE
+  QUIZ
+  PRACTICE_TEST
+  ASSIGNMENT
+  CODING_EXERCISE // P2 — enum value reserved, detail table not yet modelled
+}
+
+model CurriculumItem {
+  id        String             @id @default(uuid(7))
+  sectionId String
+  type      CurriculumItemType
+  title     String
+  position  Int
+  isPreview Boolean            @default(false)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  section    Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  lecture    Lecture?
+  assessment Assessment?
+  assignment Assignment?
+
+  progress  ItemProgress[]
+  bookmarks Bookmark[]
+  threads   QuestionThread[]
+
+  @@unique([sectionId, position])
+  @@index([sectionId])
+  @@map("curriculum_items")
+}
+
+enum LectureContentType {
+  VIDEO
+  ARTICLE
+  AUDIO
+  FILE
+}
+
+model Lecture {
+  id               String             @id @default(uuid(7))
+  curriculumItemId String             @unique
+  contentType      LectureContentType
+  assetId          String?
+  articleBody      String?            @db.Text
+  description      String?            @db.Text
+  durationSeconds  Int                @default(0)
+
+  curriculumItem CurriculumItem    @relation(fields: [curriculumItemId], references: [id], onDelete: Cascade)
+  asset          MediaAsset?       @relation(fields: [assetId], references: [id])
+  resources      LectureResource[]
+  notes          Note[]
+
+  @@index([assetId])
+  @@map("lectures")
+}
+
+model LectureResource {
+  id             String  @id @default(uuid(7))
+  lectureId      String
+  filename       String
+  storageKey     String
+  sizeBytes      Int
+  isDownloadable Boolean @default(true)
+  externalUrl    String?
+
+  lecture Lecture @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+
+  @@index([lectureId])
+  @@map("lecture_resources")
+}
+
+// ---------------------------------------------------------------------------
+// Media
+// ---------------------------------------------------------------------------
+
+enum MediaStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum CaptionSource {
+  UPLOADED
+  ASR
+  TRANSLATED
+}
+
+model MediaAsset {
+  id              String      @id @default(uuid(7))
+  provider        String      @default("bunny")
+  providerAssetId String?     @unique
+  originalKey     String?
+  status          MediaStatus @default(UPLOADING)
+  durationSeconds Int?
+  thumbnailUrl    String?
+  failureReason   String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  lectures     Lecture[]
+  captions     Caption[]
+  transcripts  Transcript[]
+  promoForCourse Course?    @relation("CoursePromoVideo")
+
+  @@index([status])
+  @@map("media_assets")
+}
+
+model Caption {
+  id       String        @id @default(uuid(7))
+  assetId  String
+  language String
+  vttKey   String
+  source   CaptionSource @default(UPLOADED)
+
+  asset MediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, language])
+  @@map("captions")
+}
+
+model Transcript {
+  id       String @id @default(uuid(7))
+  assetId  String
+  language String
+  /// Array of { start, end, text } cues.
+  cues     Json
+
+  asset MediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, language])
+  @@map("transcripts")
+}
+
+// ---------------------------------------------------------------------------
+// Assessment
+//
+// Deviation from TECH-SPEC.md: quizzes and practice tests are one Assessment table
+// discriminated by `type`, rather than two tables with polymorphic questions.
+// Prisma has no polymorphic relations, and the two differ only in settings.
+// ---------------------------------------------------------------------------
+
+enum AssessmentType {
+  QUIZ
+  PRACTICE_TEST
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTI_SELECT
+  TRUE_FALSE
+}
+
+model Assessment {
+  id                 String         @id @default(uuid(7))
+  curriculumItemId   String         @unique
+  type               AssessmentType
+  description        String?        @db.Text
+  timeLimitSeconds   Int?
+  passThresholdPct   Int?
+  shuffleQuestions   Boolean        @default(false)
+  allowRetakes       Boolean        @default(true)
+
+  curriculumItem CurriculumItem @relation(fields: [curriculumItemId], references: [id], onDelete: Cascade)
+  questions      Question[]
+  attempts       QuizAttempt[]
+
+  @@map("assessments")
+}
+
+model Question {
+  id            String       @id @default(uuid(7))
+  assessmentId  String
+  prompt        String       @db.Text
+  type          QuestionType
+  explanation   String?      @db.Text
+  knowledgeArea String?
+  position      Int
+
+  assessment Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  options    AnswerOption[]
+  answers    QuizAttemptAnswer[]
+
+  @@unique([assessmentId, position])
+  @@index([assessmentId])
+  @@map("questions")
+}
+
+model AnswerOption {
+  id          String  @id @default(uuid(7))
+  questionId  String
+  text        String  @db.Text
+  isCorrect   Boolean @default(false)
+  explanation String? @db.Text
+  position    Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("answer_options")
+}
+
+model QuizAttempt {
+  id           String    @id @default(uuid(7))
+  userId       String
+  assessmentId String
+  startedAt    DateTime  @default(now())
+  submittedAt  DateTime?
+  scorePct     Float?
+  passed       Boolean?
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assessment Assessment          @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  answers    QuizAttemptAnswer[]
+
+  @@index([userId, assessmentId])
+  @@map("quiz_attempts")
+}
+
+model QuizAttemptAnswer {
+  id                String   @id @default(uuid(7))
+  attemptId         String
+  questionId        String
+  selectedOptionIds String[]
+  isCorrect         Boolean
+
+  attempt  QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@map("quiz_attempt_answers")
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  REVIEWED
+}
+
+model Assignment {
+  id                String  @id @default(uuid(7))
+  curriculumItemId  String  @unique
+  instructions      String  @db.Text
+  durationEstimate  Int?
+  solutionBody      String? @db.Text
+
+  curriculumItem CurriculumItem         @relation(fields: [curriculumItemId], references: [id], onDelete: Cascade)
+  submissions    AssignmentSubmission[]
+
+  @@map("assignments")
+}
+
+model AssignmentSubmission {
+  id           String           @id @default(uuid(7))
+  assignmentId String
+  userId       String
+  body         String           @db.Text
+  status       SubmissionStatus @default(SUBMITTED)
+  feedback     String?          @db.Text
+  submittedAt  DateTime         @default(now())
+  reviewedAt   DateTime?
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, userId])
+  @@map("assignment_submissions")
+}
+
+// ---------------------------------------------------------------------------
+// Learning
+// ---------------------------------------------------------------------------
+
+/// How a learner came to have access. Adding SUBSCRIPTION later is a one-value
+/// change precisely because playback auth reads Enrollment and nothing else
+/// (invariant 1). Never read Order to decide access.
+enum EnrollmentSource {
+  PURCHASE
+  GRANT
+  FREE
+}
+
+model Enrollment {
+  id         String           @id @default(uuid(7))
+  userId     String
+  courseId   String
+  source     EnrollmentSource
+  enrolledAt DateTime         @default(now())
+  archivedAt DateTime?
+  revokedAt  DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@map("enrollments")
+}
+
+model ItemProgress {
+  id                  String    @id @default(uuid(7))
+  userId              String
+  curriculumItemId    String
+  lastPositionSeconds Int       @default(0)
+  watchedSeconds      Int       @default(0)
+  completedAt         DateTime?
+  updatedAt           DateTime  @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  curriculumItem CurriculumItem @relation(fields: [curriculumItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, curriculumItemId])
+  @@index([curriculumItemId])
+  @@map("item_progress")
+}
+
+/// Derived rollup (invariant 2). Recomputed on ItemProgress write and rebuildable
+/// from scratch by a background job. Never the source of truth.
+model CourseProgress {
+  id          String    @id @default(uuid(7))
+  userId      String
+  courseId    String
+  percent     Float     @default(0)
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@map("course_progress")
+}
+
+model Note {
+  id               String   @id @default(uuid(7))
+  userId           String
+  lectureId        String
+  timestampSeconds Int
+  body             String   @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lecture Lecture @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lectureId])
+  @@map("notes")
+}
+
+model Bookmark {
+  userId           String
+  curriculumItemId String
+  createdAt        DateTime @default(now())
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  curriculumItem CurriculumItem @relation(fields: [curriculumItemId], references: [id], onDelete: Cascade)
+
+  @@id([userId, curriculumItemId])
+  @@map("bookmarks")
+}
+
+model Certificate {
+  id       String   @id @default(uuid(7))
+  userId   String
+  courseId String
+  serial   String   @unique
+  pdfKey   String?
+  issuedAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@map("certificates")
+}
+
+// ---------------------------------------------------------------------------
+// Engagement
+// ---------------------------------------------------------------------------
+
+enum ModerationStatus {
+  VISIBLE
+  PENDING
+  HIDDEN
+}
+
+model Review {
+  id        String           @id @default(uuid(7))
+  userId    String
+  courseId  String
+  rating    Int
+  body      String?          @db.Text
+  status    ModerationStatus @default(VISIBLE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course   Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  response ReviewResponse?
+  votes    ReviewVote[]
+
+  // Invariant 4: one review per enrollment. The "must be enrolled" half is
+  // enforced in the service layer — Prisma cannot express it as a constraint.
+  @@unique([userId, courseId])
+  @@index([courseId, status])
+  @@map("reviews")
+}
+
+model ReviewResponse {
+  id          String   @id @default(uuid(7))
+  reviewId    String   @unique
+  responderId String
+  body        String   @db.Text
+  createdAt   DateTime @default(now())
+
+  review    Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  responder User   @relation(fields: [responderId], references: [id], onDelete: Cascade)
+
+  @@map("review_responses")
+}
+
+model ReviewVote {
+  reviewId  String
+  userId    String
+  isHelpful Boolean
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([reviewId, userId])
+  @@map("review_votes")
+}
+
+model QuestionThread {
+  id               String           @id @default(uuid(7))
+  courseId         String
+  curriculumItemId String?
+  userId           String
+  title            String
+  body             String           @db.Text
+  upvotes          Int              @default(0)
+  status           ModerationStatus @default(VISIBLE)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  course         Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  curriculumItem CurriculumItem? @relation(fields: [curriculumItemId], references: [id], onDelete: SetNull)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies        ThreadReply[]
+
+  @@index([courseId, createdAt])
+  @@index([curriculumItemId])
+  @@map("question_threads")
+}
+
+model ThreadReply {
+  id           String           @id @default(uuid(7))
+  threadId     String
+  userId       String
+  body         String           @db.Text
+  isInstructor Boolean          @default(false)
+  status       ModerationStatus @default(VISIBLE)
+  createdAt    DateTime         @default(now())
+
+  thread QuestionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@map("thread_replies")
+}
+
+model Announcement {
+  id        String    @id @default(uuid(7))
+  courseId  String
+  authorId  String
+  subject   String
+  body      String    @db.Text
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@map("announcements")
+}
+
+model Notification {
+  id        String   @id @default(uuid(7))
+  userId    String
+  type      String
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+model ContentReport {
+  id         String       @id @default(uuid(7))
+  reporterId String
+  targetType String
+  targetId   String
+  reason     String
+  detail     String?      @db.Text
+  status     ReportStatus @default(OPEN)
+  resolverId String?
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+
+  reporter User  @relation("ReportAuthor", fields: [reporterId], references: [id], onDelete: Cascade)
+  resolver User? @relation("ReportResolver", fields: [resolverId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([targetType, targetId])
+  @@map("content_reports")
+}
+
+// ---------------------------------------------------------------------------
+// Commerce
+//
+// One-time purchase only. No subscriptions table by design — see
+// docs/FEATURES.md section I. Amounts are integer minor units (cents).
+// ---------------------------------------------------------------------------
+
+model Price {
+  id       String  @id @default(uuid(7))
+  courseId String
+  currency String  @default("USD")
+  amount   Int
+  isActive Boolean @default(true)
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, currency, isActive])
+  @@index([courseId])
+  @@map("prices")
+}
+
+model Cart {
+  id        String     @id @default(uuid(7))
+  userId    String     @unique
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  cartId   String
+  courseId String
+  addedAt  DateTime @default(now())
+
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([cartId, courseId])
+  @@map("cart_items")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model Order {
+  id          String      @id @default(uuid(7))
+  userId      String
+  status      OrderStatus @default(PENDING)
+  currency    String      @default("USD")
+  subtotal    Int
+  discount    Int         @default(0)
+  tax         Int         @default(0)
+  total       Int
+  providerRef String?     @unique
+  createdAt   DateTime    @default(now())
+  paidAt      DateTime?
+
+  user        User               @relation(fields: [userId], references: [id])
+  items       OrderItem[]
+  redemptions CouponRedemption[]
+
+  @@index([userId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String @id @default(uuid(7))
+  orderId         String
+  courseId        String
+  unitPrice       Int
+  discountApplied Int    @default(0)
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  course  Course   @relation(fields: [courseId], references: [id])
+  refunds Refund[]
+
+  @@unique([orderId, courseId])
+  @@map("order_items")
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+}
+
+model Coupon {
+  id             String     @id @default(uuid(7))
+  code           String     @unique
+  type           CouponType
+  value          Int
+  courseId       String?
+  maxRedemptions Int?
+  redeemedCount  Int        @default(0)
+  validFrom      DateTime?
+  validUntil     DateTime?
+  isActive       Boolean    @default(true)
+
+  redemptions CouponRedemption[]
+
+  @@index([isActive, validUntil])
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id         String   @id @default(uuid(7))
+  couponId   String
+  userId     String
+  orderId    String
+  redeemedAt DateTime @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, userId])
+  @@map("coupon_redemptions")
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PROCESSED
+}
+
+model Refund {
+  id          String       @id @default(uuid(7))
+  orderItemId String
+  amount      Int
+  reason      String?
+  status      RefundStatus @default(REQUESTED)
+  requestedAt DateTime     @default(now())
+  processedAt DateTime?
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("refunds")
+}
+
+// ---------------------------------------------------------------------------
+// Ops
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(uuid(7))
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([targetType, targetId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}
+
+model FeatureFlag {
+  key         String   @id
+  enabled     Boolean  @default(false)
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("feature_flags")
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid(7))
+  userId    String?
+  name      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([userId])
+  @@map("analytics_events")
+}
+
+// ---------------------------------------------------------------------------
+// Mentorship (P3)
+//
+// Deliberately not modelled yet. When it lands it adds MentorProfile,
+// AvailabilitySlot, Booking, MentorSession, SessionFeedback, Cohort, and
+// CohortMember. Nothing above needs to change to accommodate them — the
+// entitlement and progress models are course-scoped and independent.
+// ---------------------------------------------------------------------------

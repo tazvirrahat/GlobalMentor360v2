@@ -121,8 +121,8 @@ Greenfield, so these are recommendations rather than constraints inherited from 
 | Framework | Next.js (App Router) + TypeScript | One codebase for SEO-critical catalog pages, app shell, and API routes. Server Components cut client JS on browse pages. |
 | Database | PostgreSQL 16 | Relational integrity matters for entitlements, orders, progress. JSONB covers the flexible bits. |
 | ORM | Prisma | Migrations and type-safety across a wide schema. Drop to raw SQL for analytics. |
-| Auth | Auth.js (NextAuth) or Clerk | Auth.js to own the tables; Clerk to cut roughly three weeks off P0. |
-| Video | Mux or Cloudflare Stream | Do not build transcoding. Both provide HLS, thumbnails, signed URLs, per-view analytics. Mux has better analytics, Cloudflare is cheaper at volume. |
+| Auth | **Better Auth** | Open source (MIT), self-hosted, TypeScript-first, first-class Prisma adapter. User rows live in our Postgres. See note below. |
+| Video | **Bunny Stream** | Do not build transcoding. Native signed URLs *and* Widevine/FairPlay DRM, at roughly half the cost of Cloudflare Stream. Accessed through a provider interface. See note below. |
 | Object storage | S3 or Cloudflare R2 | Resources, captions, certificates, original uploads. R2 for zero egress. |
 | Search | Postgres FTS → Typesense/Meilisearch | FTS suffices at low catalog size. Migrate when facets and typo tolerance start hurting. |
 | Cache/queue | Redis + BullMQ | Sessions, rate limits, and the async pipeline (transcode callbacks, email, ASR, progress rollups). |
@@ -133,6 +133,72 @@ Greenfield, so these are recommendations rather than constraints inherited from 
 | Analytics | PostHog | Product events, funnels, flags, session replay in one place. |
 | Testing | Vitest + Playwright | Unit/integration, plus E2E on the enrollment → player → completion path. |
 | Hosting | Vercel + managed Postgres/Redis | Fastest path. Revisit if video-adjacent compute grows. |
+
+### Why Better Auth, not Auth.js
+
+Auth.js (NextAuth) was the obvious default until recently. It is no longer: the lead maintainer
+stepped back in January 2025, and in September 2025 the project was folded into Better Auth and
+moved to security-patch-only maintenance. Starting a new build on it means starting on an
+unmaintained dependency.
+
+Better Auth reached v1.0 in late 2024 and v1.6 in May 2026. It is MIT-licensed, framework-agnostic,
+and has a first-class Prisma adapter, so auth tables live in our Postgres alongside application
+tables — we own the user records as rows in a schema we can query and join against.
+
+**Known gap:** native SAML/SCIM enterprise SSO is in development but not shipped. That is our P2
+SSO line item. For a public-facing paid academy where learners self-register, this is low risk; if
+enterprise/B2B ever becomes a priority, revisit before committing further.
+
+### Why Bunny Stream
+
+Video is the product on a paid platform, which makes two things matter more than they would
+elsewhere: unit cost, because delivery scales directly with revenue-generating usage, and content
+protection, because the entire value proposition is behind the paywall.
+
+Bunny Stream is roughly half the cost of Cloudflare Stream and well under Mux, at approximately
+$0.005/GB stored and $0.01/GB delivered, with no per-video fees. It ships signed URLs *and*
+Widevine/FairPlay DRM natively. The distinction matters: signed URLs gate access to the link, while
+DRM encrypts the file itself. For paid course content, we want both.
+
+**The tradeoff:** Mux has materially better per-view analytics, and section K of the catalog wants
+drop-off curves and rewatch heatmaps. We take that on ourselves — the player already emits playback
+telemetry at P0 (section C), so engagement analytics are built from our own event stream rather
+than bought. That is real work we are choosing to do in exchange for an order-of-magnitude lower
+recurring bill.
+
+**Mitigation:** all video operations go through a provider interface (`lib/video/provider.ts`), so
+upload, playback-URL signing, and webhook handling are swappable. If the analytics burden proves
+worse than expected, moving to Mux is contained to one module rather than spread through the
+studio and the player.
+
+### Toolchain pins — do not casually upgrade
+
+Two dependencies are held below `latest` on purpose. Both were found by actually running the
+tooling, not predicted.
+
+**TypeScript pinned to 6.x.** `typescript@latest` resolves to 7.0, the Go-based rewrite. `tsc` and
+`next build` both work fine on it, but `typescript-eslint` does not support TS 7 yet
+([tracking issue](https://github.com/typescript-eslint/typescript-eslint/issues/10940)), which
+breaks linting entirely. Losing lint on day one costs more than the compiler speed gains. Revisit
+when typescript-eslint ships TS 7 support.
+
+**ESLint pinned to 9.x.** `eslint@latest` resolves to 10.x, which changed the rule context API.
+The `eslint-plugin-react` bundled inside `eslint-config-next@16.3` still calls the old API and
+throws `contextOrFilename.getFilename is not a function` on any JSX file. Revisit when
+eslint-config-next supports ESLint 10.
+
+### Prisma 7 notes
+
+Prisma 7 changed two things that affect every developer on this repo:
+
+- **`url` is gone from the `datasource` block.** The migrate/introspect connection string now lives
+  in `prisma.config.ts`. Putting it back in the schema is a hard validation error.
+- **The runtime client needs a driver adapter.** `lib/db.ts` constructs `PrismaClient` with
+  `PrismaPg`. There is no implicit connection from the schema any more.
+
+The generator is also `prisma-client` (not the old `prisma-client-js`) with a required `output`,
+so the client lands in `generated/` and is gitignored — regenerate with `npm run db:generate`
+after pulling schema changes.
 
 ## Build Phases
 

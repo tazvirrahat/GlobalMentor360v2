@@ -1,0 +1,47 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# production
+build/
+dist/
+
+# environment — never commit real credentials
+.env
+.env.local
+.env.*.local
+
+# prisma — generated client is rebuilt from schema.prisma, never committed
+generated/
+prisma/*.db
+prisma/*.db-journal
+prisma/migrations/dev.db*
+
+# testing
+coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# editor / os
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# misc
+*.tsbuildinfo
+.vercel
