@@ -204,7 +204,7 @@ Greenfield, so these are recommendations rather than constraints inherited from 
 | Database | PostgreSQL 16 | Relational integrity matters for entitlements, orders, progress. JSONB covers the flexible bits. |
 | ORM | Prisma | Migrations and type-safety across a wide schema. Drop to raw SQL for analytics. |
 | Auth | **Better Auth** | Open source (MIT), self-hosted, TypeScript-first, first-class Prisma adapter. User rows live in our Postgres. See note below. |
-| Video | **Bunny Stream** | Do not build transcoding. Signed URLs included, at roughly half the cost of Cloudflare Stream. Accessed through a provider interface. Real DRM is a paid add-on — see note below. |
+| Video | **AWS: S3 + MediaConvert + CloudFront** | Reuses infrastructure already provisioned, and keeps IVS available for P3 live classes. Supersedes the earlier Bunny decision — see note below. Accessed through the provider interface in `lib/video/provider.ts`. |
 | Object storage | S3 or Cloudflare R2 | Resources, captions, certificates, original uploads. R2 for zero egress. |
 | Search | Postgres FTS → Typesense/Meilisearch | FTS suffices at low catalog size. Migrate when facets and typo tolerance start hurting. |
 | Cache/queue | Redis + BullMQ | Sessions, rate limits, and the async pipeline (transcode callbacks, email, ASR, progress rollups). |
@@ -231,7 +231,44 @@ tables — we own the user records as rows in a schema we can query and join aga
 SSO line item. For a public-facing paid academy where learners self-register, this is low risk; if
 enterprise/B2B ever becomes a priority, revisit before committing further.
 
-### Why Bunny Stream
+### Video: AWS, superseding Bunny
+
+The original Bunny recommendation was made before reviewing `GitHub/globalmentor360`.
+Three facts from that review change the answer.
+
+**The infrastructure already exists and is paid for.** S3 bucket, CloudFront distribution
+with a signing key pair, MediaConvert endpoint and role, MediaPackage channels, and an
+IVS stage are all provisioned.
+
+**Bunny cannot do live streaming at any price.** Live classes are P3, but they are a
+confirmed requirement. Choosing Bunny means running two video vendors the moment they
+land; choosing AWS means IVS is already there.
+
+**The cost gap narrows once both are honest.** Bunny won partly on "native DRM," which
+turned out to be a $99/mo add-on incompatible with our own player
+([below](#what-content-protection-actually-costs)). Against signed-URL-only delivery —
+what we actually ship — the comparison is CloudFront vs Bunny CDN, not Bunny vs a DRM
+tier nobody is buying.
+
+**What must be built, because the prior repo did not build it despite appearances:**
+
+| Component | State in `globalmentor360` |
+|---|---|
+| MediaConvert transcoding | Real, ~310 lines |
+| IVS / IVS Real-time | Real, ~326 lines |
+| S3 upload + presigned URLs | Real |
+| **CloudFront signed URLs** | **Not implemented.** Key pair exists in env; no signer dependency, no signing code |
+| **DRM** | **Not implemented.** `protectVideo()` returns the literal string `` `drm-protected-url-${id}` ``; SPEKE was skipped as "complex" |
+| **Watermarking** | **Not implemented.** Placeholder comment |
+
+So CloudFront signing is genuinely new work, not a port. It is also the single thing
+standing between paid content and anyone with the URL, so it is P0 for the player.
+
+**Blocked on credential rotation.** The AWS keys are committed to a pushed branch in the
+old repo (see [PRIOR-ART.md](PRIOR-ART.md#credential-hygiene)). Rotate before wiring
+anything to them.
+
+### Why Bunny Stream (superseded — kept for the cost analysis)
 
 Video is the product on a paid platform, which makes two things matter more than they would
 elsewhere: unit cost, because delivery scales directly with revenue-generating usage, and content
