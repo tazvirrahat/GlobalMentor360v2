@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -122,7 +122,7 @@ export default async function CourseLandingPage({ params }: Params) {
 
               {enrolled ? (
                 <Button asChild size="lg" className="shadow-brand">
-                  <Link href={`/learn/${course.slug}`}>
+                  <Link href={`/learn/${course.slug}` as Route}>
                     Continue learning <ChevronRight className="size-4" aria-hidden />
                   </Link>
                 </Button>

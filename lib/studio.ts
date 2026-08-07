@@ -89,7 +89,15 @@ export async function getOwnedCurriculum(courseId: string, instructorId: string)
               type: true,
               position: true,
               isPreview: true,
-              lecture: { select: { contentType: true, durationSeconds: true } },
+              lecture: {
+                select: {
+                  contentType: true,
+                  durationSeconds: true,
+                  asset: {
+                    select: { id: true, status: true, failureReason: true },
+                  },
+                },
+              },
             },
           },
         },
@@ -98,6 +106,37 @@ export async function getOwnedCurriculum(courseId: string, instructorId: string)
   });
 
   return course;
+}
+
+/**
+ * A LECTURE curriculum item with its video asset, only if the owning course
+ * belongs to this instructor. Ownership lives in the query (see file header).
+ */
+export async function getOwnedLectureItem(itemId: string, instructorId: string) {
+  return db.curriculumItem.findFirst({
+    where: { id: itemId, type: "LECTURE", section: { course: { instructorId } } },
+    select: {
+      id: true,
+      title: true,
+      section: { select: { courseId: true } },
+      lecture: {
+        select: {
+          id: true,
+          contentType: true,
+          assetId: true,
+          asset: {
+            select: {
+              id: true,
+              providerAssetId: true,
+              status: true,
+              durationSeconds: true,
+              failureReason: true,
+            },
+          },
+        },
+      },
+    },
+  });
 }
 
 export type ReadinessCheck = { label: string; ok: boolean; hint: string };

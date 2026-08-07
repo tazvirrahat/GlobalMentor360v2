@@ -1,10 +1,12 @@
 "use server";
 
+import type { Route } from "next";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { isEnrolled } from "@/lib/entitlement";
-import { bkashManualRail, BKASH_CURRENCY, bkashSubmissionSchema } from "@/lib/payments";
-import { getCurrentUser } from "@/lib/session";
+import { bkashManualRail, BKASH_CURRENCY, bkashSubmissionSchema, stripeRail } from "@/lib/payments";
+import { getCurrentUser, requireUser } from "@/lib/session";
 
 export type SubmitState =
   | { status: "idle" }
@@ -70,6 +72,9 @@ export async function submitBkashPayment(
   const existing = await db.payment.findFirst({
     where: {
       userId: user.id,
+      // Scoped to this rail: an abandoned Stripe attempt leaves a PENDING
+      // STRIPE payment behind, and that must not lock the learner out of bKash.
+      method: bkashManualRail.method,
       order: { items: { some: { courseId: course.id } } },
       status: { in: ["PENDING", "PENDING_VERIFICATION"] },
     },
@@ -100,4 +105,62 @@ export async function submitBkashPayment(
   revalidatePath("/dashboard");
 
   return { status: "submitted" };
+}
+
+/**
+ * Starts a Stripe Checkout session and sends the learner to Stripe.
+ *
+ * The amount is read from the Price table here, never from the form (invariant
+ * 6) — the only thing the form supplies is which course. Nothing is granted on
+ * return; access arrives when the webhook confirms the payment.
+ */
+export async function startStripeCheckout(formData: FormData): Promise<void> {
+  const courseId = String(formData.get("courseId") ?? "");
+
+  const course = await db.course.findFirst({
+    where: { id: courseId, status: "PUBLISHED" },
+    select: {
+      id: true,
+      slug: true,
+      prices: {
+        where: { isActive: true, currency: stripeRail.currency },
+        select: { amount: true },
+      },
+    },
+  });
+  if (!course) redirect("/courses");
+
+  const checkoutPath = `/courses/${course.slug}/checkout`;
+  const user = await requireUser(checkoutPath);
+
+  if (await isEnrolled(user.id, course.id)) {
+    // typedRoutes cannot validate runtime-built strings; the template is a
+    // known route literal, so the cast is contained (same as lib/session.ts).
+    redirect(checkoutPath as Route);
+  }
+
+  const price = course.prices[0];
+  if (!stripeRail.isConfigured() || !price) {
+    redirect(`${checkoutPath}?status=error` as Route);
+  }
+
+  // Same source of truth as Better Auth's base URL — the app's own origin.
+  const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+
+  let redirectUrl: string;
+  try {
+    const session = await stripeRail.createSession({
+      userId: user.id,
+      courseId: course.id,
+      amount: price.amount,
+      returnUrl: `${base}${checkoutPath}`,
+    });
+    redirectUrl = session.redirectUrl;
+  } catch (error) {
+    console.error("Stripe checkout session creation failed:", error);
+    redirect(`${checkoutPath}?status=error` as Route);
+  }
+
+  // Off-site URL — outside typedRoutes' vocabulary by definition.
+  redirect(redirectUrl as Route);
 }

@@ -267,11 +267,27 @@ async function main() {
     roles: ["LEARNER", "ADMIN"],
   });
 
+  const learner = await ensureUser({
+    name: "Sam Learner",
+    email: "learner@example.com",
+    password: "dev-password-12345",
+    roles: ["LEARNER"],
+  });
+
   console.log("Seeding course…");
   const course = await seedCourse(instructor.id);
 
+  // Enrol the sample learner so the critical-path E2E has something to open.
+  await db.enrollment.upsert({
+    where: { userId_courseId: { userId: learner.id, courseId: course.id } },
+    update: { revokedAt: null },
+    create: { userId: learner.id, courseId: course.id, source: "GRANT" },
+  });
+
   console.log(`Done. Seeded course "${course.title}" (/${course.slug}).`);
-  console.log("Sign in as instructor@example.com or admin@example.com — password dev-password-12345");
+  console.log(
+    "Sign in as learner@example.com, instructor@example.com or admin@example.com — password dev-password-12345",
+  );
 }
 
 main()

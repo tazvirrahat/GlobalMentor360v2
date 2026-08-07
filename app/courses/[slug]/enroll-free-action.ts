@@ -1,5 +1,6 @@
 "use server";
 
+import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -43,5 +44,5 @@ export async function enrollFree(formData: FormData) {
 
   revalidatePath(`/courses/${course.slug}`);
   revalidatePath("/dashboard");
-  redirect(`/learn/${course.slug}`);
+  redirect(`/learn/${course.slug}` as Route);
 }

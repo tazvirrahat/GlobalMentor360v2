@@ -111,7 +111,13 @@ export const bunnyProvider: VideoProvider = {
       // The API key must not reach the browser. The upload route proxies or issues
       // a short-lived signature; this shape keeps that decision out of callers.
       uploadHeaders: { "content-type": "application/octet-stream" },
+      // Bunny stores the original itself; there is no key in our storage.
+      originalKey: null,
     };
+  },
+
+  async startProcessing(): Promise<void> {
+    // Bunny transcodes automatically once the upload finishes — nothing to start.
   },
 
   async getAsset(providerAssetId): Promise<VideoAsset> {
@@ -170,6 +176,8 @@ export const bunnyProvider: VideoProvider = {
       providerAssetId: payload.VideoGuid,
       status,
       failureReason: status === "FAILED" ? `Bunny status code ${payload.Status}` : null,
+      // Bunny webhooks don't carry duration; getAsset reconciles it later.
+      durationSeconds: null,
     };
   },
 };
