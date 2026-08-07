@@ -197,6 +197,7 @@ These are decided, not assumed. They shape the whole catalog.
 | **bKash manual transfer** — learner submits transaction ID, phone, and date | P0 |
 | bKash: admin verification queue, approve/reject with notes | P0 |
 | bKash: learner-facing pending state and rejection reason | P0 |
+| bKash PGW API — automatic confirmation, no admin step (needs merchant account) | P2 |
 | Coupon codes: percentage/fixed, expiry, usage caps, course-scoped | P1 |
 | Sitewide promotions and sale pricing | P1 |
 | Free courses (price 0) and free enrollment path | P0 |

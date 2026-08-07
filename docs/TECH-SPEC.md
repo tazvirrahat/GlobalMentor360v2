@@ -77,6 +77,36 @@ PostgreSQL, single schema, `snake_case` tables, UUIDv7 primary keys.
 - `coupon_redemptions` — coupon_id, user_id, order_id
 - `refunds` — order_item_id, amount, reason, status
 
+### Payment rails
+
+Checkout talks to `lib/payments/rail.ts`, not to a provider. Two rail shapes exist
+because they genuinely differ:
+
+| | Automatic | Manual |
+|---|---|---|
+| Money arrives | inside our checkout | out-of-band, learner pays in their own app |
+| Confirmation | provider callback, signature-verified | an admin checks and approves |
+| Access | instant | waits for a human |
+| Admin queue | not needed | required, and it is P0 |
+
+**Only the manual rail is implemented.** `bkashManualRail` records what the learner
+claims and nothing else — no code in this project contacts bKash. There is
+deliberately **no stub** for the bKash PGW API: an empty class that looks
+implemented is the failure recorded in
+[PRIOR-ART.md](PRIOR-ART.md#architecture-that-outruns-implementation), where the
+prior codebase shipped a payment service returning `'mock_client_secret'`.
+
+**To add bKash PGW when merchant credentials exist:** implement `AutomaticRail`
+with `createSession` (returns a redirect URL) and `confirm` (verifies the callback
+signature or re-queries bKash, never trusts the browser), register it ahead of the
+manual rail in `lib/payments/index.ts`, and return `false` from `isConfigured()`
+when credentials are absent. Checkout renders whichever rails are configured, so
+the manual rail degrades into a fallback with no conditional logic in the pages.
+Stripe registers the same way.
+
+Both rails still converge on `grantEnrollment` (invariant 7) — the automatic rail
+calls it from `confirm`, the manual rail from admin approval.
+
 ### Payments
 
 Two rails. `orders` stays payment-agnostic; the rail-specific detail lives here.
