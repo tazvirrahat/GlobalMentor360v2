@@ -11,12 +11,13 @@ specced up front so the data model accommodates them.
 
 Early scaffold. Authentication works end to end; nothing else does.
 
-**Works:** registration, sign-in, sign-out, session-gated routes, role assignment, the full
-database schema applied to Postgres, and a seed with a sample course.
+**Works:** registration, sign-in, sign-out, session-gated routes, role assignment, the course
+catalog and landing page with entitlement-aware preview/locked marking, and the payment CHECK
+constraints (verified against the database, not just declared).
 
-**Doesn't exist yet:** the catalog, search, the course player, progress tracking, checkout,
-certificates — effectively all of `docs/FEATURES.md`. The video provider interface is written but
-has never been called against a real Bunny account.
+**Doesn't exist yet:** search, the course player, progress tracking, checkout, certificates, the
+authoring studio. The video provider interface is written but has never run against a real Bunny
+account.
 
 ## Getting started
 
@@ -46,6 +47,7 @@ The seed creates two accounts, both with password `dev-password-12345`:
 | `npm run lint` | ESLint |
 | `npm run test` | Vitest (unit) |
 | `npm run test:watch` | Vitest in watch mode |
+| `npm run test:db` | Payment constraint tests (needs the Postgres container running) |
 | `npm run db:generate` | Regenerate the Prisma client (run after schema changes) |
 | `npm run db:push` | Push schema to the database without a migration |
 | `npm run db:migrate` | Create and apply a migration |

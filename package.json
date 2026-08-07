@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:db": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360 -q < prisma/tests/payment-constraints.sql",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:push": "prisma db push",

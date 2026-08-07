@@ -88,6 +88,8 @@ model User {
   orders        Order[]
   redemptions   CouponRedemption[]
   auditLogs     AuditLog[]
+  payments        Payment[] @relation("PaymentUser")
+  paymentsVerified Payment[] @relation("PaymentVerifier")
 
   @@index([status])
   @@map("users")
@@ -921,6 +923,7 @@ model Order {
   user        User               @relation(fields: [userId], references: [id])
   items       OrderItem[]
   redemptions CouponRedemption[]
+  payments    Payment[]
 
   @@index([userId, createdAt])
   @@map("orders")
@@ -977,6 +980,63 @@ model CouponRedemption {
 
   @@unique([couponId, userId])
   @@map("coupon_redemptions")
+}
+
+/// Two rails with different shapes. STRIPE is instant and confirms via webhook.
+/// BKASH is manual: the learner pays out-of-band and an admin verifies.
+enum PaymentMethod {
+  STRIPE
+  BKASH
+}
+
+enum PaymentStatus {
+  PENDING
+  /// Manual rails only — learner has submitted proof, awaiting an admin.
+  PENDING_VERIFICATION
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+/// Rail-specific requirements are enforced by conditional CHECK constraints that
+/// Prisma cannot express — see prisma/migrations/*_payment_check_constraints.
+/// The important one: a BKASH payment cannot reach COMPLETED without verifiedBy.
+model Payment {
+  id       String        @id @default(uuid(7))
+  orderId  String
+  userId   String
+  method   PaymentMethod
+  status   PaymentStatus @default(PENDING)
+  amount   Int
+  currency String        @default("USD")
+
+  // Stripe rail
+  stripePaymentIntentId String? @unique
+  stripeChargeId        String?
+
+  // bKash rail — learner-submitted proof
+  bkashTransactionId String?
+  bkashPhoneNumber   String?
+  bkashPaymentDate   DateTime?
+  bkashReference     String?
+
+  // Manual verification trail
+  verifiedById      String?
+  verifiedAt        DateTime?
+  verificationNotes String?   @db.Text
+
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user       User  @relation("PaymentUser", fields: [userId], references: [id])
+  verifiedBy User? @relation("PaymentVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  // The admin verification queue reads this.
+  @@index([status, method])
+  @@index([userId])
+  @@index([orderId])
+  @@map("payments")
 }
 
 enum RefundStatus {
