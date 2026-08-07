@@ -191,9 +191,12 @@ These are decided, not assumed. They shape the whole catalog.
 
 | Feature | Phase |
 |---|---|
-| Per-course pricing with multi-currency support | P0 |
+| Per-course pricing with multi-currency support (USD + BDT) | P0 |
 | Shopping cart, multi-item checkout | P0 |
-| Payment processing (cards, wallets, regional methods) | P0 |
+| Stripe card payment — instant, automatic entitlement | P0 |
+| **bKash manual transfer** — learner submits transaction ID, phone, and date | P0 |
+| bKash: admin verification queue, approve/reject with notes | P0 |
+| bKash: learner-facing pending state and rejection reason | P0 |
 | Coupon codes: percentage/fixed, expiry, usage caps, course-scoped | P1 |
 | Sitewide promotions and sale pricing | P1 |
 | Free courses (price 0) and free enrollment path | P0 |
@@ -203,6 +206,16 @@ These are decided, not assumed. They shape the whole catalog.
 | Gift a course / redeem gift code | P2 |
 | Bulk/team purchase with seat assignment | P2 |
 | Enrollment entitlements decoupled from purchase (grant/revoke) | P0 |
+
+> **Two payment rails, not one.** Stripe is instant and grants entitlement from a webhook. bKash is
+> a *manual* rail: the learner pays out-of-band, submits proof, and an admin verifies. That means a
+> payment can sit in `PENDING_VERIFICATION` for hours, so the UI must show pending state honestly
+> and the admin queue is P0 rather than a nice-to-have — without it, bKash payments are invisible
+> and nobody gets enrolled.
+>
+> Prior art for the schema is in [PRIOR-ART.md](PRIOR-ART.md#1-conditional-check-constraints-for-multi-method-payments-),
+> including the constraint that makes it impossible to mark a manual payment completed without
+> recording who verified it.
 
 > **Subscriptions are out of scope.** Purchase is one-time and access is permanent, so there is no
 > recurring billing, dunning, proration, or grace-period handling to build — a meaningful P0
@@ -250,6 +263,7 @@ These are decided, not assumed. They shape the whole catalog.
 | Coupon/promotion administration | P1 |
 | Audit log of privileged actions | P1 |
 | Feature flags | P1 |
+| **bKash verification queue** — review submitted transactions, approve/reject with notes | P0 |
 | Support tooling: issue refund, grant enrollment, reissue certificate | P1 |
 | Background job monitoring (transcode, email, ASR) | P0 |
 | Rate limiting and abuse prevention | P1 |
