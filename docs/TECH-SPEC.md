@@ -77,6 +77,30 @@ PostgreSQL, single schema, `snake_case` tables, UUIDv7 primary keys.
 - `coupon_redemptions` — coupon_id, user_id, order_id
 - `refunds` — order_item_id, amount, reason, status
 
+### Payments
+
+Two rails. `orders` stays payment-agnostic; the rail-specific detail lives here.
+
+- `payments` — order_id, method (`STRIPE` | `BKASH`), status
+  (`PENDING` | `PENDING_VERIFICATION` | `COMPLETED` | `FAILED` | `REFUNDED`), amount, currency
+  - Stripe: `stripe_payment_intent_id`, `stripe_charge_id`
+  - bKash: `transaction_id`, `phone_number`, `payment_date`, `bkash_reference`
+  - Verification: `verified_by`, `verified_at`, `verification_notes`
+
+Rail-specific requirements are enforced by conditional CHECK constraints rather than in the service
+layer, following the pattern in [PRIOR-ART.md](PRIOR-ART.md#1-conditional-check-constraints-for-multi-method-payments-):
+
+```sql
+CHECK (method != 'BKASH' OR transaction_id IS NOT NULL)
+CHECK (method != 'BKASH' OR phone_number ~ '^01\d{9}$')
+CHECK (method != 'BKASH' OR currency = 'BDT')
+CHECK (method != 'BKASH' OR status != 'COMPLETED' OR verified_by IS NOT NULL)
+```
+
+The last one is load-bearing: a manual payment cannot reach `COMPLETED` without recording the human
+who verified it. Manual verification is where both fraud and honest error concentrate, and a rule
+that lives only in a service method will not survive contact with a deadline.
+
 Purchases are one-time and access is permanent, so there is no `subscriptions` table, no billing
 period state, and no dunning or proration logic.
 
@@ -111,6 +135,34 @@ These are the decisions that are expensive to change later. Treat them as load-b
    content types.
 4. **Reviews require an active enrollment.** Enforce in the service layer *and* with a DB
    constraint.
+
+5. **Payment confirmation comes from a Stripe webhook, never from the browser returning.**
+   The success-redirect handler may *also* confirm, as a latency optimisation, but it cannot be the
+   only path. A learner who pays and then closes the tab, loses connection, or gets a failed
+   redirect must still end up enrolled.
+
+   This is not hypothetical. The prior codebase at `GitHub/v3` confirms orders exclusively in a
+   `verify-payment` function called by the browser after redirect, has no webhook handler, and
+   consequently needed a `cancel_unpaid_order` routine to sweep up orders that were paid for but
+   never confirmed. Enrollment grants hang off this, so getting it wrong means someone pays and
+   receives nothing.
+
+   Concretely: handle `checkout.session.completed`, verify the signature with
+   `STRIPE_WEBHOOK_SECRET`, and make the handler idempotent — Stripe retries, and the redirect path
+   may already have confirmed the same order.
+
+6. **Entitlement is granted by exactly one code path, regardless of payment rail.** Stripe confirms
+   via webhook; bKash confirms via admin approval. Both must converge on the *same* function that
+   creates the `enrollments` row — not two parallel implementations that drift.
+
+   This follows from invariant 1. If access were inferred from payment records, each rail would need
+   its own branch in the auth check and the two would diverge. Because access reads `enrollments`,
+   a rail only has to answer one question: has this been paid for, yes or no.
+
+7. **Money is computed server-side from stored values only.** Prices, discounts, tax, and any fees
+   are read from the database inside the transaction. Never accept an amount, rate, or fee as a
+   parameter from the client, even one that currently defaults to zero — a defaulted parameter is
+   still a parameter, and RPC endpoints are callable directly regardless of what the UI sends.
 
 ## Stack
 
@@ -284,6 +336,19 @@ Playwright. Must pass before P0 sign-off.
 - **Free course** — a course priced 0 enrolls without touching checkout, and still produces a
   normal `enrollments` row rather than a special case.
 - **Refund** — refunding an order revokes the enrollment and blocks playback.
+- **Payment without redirect** — complete a Stripe test payment, then discard the browser session
+  before the success redirect fires. The webhook must still create the enrollment. This is the
+  check that would have caught the gap in the prior codebase.
+- **Webhook idempotency** — replay the same `checkout.session.completed` event twice; the second
+  delivery must not double-enroll or double-count a coupon redemption.
+- **bKash happy path** — submit a transaction, confirm the payment sits in `PENDING_VERIFICATION`
+  with no enrollment, approve it as an admin, confirm the enrollment appears and `verified_by` is
+  populated.
+- **bKash cannot self-approve** — attempt to set a bKash payment to `COMPLETED` without
+  `verified_by`; the database constraint must reject it. Test at the DB level, not through the
+  service, since the point is that the service can't bypass it.
+- **Both rails converge** — a Stripe purchase and an approved bKash payment for the same course
+  produce structurally identical `enrollments` rows (differing only in `source`).
 - **Progress rollup** — recompute `course_progress` from `item_progress` in a job and assert it
   matches the live value. Catches rollup drift.
 - **Transcode failure** — force a bad upload, confirm status surfaces in the studio and retry works.
