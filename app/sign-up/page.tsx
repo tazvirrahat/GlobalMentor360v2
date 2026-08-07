@@ -1,28 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { MailCheck } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { signUp } from "@/lib/auth-client";
+import { sendVerificationEmail, signUp } from "@/lib/auth-client";
 
 export default function SignUpPage() {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setPending(true);
 
-    const { error: signUpError } = await signUp.email({ name, email, password });
+    const { error: signUpError } = await signUp.email({
+      name,
+      email,
+      password,
+      // Where the verification link lands after it signs the user in.
+      callbackURL: "/dashboard",
+    });
 
     setPending(false);
 
@@ -31,8 +39,48 @@ export default function SignUpPage() {
       return;
     }
 
-    router.push("/dashboard");
-    router.refresh();
+    // No session exists yet — access starts when the emailed link is clicked.
+    setSubmittedEmail(email);
+  }
+
+  async function onResend() {
+    if (!submittedEmail) return;
+    setResent(false);
+    await sendVerificationEmail({ email: submittedEmail, callbackURL: "/dashboard" });
+    setResent(true);
+  }
+
+  if (submittedEmail) {
+    return (
+      <main className="mx-auto flex max-w-md flex-col gap-6 px-4 py-16 sm:px-6">
+        <Alert role="status">
+          <MailCheck className="size-4 text-brand" />
+          <AlertTitle>Check your email</AlertTitle>
+          <AlertDescription>
+            <p>
+              We sent a verification link to <strong>{submittedEmail}</strong>. Click it to
+              activate your account — you can&rsquo;t sign in until then. The link expires in one
+              hour.
+            </p>
+            <div className="mt-3 flex items-center gap-3">
+              <Button type="button" variant="outline" size="sm" onClick={onResend}>
+                Resend email
+              </Button>
+              {resent ? (
+                <span className="text-xs text-muted-foreground">Sent — check your inbox.</span>
+              ) : null}
+            </div>
+          </AlertDescription>
+        </Alert>
+
+        <p className="text-center text-sm text-muted-foreground">
+          Already verified?{" "}
+          <Link href="/sign-in" className="font-semibold text-brand hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </main>
+    );
   }
 
   return (
