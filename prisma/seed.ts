@@ -234,6 +234,17 @@ async function seedCourse(instructorId: string) {
     create: { courseId: course.id, currency: "USD", amount: 4900, isActive: true },
   });
 
+  // bKash settles in BDT, so a course without a BDT price cannot be bought on
+  // that rail at all. Priced independently rather than converted — FX drift
+  // would silently change what learners are charged.
+  await db.price.upsert({
+    where: {
+      courseId_currency_isActive: { courseId: course.id, currency: "BDT", isActive: true },
+    },
+    update: { amount: 599000 },
+    create: { courseId: course.id, currency: "BDT", amount: 599000, isActive: true },
+  });
+
   return course;
 }
 
