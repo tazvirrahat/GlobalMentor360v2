@@ -1,41 +1,51 @@
 # GlobalMentor360
 
-An online learning platform with a Udemy-style feature surface, scoped as a
-**single-organization academy** — we own all content. No third-party instructors, no revenue
-share, no marketplace mechanics.
-
-Mentorship features (1:1 booking, live sessions, cohorts) are planned for a later phase and are
-specced up front so the data model accommodates them.
+A **single-organization online academy** — we own all content. No third-party
+instructors, no revenue share, no marketplace mechanics. Mentorship features
+(1:1 booking, live sessions, cohorts) are planned for a later phase.
 
 ## Status
 
-Early scaffold. Authentication works end to end; nothing else does.
+P0 MVP is in place end to end:
 
-**Works:** registration, sign-in, sign-out, session-gated routes, role assignment, the course
-catalog and landing page with entitlement-aware preview/locked marking, and the payment CHECK
-constraints (verified against the database, not just declared).
+| Area | Status |
+|---|---|
+| Auth (Better Auth, email/password, roles) | Working |
+| Catalog + search/filters | Working |
+| Course landing with Buy / Enrol free | Working |
+| bKash manual checkout + admin verification | Working |
+| Stripe Checkout (automatic rail) | Working when credentials are set |
+| Authoring studio + curriculum | Working |
+| AWS video upload / MediaConvert / CloudFront | Provider wired; needs rotated AWS keys |
+| Course player + quiz-gated unlock | Working |
+| Progress + certificates | Working |
+| My Learning dashboard | Working |
 
-**Doesn't exist yet:** search, the course player, progress tracking, checkout, certificates, the
-authoring studio. The video provider interface is written but has never run against a real Bunny
-account.
+## Stack
+
+- **Next.js 16** (App Router) + React 19 + TypeScript
+- **Postgres 16** via Prisma 7
+- **Better Auth** (open source, self-hosted — no Supabase)
+- **Tailwind CSS v4** + shadcn/ui
+- **Payments:** Stripe (automatic) + bKash manual admin-verify
+- **Video:** AWS S3 → MediaConvert → CloudFront signed URLs
 
 ## Getting started
 
 ```bash
 npm install
 cp .env.example .env
+# fill BETTER_AUTH_SECRET (npx @better-auth/cli secret)
 docker compose up -d
-npm run db:generate && npm run db:push && npm run db:seed
+npm run db:generate && npm run db:migrate && npm run db:seed
 npm run dev
 ```
 
-The default `DATABASE_URL` in `.env.example` already matches the compose file, so nothing needs
-editing for local work. `db:generate` works without a database; `db:push` and `db:seed` do not.
-
-The seed creates two accounts, both with password `dev-password-12345`:
+Seed accounts (password `dev-password-12345`):
 
 | Email | Roles |
 |---|---|
+| `learner@example.com` | learner (enrolled in the sample course) |
 | `instructor@example.com` | learner, instructor |
 | `admin@example.com` | learner, admin |
 
@@ -46,33 +56,38 @@ The seed creates two accounts, both with password `dev-password-12345`:
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
 | `npm run test` | Vitest (unit) |
-| `npm run test:watch` | Vitest in watch mode |
-| `npm run test:db` | Payment constraint tests (needs the Postgres container running) |
-| `npm run db:generate` | Regenerate the Prisma client (run after schema changes) |
-| `npm run db:push` | Push schema to the database without a migration |
-| `npm run db:migrate` | Create and apply a migration |
-| `npm run db:seed` | Seed taxonomy, staff accounts, and a sample course |
+| `npm run test:db` | Payment CHECK constraint tests (needs Postgres) |
+| `npm run test:e2e` | Playwright critical path (needs `npm run dev`) |
+| `npm run db:migrate` | Apply migrations |
+| `npm run db:seed` | Taxonomy, staff/learner accounts, sample course |
 | `npm run db:studio` | Browse the database |
+
+### Stripe (local)
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
+
+Put the webhook signing secret into `STRIPE_WEBHOOK_SECRET` and a test secret key
+into `STRIPE_SECRET_KEY`. Without them the card rail hides itself at checkout.
+
+### AWS video
+
+Reuse the existing `globalmentor360-mumbai` bucket / MediaConvert role /
+CloudFront distribution in `ap-south-1` (identifiers are in `.env.example`).
+**Rotate the access keys and CloudFront key pair first** — the previous
+prototype committed them to git history. P0 content protection is CloudFront
+signed URLs; DRM is deferred.
 
 ## Documentation
 
 | Document | Contents |
 |---|---|
-| [docs/FEATURES.md](docs/FEATURES.md) | Complete feature catalog — 16 categories, each feature phase-tagged P0–P3 |
-| [docs/TECH-SPEC.md](docs/TECH-SPEC.md) | Data model, invariants, stack, build phases, verification strategy |
-
-## Phases at a glance
-
-- **P0 — MVP.** A learner can find, buy, watch, and complete a course.
-- **P1 — Fast follow.** Captions, notes, practice tests, assignments, coupons, analytics.
-- **P2 — Mature.** Learning paths, recommendations, coding exercises, AI assistant, gifting.
-- **P3 — Mentorship.** 1:1 booking, live sessions, cohorts, native apps, offline.
+| [docs/FEATURES.md](docs/FEATURES.md) | Feature catalog, phases P0–P3 |
+| [docs/TECH-SPEC.md](docs/TECH-SPEC.md) | Data model, invariants, stack, verification |
+| [docs/PRIOR-ART.md](docs/PRIOR-ART.md) | Lessons from the old prototype |
 
 ## Commercial model
 
-Paid platform, **per-course purchase** — buy a course, keep access indefinitely. Free preview
-lectures are supported, and a course may be published at price 0 as lead generation.
-
-Subscriptions are out of scope. Access is permanent, so there is no recurring billing, dunning, or
-proration to build. Full scope decisions are in
-[docs/FEATURES.md](docs/FEATURES.md#confirmed-scope).
+Per-course purchase — buy once, keep forever. Free preview lectures and
+price-0 courses are supported. Subscriptions are out of scope.

@@ -16,6 +16,7 @@ import {
   togglePreview,
   type CurriculumState,
 } from "../../../curriculum-actions";
+import { LectureVideoPanel, type LectureVideoInfo } from "./video-upload";
 
 const initial: CurriculumState = { status: "idle" };
 
@@ -25,6 +26,7 @@ type Item = {
   type: string;
   position: number;
   isPreview: boolean;
+  lecture: LectureVideoInfo | null;
 };
 
 type Section = {
@@ -182,20 +184,25 @@ export function SectionList({ sections }: { sections: Section[] }) {
               ) : (
                 <ol className="flex flex-col divide-y">
                   {section.items.map((item, index) => (
-                    <li key={item.id} className="flex items-center justify-between gap-2 py-2">
-                      <span className="flex items-center gap-2 text-sm">
-                        {item.title}
-                        {item.isPreview ? (
-                          <Badge variant="outline" className="text-brand">
-                            Preview
-                          </Badge>
-                        ) : null}
-                      </span>
-                      <ItemControls
-                        item={item}
-                        isFirst={index === 0}
-                        isLast={index === section.items.length - 1}
-                      />
+                    <li key={item.id} className="flex flex-col gap-2 py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-2 text-sm">
+                          {item.title}
+                          {item.isPreview ? (
+                            <Badge variant="outline" className="text-brand">
+                              Preview
+                            </Badge>
+                          ) : null}
+                        </span>
+                        <ItemControls
+                          item={item}
+                          isFirst={index === 0}
+                          isLast={index === section.items.length - 1}
+                        />
+                      </div>
+                      {item.type === "LECTURE" ? (
+                        <LectureVideoPanel itemId={item.id} lecture={item.lecture} />
+                      ) : null}
                     </li>
                   ))}
                 </ol>

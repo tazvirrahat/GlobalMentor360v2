@@ -1,3 +1,5 @@
+import type { Prisma } from "@/generated/prisma/client";
+import type { CourseLevel } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 
 /**
@@ -20,9 +22,33 @@ export function formatPrice(amount: number, currency: string): string {
   return new Intl.NumberFormat("en", { style: "currency", currency }).format(amount / 100);
 }
 
-export async function listPublishedCourses() {
+export type CatalogFilters = {
+  /** Case-insensitive substring match on title, subtitle or description. */
+  query?: string;
+  level?: CourseLevel;
+  categorySlug?: string;
+};
+
+export async function listPublishedCourses(filters: CatalogFilters = {}) {
+  const { query, level, categorySlug } = filters;
+
+  const where: Prisma.CourseWhereInput = {
+    status: "PUBLISHED",
+    ...(level ? { level } : {}),
+    ...(categorySlug ? { primaryCategory: { slug: categorySlug } } : {}),
+    ...(query
+      ? {
+          OR: [
+            { title: { contains: query, mode: "insensitive" } },
+            { subtitle: { contains: query, mode: "insensitive" } },
+            { description: { contains: query, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+
   const courses = await db.course.findMany({
-    where: { status: "PUBLISHED" },
+    where,
     orderBy: { publishedAt: "desc" },
     select: {
       id: true,
@@ -62,6 +88,15 @@ export async function listPublishedCourses() {
       lectureCount,
       price: course.prices[0] ?? null,
     };
+  });
+}
+
+/** Categories that have at least one published course — for catalog filter pills. */
+export async function listCatalogCategories() {
+  return db.category.findMany({
+    where: { courses: { some: { status: "PUBLISHED" } } },
+    orderBy: { position: "asc" },
+    select: { id: true, name: true, slug: true },
   });
 }
 
