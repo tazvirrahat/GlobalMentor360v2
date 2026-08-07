@@ -45,3 +45,9 @@ Thumbs.db
 # misc
 *.tsbuildinfo
 .vercel
+
+# old prototype kept on disk for reference only — never commit (contains its own git repo)
+globalmentor360/
+
+# claude worktrees
+.claude/
