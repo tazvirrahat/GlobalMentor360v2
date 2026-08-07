@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Validation for the bKash manual rail.
+ * Input validation for the bKash manual rail.
  *
  * These rules deliberately mirror the CHECK constraints in
  * prisma/migrations/*_payment_check_constraints. The database is the authority —
@@ -35,6 +35,3 @@ export const bkashSubmissionSchema = z.object({
 });
 
 export type BkashSubmission = z.infer<typeof bkashSubmissionSchema>;
-
-/** bKash settles in BDT; the constraint rejects anything else. */
-export const BKASH_CURRENCY = "BDT";

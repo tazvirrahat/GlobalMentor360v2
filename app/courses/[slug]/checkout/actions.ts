@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { isEnrolled } from "@/lib/entitlement";
-import { BKASH_CURRENCY, bkashSubmissionSchema } from "@/lib/payments";
+import { bkashManualRail, BKASH_CURRENCY, bkashSubmissionSchema } from "@/lib/payments";
 import { getCurrentUser } from "@/lib/session";
 
 export type SubmitState =
@@ -41,11 +41,11 @@ export async function submitBkashPayment(
     select: {
       id: true,
       slug: true,
-      // bKash settles in BDT, so the BDT price is the only valid basis for this
-      // rail. Taking the USD price and relabelling it BDT would record a wildly
-      // wrong amount — 4900 USD-cents is not 4900 poisha.
+      // Each rail settles in one currency, so the price must exist in it. Taking
+      // the USD price and relabelling it BDT would record a wildly wrong amount —
+      // 4900 USD-cents is not 4900 poisha.
       prices: {
-        where: { isActive: true, currency: BKASH_CURRENCY },
+        where: { isActive: true, currency: bkashManualRail.currency },
         select: { amount: true, currency: true },
       },
     },
@@ -57,13 +57,13 @@ export async function submitBkashPayment(
     return { status: "error", message: "You already have access to this course." };
   }
 
-  // Price comes from the database, never the form (invariant 6). The submitted
-  // amount is not a field the learner can influence.
+  // Price comes from the database, never the form (invariant 6). The amount is
+  // not a field the learner can influence.
   const price = course.prices[0];
   if (!price) {
     return {
       status: "error",
-      message: "bKash isn't available for this course yet — it has no BDT price.",
+      message: `bKash isn't available for this course yet — it has no ${BKASH_CURRENCY} price.`,
     };
   }
 
@@ -83,36 +83,17 @@ export async function submitBkashPayment(
     };
   }
 
-  await db.$transaction(async (tx) => {
-    const order = await tx.order.create({
-      data: {
-        userId: user.id,
-        status: "PENDING",
-        currency: BKASH_CURRENCY,
-        subtotal: price.amount,
-        total: price.amount,
-        items: {
-          create: { courseId: course.id, unitPrice: price.amount },
-        },
-      },
-    });
-
-    await tx.payment.create({
-      data: {
-        orderId: order.id,
-        userId: user.id,
-        method: "BKASH",
-        // No enrollment is created here. Access is granted only when an admin
-        // approves — that is the entire point of the manual rail.
-        status: "PENDING_VERIFICATION",
-        amount: price.amount,
-        currency: BKASH_CURRENCY,
-        bkashTransactionId: input.transactionId,
-        bkashPhoneNumber: input.phoneNumber,
-        bkashPaymentDate: new Date(input.paymentDate),
-        bkashReference: input.reference ? input.reference : null,
-      },
-    });
+  // Records the claim only. Access is granted at approval, never here.
+  await bkashManualRail.submitProof({
+    userId: user.id,
+    courseId: course.id,
+    amount: price.amount,
+    proof: {
+      transactionId: input.transactionId,
+      phoneNumber: input.phoneNumber,
+      paymentDate: input.paymentDate,
+      reference: input.reference ?? null,
+    },
   });
 
   revalidatePath(`/courses/${course.slug}`);
