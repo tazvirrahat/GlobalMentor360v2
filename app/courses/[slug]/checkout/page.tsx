@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CircleCheck, Hourglass } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatPrice, getPublishedCourseBySlug } from "@/lib/courses";
 import { db } from "@/lib/db";
 import { isEnrolled } from "@/lib/entitlement";
@@ -9,7 +13,7 @@ import { BkashForm } from "./bkash-form";
 
 type Params = { params: Promise<{ slug: string }> };
 
-export const metadata = { title: "Checkout — GlobalMentor360" };
+export const metadata = { title: "Checkout" };
 
 export default async function CheckoutPage({ params }: Params) {
   const { slug } = await params;
@@ -20,10 +24,17 @@ export default async function CheckoutPage({ params }: Params) {
 
   if (await isEnrolled(user.id, course.id)) {
     return (
-      <main>
-        <h1>{course.title}</h1>
-        <p>You already have access to this course.</p>
-        <Link href={`/courses/${course.slug}`}>Back to the course</Link>
+      <main className="mx-auto max-w-lg px-4 py-16 sm:px-6">
+        <Alert>
+          <CircleCheck className="size-4 text-brand" />
+          <AlertTitle>You already have access</AlertTitle>
+          <AlertDescription>
+            <p>{course.title} is in your library.</p>
+            <Button asChild variant="outline" size="sm" className="mt-2">
+              <Link href={`/courses/${course.slug}`}>Back to the course</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
       </main>
     );
   }
@@ -46,29 +57,43 @@ export default async function CheckoutPage({ params }: Params) {
   });
 
   return (
-    <main>
-      <h1>Checkout</h1>
-      <h2>{course.title}</h2>
+    <main className="mx-auto max-w-lg px-4 py-12 sm:px-6">
+      <h1 className="text-3xl font-extrabold tracking-tight">Checkout</h1>
+      <p className="mt-1 text-muted-foreground">{course.title}</p>
 
-      {pending ? (
-        <div role="status">
-          <h3>Awaiting verification</h3>
-          <p>
-            You submitted transaction <strong>{pending.bkashTransactionId}</strong> on{" "}
-            {pending.createdAt.toLocaleDateString("en-GB")}. An admin will confirm it shortly.
-          </p>
-        </div>
-      ) : bdtPrice ? (
-        <>
-          <h3>Pay with bKash</h3>
-          <p>
-            Amount to send: <strong>{formatPrice(bdtPrice.amount, bdtPrice.currency)}</strong>
-          </p>
-          <BkashForm courseId={course.id} />
-        </>
-      ) : (
-        <p>bKash isn&rsquo;t available for this course yet — it has no BDT price.</p>
-      )}
+      <div className="mt-8">
+        {pending ? (
+          <Alert role="status">
+            <Hourglass className="size-4 text-brand" />
+            <AlertTitle>Awaiting verification</AlertTitle>
+            <AlertDescription>
+              You submitted transaction <strong>{pending.bkashTransactionId}</strong> on{" "}
+              {pending.createdAt.toLocaleDateString("en-GB")}. An admin will confirm it shortly —
+              you&rsquo;ll get access as soon as it&rsquo;s approved.
+            </AlertDescription>
+          </Alert>
+        ) : bdtPrice ? (
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>Pay with bKash</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Amount to send:{" "}
+                <strong className="text-lg text-brand">
+                  {formatPrice(bdtPrice.amount, bdtPrice.currency)}
+                </strong>
+              </p>
+            </CardHeader>
+            <CardContent>
+              <BkashForm courseId={course.id} />
+            </CardContent>
+          </Card>
+        ) : (
+          <Alert>
+            <AlertTitle>bKash isn&rsquo;t available for this course yet</AlertTitle>
+            <AlertDescription>It has no BDT price.</AlertDescription>
+          </Alert>
+        )}
+      </div>
     </main>
   );
 }

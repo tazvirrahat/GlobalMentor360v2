@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, ChevronRight, CircleCheck, CircleX } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/session";
 import { getOwnedCourse, readinessChecks } from "@/lib/studio";
 import { PublishForm, SettingsForm } from "./settings-form";
@@ -22,34 +26,67 @@ export default async function CourseSettingsPage({ params }: Params) {
   const ready = checks.every((check) => check.ok);
 
   return (
-    <main>
-      <p>
-        <Link href="/studio">← Studio</Link>
-      </p>
+    <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <Link
+        href="/studio"
+        className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" aria-hidden /> Studio
+      </Link>
 
-      <h1>{course.title}</h1>
-      <p>Status: {course.status}</p>
-      <p>
-        <Link href={`/studio/courses/${course.id}/curriculum`}>Edit curriculum →</Link>
-      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <h1 className="text-3xl font-extrabold tracking-tight">{course.title}</h1>
+        <Badge variant={course.status === "PUBLISHED" ? "default" : "secondary"}>
+          {course.status}
+        </Badge>
+      </div>
 
-      <section>
-        <h2>Readiness</h2>
-        <ul>
-          {checks.map((check) => (
-            <li key={check.label}>
-              {check.ok ? "✓" : "✗"} {check.label}
-              {check.ok ? null : <span> — {check.hint}</span>}
-            </li>
-          ))}
-        </ul>
-        <PublishForm courseId={course.id} status={course.status} ready={ready} />
-      </section>
+      <Button asChild variant="outline" className="mt-4">
+        <Link href={`/studio/courses/${course.id}/curriculum`}>
+          Edit curriculum <ChevronRight className="size-4" aria-hidden />
+        </Link>
+      </Button>
 
-      <section>
-        <h2>Settings</h2>
-        <SettingsForm course={course} />
-      </section>
+      <div className="mt-10 grid gap-8 lg:grid-cols-[360px_1fr]">
+        <section>
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>Readiness</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <ul className="flex flex-col gap-2 text-sm">
+                {checks.map((check) => (
+                  <li key={check.label} className="flex items-start gap-2">
+                    {check.ok ? (
+                      <CircleCheck className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
+                    ) : (
+                      <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+                    )}
+                    <span>
+                      {check.label}
+                      {check.ok ? null : (
+                        <span className="block text-xs text-muted-foreground">{check.hint}</span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <PublishForm courseId={course.id} status={course.status} ready={ready} />
+            </CardContent>
+          </Card>
+        </section>
+
+        <section>
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SettingsForm course={course} />
+            </CardContent>
+          </Card>
+        </section>
+      </div>
     </main>
   );
 }

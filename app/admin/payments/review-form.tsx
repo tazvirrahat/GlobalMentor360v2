@@ -1,6 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { approvePayment, rejectPayment, type ReviewState } from "./actions";
 
 const initial: ReviewState = { status: "idle" };
@@ -13,27 +17,39 @@ export function ReviewForm({ paymentId }: { paymentId: string }) {
   const busy = approving || rejecting;
 
   return (
-    <div>
-      <label htmlFor={`notes-${paymentId}`}>Notes</label>
-      <input id={`notes-${paymentId}`} name="notes" form={`approve-${paymentId}`} />
+    <div className="flex flex-col gap-3">
+      <Separator />
 
-      <form action={approve} id={`approve-${paymentId}`}>
-        <input type="hidden" name="paymentId" value={paymentId} />
-        <button type="submit" disabled={busy}>
-          {approving ? "Approving…" : "Approve and enrol"}
-        </button>
-      </form>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`notes-${paymentId}`}>Notes</Label>
+        <Input id={`notes-${paymentId}`} name="notes" form={`approve-${paymentId}`} />
+      </div>
 
-      <form action={reject}>
-        <input type="hidden" name="paymentId" value={paymentId} />
-        <label htmlFor={`reject-notes-${paymentId}`}>Reason for rejection</label>
-        <input id={`reject-notes-${paymentId}`} name="notes" />
-        <button type="submit" disabled={busy}>
-          {rejecting ? "Rejecting…" : "Reject"}
-        </button>
-      </form>
+      <div className="flex flex-wrap items-end gap-3">
+        <form action={approve} id={`approve-${paymentId}`}>
+          <input type="hidden" name="paymentId" value={paymentId} />
+          <Button type="submit" disabled={busy} className="shadow-brand">
+            {approving ? "Approving…" : "Approve and enrol"}
+          </Button>
+        </form>
 
-      {state.status !== "idle" ? <p role="status">{state.message}</p> : null}
+        <form action={reject} className="flex flex-wrap items-end gap-2">
+          <input type="hidden" name="paymentId" value={paymentId} />
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`reject-notes-${paymentId}`}>Reason for rejection</Label>
+            <Input id={`reject-notes-${paymentId}`} name="notes" />
+          </div>
+          <Button type="submit" variant="destructive" disabled={busy}>
+            {rejecting ? "Rejecting…" : "Reject"}
+          </Button>
+        </form>
+      </div>
+
+      {state.status !== "idle" ? (
+        <p role="status" className="text-sm font-medium">
+          {state.message}
+        </p>
+      ) : null}
     </div>
   );
 }
