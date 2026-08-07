@@ -48,7 +48,8 @@ export async function createCourse(_prev: ActionState, formData: FormData): Prom
       // New courses are never live. Publishing is a separate, checked action.
       status: "DRAFT",
       instructorId: user.id,
-      primaryCategoryId: input.categoryId || null,
+      // "none" is the Radix select's stand-in for "no category" — it cannot submit "".
+      primaryCategoryId: input.categoryId && input.categoryId !== "none" ? input.categoryId : null,
     },
     select: { id: true },
   });

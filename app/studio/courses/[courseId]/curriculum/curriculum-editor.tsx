@@ -1,6 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   addItem,
   addSection,
@@ -32,14 +38,20 @@ export function AddSectionForm({ courseId }: { courseId: string }) {
   const [state, action, pending] = useActionState(addSection, initial);
 
   return (
-    <form action={action}>
+    <form action={action} className="flex flex-wrap items-end gap-3">
       <input type="hidden" name="courseId" value={courseId} />
-      <label htmlFor="new-section">New section title</label>
-      <input id="new-section" name="title" required />
-      <button type="submit" disabled={pending}>
+      <div className="flex min-w-52 flex-1 flex-col gap-1.5">
+        <Label htmlFor="new-section">New section title</Label>
+        <Input id="new-section" name="title" required />
+      </div>
+      <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "Add section"}
-      </button>
-      {state.status === "error" ? <p role="alert">{state.message}</p> : null}
+      </Button>
+      {state.status === "error" ? (
+        <p role="alert" className="w-full text-sm font-medium text-destructive">
+          {state.message}
+        </p>
+      ) : null}
     </form>
   );
 }
@@ -48,14 +60,20 @@ function AddItemForm({ sectionId }: { sectionId: string }) {
   const [state, action, pending] = useActionState(addItem, initial);
 
   return (
-    <form action={action}>
+    <form action={action} className="flex flex-wrap items-end gap-3">
       <input type="hidden" name="sectionId" value={sectionId} />
-      <label htmlFor={`item-${sectionId}`}>New lecture title</label>
-      <input id={`item-${sectionId}`} name="title" required />
-      <button type="submit" disabled={pending}>
+      <div className="flex min-w-52 flex-1 flex-col gap-1.5">
+        <Label htmlFor={`item-${sectionId}`}>New lecture title</Label>
+        <Input id={`item-${sectionId}`} name="title" required />
+      </div>
+      <Button type="submit" variant="outline" size="sm" disabled={pending}>
         {pending ? "Adding…" : "Add lecture"}
-      </button>
-      {state.status === "error" ? <p role="alert">{state.message}</p> : null}
+      </Button>
+      {state.status === "error" ? (
+        <p role="alert" className="w-full text-sm font-medium text-destructive">
+          {state.message}
+        </p>
+      ) : null}
     </form>
   );
 }
@@ -66,35 +84,60 @@ function ItemControls({ item, isFirst, isLast }: { item: Item; isFirst: boolean;
   const [, remove, removing] = useActionState(deleteItem, initial);
 
   return (
-    <span>
-      <form action={move} style={{ display: "inline" }}>
+    <span className="flex items-center gap-1">
+      <form action={move}>
         <input type="hidden" name="itemId" value={item.id} />
         <input type="hidden" name="direction" value="up" />
-        <button type="submit" disabled={moving || isFirst} aria-label={`Move ${item.title} up`}>
-          ↑
-        </button>
+        <Button
+          type="submit"
+          variant="ghost"
+          size="icon-sm"
+          disabled={moving || isFirst}
+          aria-label={`Move ${item.title} up`}
+        >
+          <ArrowUp aria-hidden />
+        </Button>
       </form>
 
-      <form action={move} style={{ display: "inline" }}>
+      <form action={move}>
         <input type="hidden" name="itemId" value={item.id} />
         <input type="hidden" name="direction" value="down" />
-        <button type="submit" disabled={moving || isLast} aria-label={`Move ${item.title} down`}>
-          ↓
-        </button>
+        <Button
+          type="submit"
+          variant="ghost"
+          size="icon-sm"
+          disabled={moving || isLast}
+          aria-label={`Move ${item.title} down`}
+        >
+          <ArrowDown aria-hidden />
+        </Button>
       </form>
 
-      <form action={toggle} style={{ display: "inline" }}>
+      <form action={toggle}>
         <input type="hidden" name="itemId" value={item.id} />
-        <button type="submit" disabled={toggling}>
-          {item.isPreview ? "Preview on" : "Preview off"}
-        </button>
+        <Button
+          type="submit"
+          variant="ghost"
+          size="icon-sm"
+          disabled={toggling}
+          aria-label={item.isPreview ? `Disable preview for ${item.title}` : `Enable preview for ${item.title}`}
+        >
+          {item.isPreview ? <Eye aria-hidden /> : <EyeOff aria-hidden />}
+        </Button>
       </form>
 
-      <form action={remove} style={{ display: "inline" }}>
+      <form action={remove}>
         <input type="hidden" name="itemId" value={item.id} />
-        <button type="submit" disabled={removing}>
-          Delete
-        </button>
+        <Button
+          type="submit"
+          variant="ghost"
+          size="icon-sm"
+          disabled={removing}
+          aria-label={`Delete ${item.title}`}
+          className="text-destructive hover:text-destructive"
+        >
+          <Trash2 aria-hidden />
+        </Button>
       </form>
     </span>
   );
@@ -104,45 +147,63 @@ function DeleteSectionForm({ sectionId }: { sectionId: string }) {
   const [, action, pending] = useActionState(deleteSection, initial);
 
   return (
-    <form action={action} style={{ display: "inline" }}>
+    <form action={action}>
       <input type="hidden" name="sectionId" value={sectionId} />
-      <button type="submit" disabled={pending}>
-        Delete section
-      </button>
+      <Button
+        type="submit"
+        variant="ghost"
+        size="sm"
+        disabled={pending}
+        className="text-destructive hover:text-destructive"
+      >
+        <Trash2 aria-hidden /> Delete section
+      </Button>
     </form>
   );
 }
 
 export function SectionList({ sections }: { sections: Section[] }) {
-  if (sections.length === 0) return <p>No sections yet.</p>;
+  if (sections.length === 0)
+    return <p className="text-muted-foreground">No sections yet — add the first one below.</p>;
 
   return (
-    <ol>
+    <ol className="flex flex-col gap-6">
       {sections.map((section) => (
         <li key={section.id}>
-          <h3>
-            {section.title} <DeleteSectionForm sectionId={section.id} />
-          </h3>
+          <Card className="rounded-2xl">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <h3 className="font-bold">{section.title}</h3>
+              <DeleteSectionForm sectionId={section.id} />
+            </CardHeader>
 
-          {section.items.length === 0 ? (
-            <p>No lectures in this section.</p>
-          ) : (
-            <ol>
-              {section.items.map((item, index) => (
-                <li key={item.id}>
-                  {item.title}
-                  {item.isPreview ? <strong> · Preview</strong> : null}{" "}
-                  <ItemControls
-                    item={item}
-                    isFirst={index === 0}
-                    isLast={index === section.items.length - 1}
-                  />
-                </li>
-              ))}
-            </ol>
-          )}
+            <CardContent className="flex flex-col gap-4">
+              {section.items.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No lectures in this section.</p>
+              ) : (
+                <ol className="flex flex-col divide-y">
+                  {section.items.map((item, index) => (
+                    <li key={item.id} className="flex items-center justify-between gap-2 py-2">
+                      <span className="flex items-center gap-2 text-sm">
+                        {item.title}
+                        {item.isPreview ? (
+                          <Badge variant="outline" className="text-brand">
+                            Preview
+                          </Badge>
+                        ) : null}
+                      </span>
+                      <ItemControls
+                        item={item}
+                        isFirst={index === 0}
+                        isLast={index === section.items.length - 1}
+                      />
+                    </li>
+                  ))}
+                </ol>
+              )}
 
-          <AddItemForm sectionId={section.id} />
+              <AddItemForm sectionId={section.id} />
+            </CardContent>
+          </Card>
         </li>
       ))}
     </ol>

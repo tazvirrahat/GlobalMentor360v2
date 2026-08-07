@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/session";
 import { getOwnedCurriculum } from "@/lib/studio";
 import { AddSectionForm, SectionList } from "./curriculum-editor";
@@ -19,22 +21,31 @@ export default async function CurriculumPage({ params }: Params) {
   const itemCount = course.sections.reduce((sum, section) => sum + section.items.length, 0);
 
   return (
-    <main>
-      <p>
-        <Link href={`/studio/courses/${course.id}`}>← {course.title}</Link>
-      </p>
+    <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+      <Link
+        href={`/studio/courses/${course.id}`}
+        className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" aria-hidden /> {course.title}
+      </Link>
 
-      <h1>Curriculum</h1>
-      <p>
+      <h1 className="mt-4 text-3xl font-extrabold tracking-tight">Curriculum</h1>
+      <p className="mt-1 text-muted-foreground">
         {course.sections.length} sections · {itemCount} lectures
       </p>
 
-      <SectionList sections={course.sections} />
+      <div className="mt-8">
+        <SectionList sections={course.sections} />
+      </div>
 
-      <section>
-        <h2>Add a section</h2>
-        <AddSectionForm courseId={course.id} />
-      </section>
+      <Card className="mt-8 rounded-2xl">
+        <CardHeader>
+          <CardTitle>Add a section</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AddSectionForm courseId={course.id} />
+        </CardContent>
+      </Card>
     </main>
   );
 }

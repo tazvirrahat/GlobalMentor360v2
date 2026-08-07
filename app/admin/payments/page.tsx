@@ -1,9 +1,11 @@
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatPrice } from "@/lib/courses";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/session";
 import { ReviewForm } from "./review-form";
 
-export const metadata = { title: "Payment verification — GlobalMentor360" };
+export const metadata = { title: "Payment verification" };
 
 // The queue must reflect reality the moment an admin acts on it.
 export const dynamic = "force-dynamic";
@@ -33,36 +35,64 @@ export default async function AdminPaymentsPage() {
   });
 
   return (
-    <main>
-      <h1>Payment verification</h1>
-      <p>{pending.length} awaiting verification</p>
+    <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-extrabold tracking-tight">Payment verification</h1>
+        <Badge variant={pending.length > 0 ? "default" : "secondary"}>
+          {pending.length} awaiting
+        </Badge>
+      </div>
 
       {pending.length === 0 ? (
-        <p>Nothing to review.</p>
+        <p className="mt-8 text-muted-foreground">Nothing to review.</p>
       ) : (
-        <ul>
+        <ul className="mt-8 flex flex-col gap-6">
           {pending.map((payment) => (
             <li key={payment.id}>
-              <h2>{payment.order.items.map((item) => item.course.title).join(", ")}</h2>
-              <dl>
-                <dt>Learner</dt>
-                <dd>
-                  {payment.user.name} ({payment.user.email})
-                </dd>
-                <dt>Amount</dt>
-                <dd>{formatPrice(payment.amount, payment.currency)}</dd>
-                <dt>Transaction ID</dt>
-                <dd>{payment.bkashTransactionId}</dd>
-                <dt>bKash number</dt>
-                <dd>{payment.bkashPhoneNumber}</dd>
-                <dt>Payment date</dt>
-                <dd>{payment.bkashPaymentDate?.toLocaleDateString("en-GB") ?? "—"}</dd>
-                <dt>Reference</dt>
-                <dd>{payment.bkashReference ?? "—"}</dd>
-                <dt>Submitted</dt>
-                <dd>{payment.createdAt.toLocaleString("en-GB")}</dd>
-              </dl>
-              <ReviewForm paymentId={payment.id} />
+              <Card className="rounded-2xl">
+                <CardHeader>
+                  <CardTitle>
+                    {payment.order.items.map((item) => item.course.title).join(", ")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+                    <div>
+                      <dt className="text-muted-foreground">Learner</dt>
+                      <dd className="font-medium">{payment.user.name}</dd>
+                      <dd className="text-xs text-muted-foreground">{payment.user.email}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Amount</dt>
+                      <dd className="font-bold text-brand">
+                        {formatPrice(payment.amount, payment.currency)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Transaction ID</dt>
+                      <dd className="font-mono font-medium">{payment.bkashTransactionId}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">bKash number</dt>
+                      <dd className="font-mono">{payment.bkashPhoneNumber}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Payment date</dt>
+                      <dd>{payment.bkashPaymentDate?.toLocaleDateString("en-GB") ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Reference</dt>
+                      <dd>{payment.bkashReference ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Submitted</dt>
+                      <dd>{payment.createdAt.toLocaleString("en-GB")}</dd>
+                    </div>
+                  </dl>
+
+                  <ReviewForm paymentId={payment.id} />
+                </CardContent>
+              </Card>
             </li>
           ))}
         </ul>
