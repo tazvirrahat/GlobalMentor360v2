@@ -10,7 +10,7 @@ P0 MVP is in place end to end:
 
 | Area | Status |
 |---|---|
-| Auth (Better Auth, email/password, roles) | Working |
+| Auth (Better Auth: email/password, required email verification, password reset, roles) | Working |
 | Catalog + search/filters | Working |
 | Course landing with Buy / Enrol free | Working |
 | bKash manual checkout + admin verification | Working |
