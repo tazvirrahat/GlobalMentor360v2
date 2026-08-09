@@ -6,25 +6,30 @@ import { getSignedPlayback, reportWatchProgress } from "./actions";
 
 /**
  * HLS player. Safari plays HLS natively; everywhere else we load hls.js.
- * Progress is reported every ~15s and on pause/ended — never more often, so
- * a scrubbing learner doesn't hammer the server.
+ * Progress is reported every ~15s, on play, and on pause/ended — never more
+ * often, so a scrubbing learner doesn't hammer the server.
+ *
+ * We report the playhead only. The server decides how much of it counts as
+ * watched, so there is nothing here worth tampering with — the report on play
+ * exists to give it a starting timestamp to meter the next report against.
  */
 export function VideoPlayer({
   itemId,
   slug,
-  durationSeconds,
   startAt,
 }: {
   itemId: string;
   slug: string;
-  durationSeconds: number;
   startAt: number;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const watchedRef = useRef(0);
   const lastReportRef = useRef(0);
+  // Guards reporting against a pending seek. Until the playhead is back where the
+  // learner left off, its position is 0 and persisting that would destroy the
+  // resume point they returned for.
+  const seekedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,8 +88,27 @@ export function VideoPlayer({
         hls = instance;
       }
 
+      // Seek only once the element knows its duration. Assigning currentTime at
+      // readyState HAVE_NOTHING is silently dropped, which used to matter little
+      // — the first progress report was 15s away. Now that play fires one
+      // immediately (to open the metering window), a dropped seek would report
+      // position 0 and overwrite the resume point the learner came back for.
       if (startAt > 0) {
-        el.currentTime = startAt;
+        if (el.readyState >= HTMLMediaElement.HAVE_METADATA) {
+          el.currentTime = startAt;
+        } else {
+          el.addEventListener(
+            "loadedmetadata",
+            () => {
+              el.currentTime = startAt;
+              seekedRef.current = true;
+            },
+            { once: true },
+          );
+        }
+      }
+      if (startAt === 0 || el.readyState >= HTMLMediaElement.HAVE_METADATA) {
+        seekedRef.current = true;
       }
 
       setLoading(false);
@@ -101,16 +125,15 @@ export function VideoPlayer({
   async function report(force = false) {
     const el = videoRef.current;
     if (!el) return;
+    if (!seekedRef.current) return;
     const now = Date.now();
     if (!force && now - lastReportRef.current < 15_000) return;
     lastReportRef.current = now;
 
-    watchedRef.current = Math.max(watchedRef.current, Math.floor(el.currentTime));
     await reportWatchProgress({
       itemId,
       slug,
       positionSeconds: Math.floor(el.currentTime),
-      watchedSeconds: Math.max(watchedRef.current, Math.floor(el.currentTime)),
     });
   }
 
@@ -131,12 +154,10 @@ export function VideoPlayer({
           className="aspect-video w-full"
           controls
           playsInline
+          onPlay={() => void report(true)}
           onPause={() => void report(true)}
           onTimeUpdate={() => void report(false)}
-          onEnded={() => {
-            watchedRef.current = Math.max(watchedRef.current, durationSeconds);
-            void report(true);
-          }}
+          onEnded={() => void report(true)}
         />
       )}
     </div>

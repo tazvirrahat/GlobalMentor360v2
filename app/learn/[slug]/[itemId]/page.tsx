@@ -18,7 +18,7 @@ import {
   getPlayerCourse,
   type PlayerItem,
 } from "@/lib/progress";
-import { requireUser } from "@/lib/session";
+import { getCurrentUser, requireUser } from "@/lib/session";
 import { completeLectureAction } from "../actions";
 import { QuizForm } from "../quiz-form";
 import { VideoPlayer } from "../video-player";
@@ -41,23 +41,29 @@ function ItemIcon({ item }: { item: PlayerItem }) {
 
 export default async function LearnItemPage({ params }: Params) {
   const { slug, itemId } = await params;
-  const user = await requireUser(`/learn/${slug}/${itemId}`);
-  const course = await getPlayerCourse(slug, user.id);
+  // Not requireUser: free preview lectures are playable logged out, and this is
+  // the only route that renders a player (docs/FEATURES.md section B). Sign-in is
+  // demanded below, once we know the item is not a preview.
+  const user = await getCurrentUser();
+  const course = await getPlayerCourse(slug, user?.id ?? null);
   if (!course) notFound();
 
   const flat = course.sections.flatMap((section) => section.items);
   const current = flat.find((item) => item.id === itemId);
   if (!current) notFound();
 
-  // Preview items are playable without enrollment; everything else needs it.
-  if (!course.enrolled && !current.isPreview) {
-    redirect(`/courses/${slug}` as Route);
+  // Preview items are playable without enrollment; everything else needs an
+  // account first, then an enrollment.
+  if (!current.isPreview) {
+    if (!user) await requireUser(`/learn/${slug}/${itemId}`);
+    if (!course.enrolled) redirect(`/courses/${slug}` as Route);
   }
 
-  if (!(await canAccessPlayerItem(user.id, course, itemId))) {
+  if (!(await canAccessPlayerItem(user?.id ?? null, course, itemId))) {
     // Locked by sequential gating — bounce to the course index which finds the
-    // first unlocked item.
-    redirect(`/learn/${slug}` as Route);
+    // first unlocked item. A signed-out visitor has no index to land on, so send
+    // them to the landing page.
+    redirect((user ? `/learn/${slug}` : `/courses/${slug}`) as Route);
   }
 
   const currentIndex = flat.findIndex((item) => item.id === itemId);
@@ -104,7 +110,6 @@ export default async function LearnItemPage({ params }: Params) {
             <VideoPlayer
               itemId={current.id}
               slug={course.slug}
-              durationSeconds={current.lecture.durationSeconds}
               startAt={current.progress?.lastPositionSeconds ?? 0}
             />
           ) : (

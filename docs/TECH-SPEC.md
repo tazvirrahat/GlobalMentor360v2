@@ -181,7 +181,12 @@ These are the decisions that are expensive to change later. Treat them as load-b
    `STRIPE_WEBHOOK_SECRET`, and make the handler idempotent — Stripe retries, and the redirect path
    may already have confirmed the same order.
 
-6. **Entitlement is granted by exactly one code path, regardless of payment rail.** Stripe confirms
+6. **Money is computed server-side from stored values only.** Prices, discounts, tax, and any fees
+   are read from the database inside the transaction. Never accept an amount, rate, or fee as a
+   parameter from the client, even one that currently defaults to zero — a defaulted parameter is
+   still a parameter, and RPC endpoints are callable directly regardless of what the UI sends.
+
+7. **Entitlement is granted by exactly one code path, regardless of payment rail.** Stripe confirms
    via webhook; bKash confirms via admin approval. Both must converge on the *same* function that
    creates the `enrollments` row — not two parallel implementations that drift.
 
@@ -189,10 +194,9 @@ These are the decisions that are expensive to change later. Treat them as load-b
    its own branch in the auth check and the two would diverge. Because access reads `enrollments`,
    a rail only has to answer one question: has this been paid for, yes or no.
 
-7. **Money is computed server-side from stored values only.** Prices, discounts, tax, and any fees
-   are read from the database inside the transaction. Never accept an amount, rate, or fee as a
-   parameter from the client, even one that currently defaults to zero — a defaulted parameter is
-   still a parameter, and RPC endpoints are callable directly regardless of what the UI sends.
+> **The numbering is load-bearing** — `lib/`, `app/`, and `prisma/schema.prisma` cite these by
+> number in comments. Insert new invariants at the end rather than renumbering, or the citations
+> silently start pointing at the wrong rule.
 
 ## Stack
 
@@ -303,7 +307,9 @@ interactive transcripts, keyboard shortcuts, playback telemetry feeding section 
 player we control. Enabling Basic DRM would break those features, so we will not use it.
 
 **What we actually ship at P0: signed, expiring playback URLs.** These are included, work with our
-own player, and are implemented in `lib/video/bunny.ts`. They gate access to the manifest; they do
+own player. Since AWS superseded Bunny (above), these ship as CloudFront signed URLs in
+`lib/video/aws.ts`; `lib/video/bunny.ts` remains only as the reference implementation of the
+previous vendor. They gate access to the manifest; they do
 not encrypt the file. That is the honest security posture — a determined, technically capable
 learner can retain content they have legitimately paid to access. Every course platform below the
 Enterprise-DRM tier has this property, including ones that market otherwise.
@@ -380,7 +386,8 @@ concentrate.
 
 ## Verification
 
-No code exists yet, so verification is defined per phase rather than as a one-time check.
+Verification is defined per phase rather than as a one-time check. The list below is the target;
+see the README status table for what is actually green today. Unticked items are gaps, not history.
 
 ### Critical E2E path
 

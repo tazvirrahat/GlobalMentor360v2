@@ -31,21 +31,20 @@ export async function completeLectureAction(formData: FormData) {
   redirect(`/learn/${slug}` as Route);
 }
 
+/**
+ * The player reports where the playhead is, never how much has been watched —
+ * watch credit is metered server-side in updateWatchPosition so that seeking to
+ * the end of a video cannot complete it.
+ */
 export async function reportWatchProgress(input: {
   itemId: string;
   slug: string;
   positionSeconds: number;
-  watchedSeconds: number;
 }) {
   const user = await getCurrentUser();
   if (!user) return { ok: false as const, message: "Sign in first." };
 
-  const result = await updateWatchPosition(
-    user.id,
-    input.itemId,
-    input.positionSeconds,
-    input.watchedSeconds,
-  );
+  const result = await updateWatchPosition(user.id, input.itemId, input.positionSeconds);
   if (result.ok && result.completed) {
     revalidatePath(`/learn/${input.slug}`);
     revalidatePath("/dashboard");
@@ -79,9 +78,12 @@ export async function getSignedPlayback(itemId: string) {
       expiresAt: playback.expiresAt.toISOString(),
     };
   } catch (error) {
+    // A VideoProviderError names the env vars an operator needs to set. That is
+    // useful in the server log and nowhere near a learner's screen.
+    console.error("Playback signing failed for item %s:", itemId, error);
     return {
       ok: false as const,
-      message: error instanceof Error ? error.message : "Could not sign playback URL.",
+      message: "Video is unavailable right now. Please try again shortly.",
     };
   }
 }

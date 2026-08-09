@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { CourseLevel } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { BKASH_CURRENCY, STRIPE_CURRENCY } from "@/lib/payments";
 
 /**
  * Read models for the public catalog.
@@ -20,6 +21,55 @@ function formatDuration(totalSeconds: number): string {
 export function formatPrice(amount: number, currency: string): string {
   // Amounts are stored as integer minor units.
   return new Intl.NumberFormat("en", { style: "currency", currency }).format(amount / 100);
+}
+
+/**
+ * Currency preference for the single price a learner is shown, best first.
+ *
+ * A course carries one active price *per rail* — USD for Stripe, BDT for bKash —
+ * so two active prices is the normal case and "the price" is a choice, not a
+ * lookup. Reading whichever row Postgres happened to return first meant the
+ * catalog card, the landing page and the free/paid decision could each land on a
+ * different currency, and could disagree with themselves between requests.
+ *
+ * The order mirrors `RAILS` in lib/payments: the automatic rail is the better
+ * offer and leads at checkout, so it leads in the catalog too. Checkout still
+ * prices each rail separately — this only decides the headline.
+ *
+ * Picking the currency the learner can actually pay in is the better answer, and
+ * it needs a locale or region signal we do not collect yet. Until then the point
+ * is that every surface gives the same answer every time.
+ */
+const DISPLAY_CURRENCIES: readonly string[] = [STRIPE_CURRENCY, BKASH_CURRENCY];
+
+export type ActivePrice = { amount: number; currency: string };
+
+/**
+ * The one price to render for a course. Null means the course has no active
+ * price at all — which is "not purchasable", never "free".
+ */
+export function selectDisplayPrice<T extends ActivePrice>(prices: readonly T[]): T | null {
+  for (const currency of DISPLAY_CURRENCIES) {
+    const match = prices.find((price) => price.currency === currency);
+    if (match) return match;
+  }
+
+  // A currency no rail sells in yet still has to render as the same thing on
+  // every request, so fall through to a total order rather than to row order.
+  return [...prices].sort((a, b) => a.currency.localeCompare(b.currency))[0] ?? null;
+}
+
+/**
+ * Free means *every* rail is free. A course priced USD 49 and BDT 0 still
+ * charges on one of its rails, so it is not free — and `enrollFree` refuses it,
+ * which is why the UI must not offer it either.
+ *
+ * No active price is not free either. Absence of pricing data means the course
+ * cannot be sold; the opposite default hands a course out for nothing the moment
+ * its last price is archived.
+ */
+export function isFreeCourse(prices: readonly { amount: number }[]): boolean {
+  return prices.length > 0 && prices.every((price) => price.amount === 0);
 }
 
 export type CatalogFilters = {
@@ -63,6 +113,7 @@ export async function listPublishedCourses(filters: CatalogFilters = {}) {
       primaryCategory: { select: { name: true, slug: true } },
       prices: {
         where: { isActive: true },
+        orderBy: { currency: "asc" },
         select: { amount: true, currency: true },
       },
       sections: {
@@ -86,7 +137,8 @@ export async function listPublishedCourses(filters: CatalogFilters = {}) {
       ...course,
       totalDuration: formatDuration(seconds),
       lectureCount,
-      price: course.prices[0] ?? null,
+      price: selectDisplayPrice(course.prices),
+      isFree: isFreeCourse(course.prices),
     };
   });
 }
@@ -120,7 +172,11 @@ export async function getPublishedCourseBySlug(slug: string) {
       objectives: { orderBy: { position: "asc" }, select: { text: true } },
       requirements: { orderBy: { position: "asc" }, select: { text: true } },
       targetAudience: { orderBy: { position: "asc" }, select: { text: true } },
-      prices: { where: { isActive: true }, select: { amount: true, currency: true } },
+      prices: {
+        where: { isActive: true },
+        orderBy: { currency: "asc" },
+        select: { amount: true, currency: true },
+      },
       sections: {
         orderBy: { position: "asc" },
         select: {
@@ -151,7 +207,8 @@ export async function getPublishedCourseBySlug(slug: string) {
 
   return {
     ...course,
-    price: course.prices[0] ?? null,
+    price: selectDisplayPrice(course.prices),
+    isFree: isFreeCourse(course.prices),
     totalDuration: formatDuration(totalSeconds),
     itemCount: allItems.length,
     sections: course.sections.map((section) => ({

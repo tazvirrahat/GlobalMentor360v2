@@ -22,7 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { canPlayItem, isEnrolled } from "@/lib/entitlement";
+import { isEnrolled } from "@/lib/entitlement";
 import { formatPrice, getPublishedCourseBySlug } from "@/lib/courses";
 import { getCurrentUser } from "@/lib/session";
 import { enrollFree } from "./enroll-free-action";
@@ -65,15 +65,20 @@ export default async function CourseLandingPage({ params }: Params) {
   const user = await getCurrentUser();
   const enrolled = user ? await isEnrolled(user.id, course.id) : false;
 
-  const playable = new Set<string>();
-  for (const section of course.sections) {
-    for (const item of section.items) {
-      const decision = await canPlayItem(user?.id ?? null, item.id);
-      if (decision.allowed) playable.add(item.id);
-    }
-  }
+  // Same rule as canPlayItem (lib/entitlement.ts): preview items play for
+  // anyone, everything else needs a live enrollment. Calling it per item meant
+  // one findUnique per lesson, sequentially, on a public SEO page — 60 round
+  // trips for a 60-lesson course. `isPreview` and the enrollment are already in
+  // hand, so the answer costs nothing.
+  const playable = new Set(
+    course.sections
+      .flatMap((section) => section.items)
+      .filter((item) => item.isPreview || enrolled)
+      .map((item) => item.id),
+  );
 
-  const free = !course.price || course.price.amount === 0;
+  const free = course.isFree;
+  const purchasable = course.price !== null;
 
   return (
     <main>
@@ -117,7 +122,11 @@ export default async function CourseLandingPage({ params }: Params) {
           <Card className="h-fit rounded-2xl">
             <CardContent className="flex flex-col gap-4 p-6">
               <p className="text-3xl font-extrabold text-brand">
-                {free ? "Free" : formatPrice(course.price!.amount, course.price!.currency)}
+                {free
+                  ? "Free"
+                  : course.price
+                    ? formatPrice(course.price.amount, course.price.currency)
+                    : "Not for sale"}
               </p>
 
               {enrolled ? (
@@ -127,16 +136,24 @@ export default async function CourseLandingPage({ params }: Params) {
                   </Link>
                 </Button>
               ) : free ? (
+                // Offered only when enrollFree would actually accept it — the
+                // action requires every active price to be 0, and a button that
+                // silently does nothing is worse than no button.
                 <form action={enrollFree}>
                   <input type="hidden" name="courseId" value={course.id} />
                   <Button type="submit" size="lg" className="w-full shadow-brand">
                     Enrol for free
                   </Button>
                 </form>
-              ) : (
+              ) : purchasable ? (
                 <Button asChild size="lg" className="shadow-brand">
                   <Link href={`/courses/${course.slug}/checkout`}>Buy this course</Link>
                 </Button>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  This course has no price set, so it can&rsquo;t be bought right now. Check back
+                  soon.
+                </p>
               )}
 
               <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
