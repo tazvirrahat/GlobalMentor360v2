@@ -40,6 +40,16 @@ export type OptionDraft = {
   id: string | null;
   text: string;
   isCorrect: boolean;
+  /**
+   * The per-answer note (AnswerOption.explanation), null when the author left it
+   * empty. Distinct from Question.explanation: this one says why *this* option is
+   * the answer or the trap, which is what makes it worth writing per row.
+   *
+   * It is answer-revealing by nature — a note on the correct option gives the
+   * question away — so it belongs to the same instructor-only class as isCorrect
+   * and must not join a query a learner reads before submitting.
+   */
+  explanation: string | null;
 };
 
 export type NormalisedOptions =
@@ -64,7 +74,8 @@ export function normaliseOptions(type: QuestionType, submitted: OptionDraft[]): 
     // ("mark one as correct") instead of a row-count complaint. Destructured
     // because an index lookup stays `T | undefined` however the array was built.
     const [first, second] = [0, 1].map(
-      (index): OptionDraft => submitted[index] ?? { id: null, text: "", isCorrect: false },
+      (index): OptionDraft =>
+        submitted[index] ?? { id: null, text: "", isCorrect: false, explanation: null },
     ) as [OptionDraft, OptionDraft];
 
     if ([first, second].filter((row) => row.isCorrect).length !== 1) {
@@ -74,8 +85,9 @@ export function normaliseOptions(type: QuestionType, submitted: OptionDraft[]): 
     return {
       ok: true,
       options: TRUE_FALSE_LABELS.map((text, index) => {
+        // The label is ours, the note is the author's: only `text` is replaced.
         const row = index === 0 ? first : second;
-        return { id: row.id, text, isCorrect: row.isCorrect };
+        return { id: row.id, text, isCorrect: row.isCorrect, explanation: row.explanation };
       }),
     };
   }

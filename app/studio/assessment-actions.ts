@@ -8,6 +8,7 @@ import {
   getOwnedQuestion,
   MAX_OPTIONS,
   normaliseOptions,
+  QUESTION_MOVE_PARK_POSITION,
   resequenceQuestions,
   writeQuestionOptions,
   type OptionDraft,
@@ -39,7 +40,7 @@ const MAX_TIME_LIMIT_MINUTES = 600;
 const settingsSchema = z.object({
   itemId: z.string().min(1),
   title: z.string().trim().min(1, "Give the quiz a title.").max(200),
-  description: z.string().trim().max(2000).optional().or(z.literal("")),
+  description: z.string().trim().max(2000),
   // A threshold of 0 would pass an empty answer sheet, which is not a quiz. 100
   // is allowed — some authors do want every question right.
   passThresholdPct: z.coerce
@@ -100,34 +101,45 @@ export async function updateAssessment(
 
 const questionSchema = z.object({
   itemId: z.string().min(1),
-  questionId: z.string().optional().or(z.literal("")),
+  // Empty for a new question. Every caller passes `?? ""`, and z.string() already
+  // accepts "", so neither .optional() nor an explicit "" branch buys anything.
+  questionId: z.string(),
   prompt: z.string().trim().min(1, "A question needs a prompt.").max(2000),
   type: z.enum(["SINGLE_CHOICE", "MULTI_SELECT", "TRUE_FALSE"]),
-  explanation: z.string().trim().max(2000).optional().or(z.literal("")),
-  knowledgeArea: z.string().trim().max(80).optional().or(z.literal("")),
+  explanation: z.string().trim().max(2000),
+  knowledgeArea: z.string().trim().max(80),
 });
 
 /**
  * Reads the repeated option inputs back into rows.
  *
- * The three arrays are positional: row `i` is `optionText[i]`, its id is
- * `optionId[i]` (empty for a new row), and it is correct when `i` appears in
- * `correct`. Indexing by position rather than by id is what lets a brand-new
- * option be marked correct before it has an id at all — radios and checkboxes
- * both submit under one `correct` name, so the same parse handles every type.
+ * The four arrays are positional: row `i` is `optionText[i]`, its per-answer note
+ * is `optionExplanation[i]`, its id is `optionId[i]` (empty for a new row), and it
+ * is correct when `i` appears in `correct`. Indexing by position rather than by id
+ * is what lets a brand-new option be marked correct before it has an id at all —
+ * radios and checkboxes both submit under one `correct` name, so the same parse
+ * handles every type.
+ *
+ * The length equality is the whole safety of that scheme, which is why a mismatch
+ * is refused rather than padded: one missing `optionExplanation` would shift every
+ * later note onto the wrong answer, and the result would save cleanly and read as
+ * the author's own words.
  */
 function readOptionDrafts(formData: FormData): OptionDraft[] | null {
   const ids = formData.getAll("optionId").map(String);
   const texts = formData.getAll("optionText").map(String);
+  const explanations = formData.getAll("optionExplanation").map(String);
   const correct = new Set(formData.getAll("correct").map((value) => Number(value)));
 
   if (ids.length !== texts.length) return null;
+  if (explanations.length !== texts.length) return null;
   if (texts.length > MAX_OPTIONS) return null;
 
   return texts.map((text, index) => ({
     id: ids[index] || null,
     text,
     isCorrect: correct.has(index),
+    explanation: explanations[index]?.trim() || null,
   }));
 }
 
@@ -223,6 +235,21 @@ export async function deleteQuestion(
   if (!question) return { status: "error", message: "Question not found." };
 
   await db.$transaction(async (tx) => {
+    // The opposite trade from the one writeQuestionOptions makes for a deleted
+    // option, and worth stating because it is the destructive one.
+    // QuizAttemptAnswer.questionId is a real foreign key with onDelete: Cascade, so
+    // every learner's record of what they answered *here* goes with the row, while
+    // QuizAttempt.scorePct keeps the score that was computed from it. The attempt
+    // goes on saying 60% with one fewer answer behind it.
+    //
+    // Accepted, not overlooked. Nothing reads those rows today — they are written
+    // by submitQuizAttempt and read by nobody — so the cost falls entirely on the
+    // per-question review of a past attempt that docs/FEATURES.md section D still
+    // lists as unbuilt, and the alternative is answers pointing at a question that
+    // no longer exists, which that review could not render either. What must not
+    // move is scorePct: an author editing a quiz cannot be allowed to restate a
+    // grade a learner has already been given, which is the same reason an edited
+    // option leaves past attempts alone.
     await tx.question.delete({ where: { id: question.id } });
     // Close the gap. @@unique([assessmentId, position]) makes a sparse sequence a
     // trap for the next insert, which computes its position from the maximum.
@@ -253,9 +280,13 @@ export async function moveQuestion(
   if (!neighbour) return { status: "done", message: "Already at the end." };
 
   // Same collision as moveItem: @@unique([assessmentId, position]) rejects the
-  // intermediate state of a direct swap, so park one row out of range first.
+  // intermediate state of a direct swap, so park one row out of range first. The
+  // slot is reserved from resequenceQuestions — see QUESTION_MOVE_PARK_POSITION.
   await db.$transaction(async (tx) => {
-    await tx.question.update({ where: { id: question.id }, data: { position: -1 } });
+    await tx.question.update({
+      where: { id: question.id },
+      data: { position: QUESTION_MOVE_PARK_POSITION },
+    });
     await tx.question.update({ where: { id: neighbour.id }, data: { position: question.position } });
     await tx.question.update({ where: { id: question.id }, data: { position: neighbour.position } });
   });

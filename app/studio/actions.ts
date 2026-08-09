@@ -15,10 +15,12 @@ export type ActionState =
 
 const createSchema = z.object({
   title: z.string().trim().min(4, "Give the course a title of at least 4 characters.").max(120),
-  subtitle: z.string().trim().max(200).optional().or(z.literal("")),
+  // `subtitle` and `categoryId` are optional to the author and are read as
+  // `?? ""`. z.string() already accepts "", so no extra branch lets them through.
+  subtitle: z.string().trim().max(200),
   level: z.enum(["BEGINNER", "INTERMEDIATE", "ADVANCED", "ALL_LEVELS"]),
   language: z.string().trim().min(2).max(10),
-  categoryId: z.string().optional().or(z.literal("")),
+  categoryId: z.string(),
 });
 
 export async function createCourse(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -120,8 +122,8 @@ function isDuplicateActivePrice(error: unknown): boolean {
 const settingsSchema = z.object({
   courseId: z.string().min(1),
   title: z.string().trim().min(4).max(120),
-  subtitle: z.string().trim().max(200).optional().or(z.literal("")),
-  description: z.string().trim().max(5000).optional().or(z.literal("")),
+  subtitle: z.string().trim().max(200),
+  description: z.string().trim().max(5000),
   level: z.enum(["BEGINNER", "INTERMEDIATE", "ADVANCED", "ALL_LEVELS"]),
   language: z.string().trim().min(2).max(10),
   priceAmount: z.string().optional(),

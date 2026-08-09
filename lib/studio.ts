@@ -123,10 +123,13 @@ export async function getOwnedCurriculum(courseId: string, instructorId: string)
  * query. `courseId` is part of the `where` rather than compared afterwards, so a
  * URL pairing one course with another course's item 404s instead of resolving.
  *
- * This selects `AnswerOption.isCorrect`, which the learner-facing read in
- * lib/progress.ts deliberately does not. The studio is instructor-only and an
- * author who cannot see the correct option cannot edit it — but nothing derived
- * from this shape may cross onto a learner path.
+ * This selects `AnswerOption.isCorrect` and `AnswerOption.explanation`, neither of
+ * which the learner-facing read in lib/progress.ts takes. The studio is
+ * instructor-only and an author who cannot see the correct option, or the note
+ * they wrote against it, cannot edit either — but nothing derived from this shape
+ * may cross onto a learner path. The per-answer note is as answer-revealing as the
+ * flag: "Correct — the compiler erases types" names the answer outright, so a
+ * pre-submission read that added it would hand the quiz away.
  */
 export async function getOwnedItemForEditing(
   courseId: string,
@@ -170,7 +173,13 @@ export async function getOwnedItemForEditing(
               position: true,
               options: {
                 orderBy: { position: "asc" },
-                select: { id: true, text: true, isCorrect: true, position: true },
+                select: {
+                  id: true,
+                  text: true,
+                  isCorrect: true,
+                  explanation: true,
+                  position: true,
+                },
               },
             },
           },
