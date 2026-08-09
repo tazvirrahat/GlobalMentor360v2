@@ -25,10 +25,14 @@ export type CourseCardData = {
   totalDuration: string;
   lectureCount: number;
   price: { amount: number; currency: string } | null;
+  isFree: boolean;
 };
 
 export function CourseCard({ course }: { course: CourseCardData }) {
-  const free = !course.price || course.price.amount === 0;
+  // isFree comes from lib/courses so the card, the landing page, and the
+  // enrol-free action share one definition. A course with no active price is
+  // not free — it is not for sale, which is a different thing entirely.
+  const free = course.isFree;
 
   return (
     <Link href={`/courses/${course.slug}`} className="group block h-full">
@@ -78,7 +82,11 @@ export function CourseCard({ course }: { course: CourseCardData }) {
 
           <div className="mt-auto flex items-center justify-between pt-2">
             <span className="text-lg font-extrabold text-brand">
-              {free ? "Free" : formatPrice(course.price!.amount, course.price!.currency)}
+              {free
+                ? "Free"
+                : course.price
+                  ? formatPrice(course.price.amount, course.price.currency)
+                  : "Not for sale"}
             </span>
             <span className="text-xs text-muted-foreground">{LEVEL_LABEL[course.level] ?? course.level}</span>
           </div>

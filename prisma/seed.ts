@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { auth } from "../lib/auth";
 import { db } from "../lib/db";
+import { grantEnrollment } from "../lib/enrollment";
 
 /**
  * Idempotent development seed. Safe to re-run.
@@ -108,6 +109,28 @@ async function ensureUser(input: {
   });
 
   return user;
+}
+
+/**
+ * Idempotent "this course costs X in currency Y".
+ *
+ * There is no compound unique key to upsert on any more: "at most one active
+ * price per course per currency" is a partial unique index (migration
+ * 20260807000002), which Prisma cannot address in a `where`. Reseeding must stay
+ * idempotent, so find-then-write rather than upsert.
+ */
+async function setPrice(courseId: string, currency: string, amount: number) {
+  const existing = await db.price.findFirst({
+    where: { courseId, currency, isActive: true },
+    select: { id: true },
+  });
+
+  if (existing) {
+    await db.price.update({ where: { id: existing.id }, data: { amount } });
+    return;
+  }
+
+  await db.price.create({ data: { courseId, currency, amount, isActive: true } });
 }
 
 async function seedCourse(instructorId: string) {
@@ -226,24 +249,12 @@ async function seedCourse(instructorId: string) {
     },
   });
 
-  await db.price.upsert({
-    where: {
-      courseId_currency_isActive: { courseId: course.id, currency: "USD", isActive: true },
-    },
-    update: { amount: 4900 },
-    create: { courseId: course.id, currency: "USD", amount: 4900, isActive: true },
-  });
+  await setPrice(course.id, "USD", 4900);
 
   // bKash settles in BDT, so a course without a BDT price cannot be bought on
   // that rail at all. Priced independently rather than converted — FX drift
   // would silently change what learners are charged.
-  await db.price.upsert({
-    where: {
-      courseId_currency_isActive: { courseId: course.id, currency: "BDT", isActive: true },
-    },
-    update: { amount: 599000 },
-    create: { courseId: course.id, currency: "BDT", amount: 599000, isActive: true },
-  });
+  await setPrice(course.id, "BDT", 599000);
 
   return course;
 }
@@ -278,11 +289,11 @@ async function main() {
   const course = await seedCourse(instructor.id);
 
   // Enrol the sample learner so the critical-path E2E has something to open.
-  await db.enrollment.upsert({
-    where: { userId_courseId: { userId: learner.id, courseId: course.id } },
-    update: { revokedAt: null },
-    create: { userId: learner.id, courseId: course.id, source: "GRANT" },
-  });
+  // Routed through grantEnrollment rather than writing the row directly:
+  // invariant 7 says one code path grants access, and it is also what keeps
+  // Course.enrollmentCount right — seeding the row by hand left a freshly seeded
+  // database already showing "0 enrolled" for a course with an enrollment.
+  await grantEnrollment(learner.id, course.id, "GRANT");
 
   console.log(`Done. Seeded course "${course.title}" (/${course.slug}).`);
   console.log(
