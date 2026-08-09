@@ -18,6 +18,19 @@ import { canPlayItem, isEnrolled } from "@/lib/entitlement";
 const LECTURE_COMPLETE_RATIO = 0.9;
 const DEFAULT_PASS_THRESHOLD = 70;
 
+/**
+ * Reports arrive roughly every 15s while a video plays. A longer gap means the
+ * learner was paused, backgrounded, or away, so we refuse to bank it as watch
+ * time — otherwise idling for ten minutes would buy ten minutes of credit.
+ */
+const MAX_REPORT_GAP_SECONDS = 60;
+
+/**
+ * Native player speed controls top out at 2x, so honest playback can advance the
+ * playhead at most twice as fast as the wall clock. Anything faster is a seek.
+ */
+const MAX_PLAYBACK_RATE = 2;
+
 export type PlayerItem = {
   id: string;
   title: string;
@@ -80,15 +93,124 @@ export type PlayerCourse = {
   orderedItemIds: string[];
 };
 
-function isItemComplete(item: {
+/**
+ * The single definition of "this item is done", shared by the player's read model
+ * and by recomputeCourseProgress.
+ *
+ * INVARIANT 2: the rollup must be rebuildable from scratch and land on the same
+ * answer the player shows. The player used to read the *latest* attempt while the
+ * rollup counted *any* passing attempt, so passing a quiz and then failing a
+ * retake re-locked the sidebar while course_progress stayed at 100%. "Ever passed"
+ * is the definition that survives: practising again cannot un-pass a quiz, and it
+ * is the only one a background job can reproduce from history.
+ */
+/**
+ * The assessments this learner has *ever* passed.
+ *
+ * Both completion readers derive their answer from this one function rather than
+ * each expressing "ever passed" in its own dialect. That is deliberate: the bug
+ * this replaced was the player reading the latest attempt while the rollup ran a
+ * `distinct` query for any passing attempt — two implementations of one rule,
+ * which agreed until a learner failed a retake. Sharing the function makes the
+ * divergence unrepresentable instead of merely tested for, at the cost of the
+ * rollup fetching every attempt rather than a pre-filtered set (a handful of rows
+ * per learner per course).
+ */
+export function passedAssessmentIds(
+  attempts: { assessmentId: string; passed: boolean | null }[],
+): Set<string> {
+  return new Set(
+    attempts.filter((attempt) => attempt.passed === true).map((attempt) => attempt.assessmentId),
+  );
+}
+
+export function isItemComplete(item: {
   type: string;
-  progress: { completedAt: Date | null } | null;
-  assessment: { latestAttempt: { passed: boolean | null } | null } | null;
+  lectureCompleted: boolean;
+  assessmentPassed: boolean;
 }): boolean {
   if (item.type === "QUIZ" || item.type === "PRACTICE_TEST") {
-    return item.assessment?.latestAttempt?.passed === true;
+    return item.assessmentPassed;
   }
-  return item.progress?.completedAt !== null && item.progress?.completedAt !== undefined;
+  return item.lectureCompleted;
+}
+
+/**
+ * When the learner finished the course: the moment the last required item was
+ * completed, which is the latest of the contributing timestamps.
+ *
+ * INVARIANT 2 in full. Two earlier versions each broke it a different way. The
+ * first stamped `new Date()` on every recompute, so the date walked forward
+ * forever. The second preserved whatever was already stored — better, but it made
+ * the rollup depend on its own previous value, so rebuilding `course_progress`
+ * from scratch (the check TECH-SPEC's verification list asks for) would stamp
+ * today's date on every learner who had already finished.
+ *
+ * Deriving from the item timestamps is reproducible from `item_progress` and
+ * `quiz_attempts` alone, and it is a truer answer besides: it dates completion to
+ * when the learner actually finished, not to whenever a recompute happened to run.
+ *
+ * `now` is a fallback for the impossible case of a 100% course with no timestamps.
+ * Dropping below 100 (the instructor added items) still clears the date.
+ */
+export function resolveCompletedAt(
+  percent: number,
+  contributingTimestamps: (Date | null)[],
+  now: Date = new Date(),
+): Date | null {
+  if (percent < 100) return null;
+
+  const known = contributingTimestamps.filter((value): value is Date => value !== null);
+  if (known.length === 0) return now;
+
+  return new Date(Math.max(...known.map((value) => value.getTime())));
+}
+
+/**
+ * Watch credit earned by one progress report.
+ *
+ * `watchedSeconds` used to be whatever the browser said, so dragging the scrubber
+ * to 90% completed the lecture. Credit is now metered server-side: the playhead
+ * only earns what the wall clock between two reports could plausibly have
+ * covered, which makes a seek worth nothing because no time passed. The first
+ * report on a row has no earlier timestamp to measure against, so it only
+ * establishes the baseline (the player fires one on play for exactly that).
+ *
+ * This is deliberately coarse rather than an interval-coverage map: it defeats
+ * scrub-to-complete and costs one integer column.
+ *
+ * What it does NOT do is make completion proof of viewing. markLectureComplete
+ * still sets completedAt on request, and the player renders a "Mark complete"
+ * button for every enrolled learner — deliberately, since a lecture whose asset
+ * never reported a duration can be finished no other way. So this raises the floor
+ * on *accidental* completion by an honest learner; it is not a control against a
+ * determined one. Describing it as the latter is the mistake PRIOR-ART warns about.
+ */
+export function creditWatchedSeconds(input: {
+  previousWatchedSeconds: number;
+  previousPositionSeconds: number;
+  positionSeconds: number;
+  /** Null when no prior report exists for this item. */
+  secondsSinceLastReport: number | null;
+  durationSeconds: number;
+}): number {
+  const position = Math.max(0, Math.floor(input.positionSeconds));
+  // Only forward movement earns credit; scrubbing back re-covers ground already
+  // paid for, and watched seconds must never shrink.
+  const advance = Math.max(0, position - Math.max(0, Math.floor(input.previousPositionSeconds)));
+
+  const window =
+    input.secondsSinceLastReport === null
+      ? 0
+      : Math.min(Math.max(0, input.secondsSinceLastReport), MAX_REPORT_GAP_SECONDS);
+
+  const credit = Math.min(advance, Math.floor(window * MAX_PLAYBACK_RATE));
+  const total = Math.max(0, Math.floor(input.previousWatchedSeconds)) + credit;
+
+  // A learner cannot watch more of a lecture than it contains. Duration 0 means
+  // the asset has not reported one yet, so leave the total alone rather than
+  // pinning it to zero.
+  return input.durationSeconds > 0 ? Math.min(total, Math.floor(input.durationSeconds)) : total;
 }
 
 export async function getPlayerCourse(
@@ -96,11 +218,16 @@ export async function getPlayerCourse(
   userId: string | null,
 ): Promise<PlayerCourse | null> {
   const course = await db.course.findFirst({
-    where: { slug, status: "PUBLISHED" },
+    // Deliberately not filtered by status. INVARIANT 1: entitlement lives on the
+    // enrollment row, and unpublishing is an authoring decision, not a refund —
+    // a learner who paid keeps access after the instructor takes the course down.
+    // Non-enrolled visitors are gated on status below.
+    where: { slug },
     select: {
       id: true,
       title: true,
       slug: true,
+      status: true,
       sections: {
         orderBy: { position: "asc" },
         select: {
@@ -158,6 +285,11 @@ export async function getPlayerCourse(
   if (!course) return null;
 
   const enrolled = userId ? await isEnrolled(userId, course.id) : false;
+
+  // The preview path (signed-out or non-enrolled) still only reaches published
+  // courses. A DRAFT course has no enrollments, so enrollment alone is a safe gate.
+  if (!enrolled && course.status !== "PUBLISHED") return null;
+
   const allItemIds = course.sections.flatMap((s) => s.items.map((i) => i.id));
 
   const [progressRows, attemptRows, courseProgress, certificate] = await Promise.all([
@@ -210,29 +342,29 @@ export async function getPlayerCourse(
       latestAttemptByAssessment.set(attempt.assessmentId, attempt);
     }
   }
+  // The latest attempt is what the quiz form replays; completion reads the
+  // "ever passed" set instead, so it matches the rollup (see isItemComplete).
+  const passedIds = passedAssessmentIds(attemptRows);
 
   // Build a provisional list so we can compute sequential locks.
   type Provisional = {
     id: string;
     type: string;
     isPreview: boolean;
-    progress: { completedAt: Date | null } | null;
-    assessment: { latestAttempt: { passed: boolean | null } | null } | null;
+    lectureCompleted: boolean;
+    assessmentPassed: boolean;
   };
 
   const provisional: Provisional[] = [];
   for (const section of course.sections) {
     for (const item of section.items) {
       const progress = progressByItem.get(item.id) ?? null;
-      const latest = item.assessment
-        ? (latestAttemptByAssessment.get(item.assessment.id) ?? null)
-        : null;
       provisional.push({
         id: item.id,
         type: item.type,
         isPreview: item.isPreview,
-        progress,
-        assessment: item.assessment ? { latestAttempt: latest } : null,
+        lectureCompleted: progress?.completedAt != null,
+        assessmentPassed: item.assessment ? passedIds.has(item.assessment.id) : false,
       });
     }
   }
@@ -260,8 +392,8 @@ export async function getPlayerCourse(
         : null;
       const completed = isItemComplete({
         type: item.type,
-        progress,
-        assessment: item.assessment ? { latestAttempt: latest } : null,
+        lectureCompleted: progress?.completedAt != null,
+        assessmentPassed: item.assessment ? passedIds.has(item.assessment.id) : false,
       });
 
       return {
@@ -369,43 +501,52 @@ export async function recomputeCourseProgress(userId: string, courseId: string) 
     .map((item) => item.assessment?.id)
     .filter((id): id is string => Boolean(id));
 
+  // Timestamps come back alongside the ids because completedAt is derived from
+  // them (see resolveCompletedAt) — the rollup reads no prior state of its own.
   const [progressRows, passedAttempts] = await Promise.all([
     db.itemProgress.findMany({
       where: { userId, curriculumItemId: { in: itemIds }, completedAt: { not: null } },
-      select: { curriculumItemId: true },
+      select: { curriculumItemId: true, completedAt: true },
     }),
+    // Deliberately unfiltered on `passed`: the "ever passed" rule lives in
+    // passedAssessmentIds, and pre-filtering here would be a second copy of it.
     assessmentIds.length > 0
       ? db.quizAttempt.findMany({
-          where: { userId, assessmentId: { in: assessmentIds }, passed: true },
-          select: { assessmentId: true },
-          distinct: ["assessmentId"],
+          where: { userId, assessmentId: { in: assessmentIds } },
+          select: { assessmentId: true, passed: true, submittedAt: true },
         })
       : Promise.resolve([]),
   ]);
 
   const completedLectures = new Set(progressRows.map((row) => row.curriculumItemId));
-  const passedAssessments = new Set(passedAttempts.map((row) => row.assessmentId));
+  const passedAssessments = passedAssessmentIds(passedAttempts);
 
   let completed = 0;
   for (const item of items) {
-    if (item.type === "QUIZ" || item.type === "PRACTICE_TEST") {
-      if (item.assessment && passedAssessments.has(item.assessment.id)) completed += 1;
-    } else if (completedLectures.has(item.id)) {
-      completed += 1;
-    }
+    const done = isItemComplete({
+      type: item.type,
+      lectureCompleted: completedLectures.has(item.id),
+      assessmentPassed: item.assessment ? passedAssessments.has(item.assessment.id) : false,
+    });
+    if (done) completed += 1;
   }
 
   const percent = Math.round((completed / total) * 1000) / 10;
-  const completedAt = percent >= 100 ? new Date() : null;
+
+  // Only the timestamps that actually count toward completion. A passing attempt
+  // dates the quiz from when it was passed; a later failed retake contributes
+  // nothing, matching passedAssessmentIds.
+  const contributingTimestamps: (Date | null)[] = [
+    ...progressRows.map((row) => row.completedAt),
+    ...passedAttempts
+      .filter((attempt) => attempt.passed === true)
+      .map((attempt) => attempt.submittedAt),
+  ];
+  const completedAt = resolveCompletedAt(percent, contributingTimestamps);
 
   await db.courseProgress.upsert({
     where: { userId_courseId: { userId, courseId } },
-    update: {
-      percent,
-      // Set completedAt the first time we cross 100; clear it if the course
-      // later grows and percent drops below 100.
-      completedAt,
-    },
+    update: { percent, completedAt },
     create: { userId, courseId, percent, completedAt },
   });
 
@@ -453,11 +594,15 @@ export async function markLectureComplete(userId: string, curriculumItemId: stri
   return { ok: true as const };
 }
 
+/**
+ * Records a playback report. The client sends only where the playhead is — how
+ * much of that counts as watched is decided here, so a scrubbed video cannot
+ * complete itself (see creditWatchedSeconds).
+ */
 export async function updateWatchPosition(
   userId: string,
   curriculumItemId: string,
   positionSeconds: number,
-  watchedSeconds: number,
 ) {
   const item = await db.curriculumItem.findUnique({
     where: { id: curriculumItemId },
@@ -474,28 +619,45 @@ export async function updateWatchPosition(
   const enrolled = await isEnrolled(userId, item.section.courseId);
   if (!enrolled) return { ok: false as const, message: "Enrol to track progress." };
 
-  const duration = item.lecture.durationSeconds;
-  const shouldComplete =
-    duration > 0 && watchedSeconds >= Math.floor(duration * LECTURE_COMPLETE_RATIO);
-
   const existing = await db.itemProgress.findUnique({
     where: { userId_curriculumItemId: { userId, curriculumItemId } },
-    select: { completedAt: true, watchedSeconds: true },
+    select: {
+      completedAt: true,
+      watchedSeconds: true,
+      lastPositionSeconds: true,
+      updatedAt: true,
+    },
   });
+
+  const duration = item.lecture.durationSeconds;
+  const position = Math.max(0, Math.floor(positionSeconds));
+  // updatedAt is written by every report, so it is the timestamp of the previous
+  // one — the wall clock we meter the playhead against.
+  const watchedSeconds = creditWatchedSeconds({
+    previousWatchedSeconds: existing?.watchedSeconds ?? 0,
+    previousPositionSeconds: existing?.lastPositionSeconds ?? 0,
+    positionSeconds: position,
+    secondsSinceLastReport: existing
+      ? (Date.now() - existing.updatedAt.getTime()) / 1000
+      : null,
+    durationSeconds: duration,
+  });
+
+  const shouldComplete =
+    duration > 0 && watchedSeconds >= Math.floor(duration * LECTURE_COMPLETE_RATIO);
 
   await db.itemProgress.upsert({
     where: { userId_curriculumItemId: { userId, curriculumItemId } },
     update: {
-      lastPositionSeconds: Math.max(0, Math.floor(positionSeconds)),
-      // Watched seconds only grow — scrubbing backwards must not erase credit.
-      watchedSeconds: Math.max(existing?.watchedSeconds ?? 0, Math.floor(watchedSeconds)),
+      lastPositionSeconds: position,
+      watchedSeconds,
       ...(shouldComplete && !existing?.completedAt ? { completedAt: new Date() } : {}),
     },
     create: {
       userId,
       curriculumItemId,
-      lastPositionSeconds: Math.max(0, Math.floor(positionSeconds)),
-      watchedSeconds: Math.max(0, Math.floor(watchedSeconds)),
+      lastPositionSeconds: position,
+      watchedSeconds,
       completedAt: shouldComplete ? new Date() : null,
     },
   });
