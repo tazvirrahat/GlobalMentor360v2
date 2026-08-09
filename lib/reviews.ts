@@ -15,6 +15,13 @@ import { canReview } from "@/lib/entitlement";
  * Course.ratingAverage / ratingCount are denormalised because the catalog grid
  * renders them once per card and must not pay for an aggregate query per card.
  * They are recomputed from the Review rows on every write — never incremented.
+ *
+ * That copy is authoritative only where an aggregate query is unaffordable, which
+ * is the catalog grid and nothing else. It goes stale between writes: a `User`
+ * delete cascades their reviews away and a moderator hiding one both change the
+ * true average without touching a Review through `saveReview`. Any surface that
+ * has already paid for `getCourseReviewPanel` must render `summary` instead —
+ * showing both on one page is how a course ends up stating two averages at once.
  */
 
 /** Every rating a review may carry, ascending. */
@@ -59,6 +66,27 @@ export type RatingSummary = {
  * Pure, and separate from the query, because the interesting cases are the ones
  * a database round trip makes tedious to reach: no reviews at all, one review,
  * and a rating outside 1-5 that predates the guard above.
+ *
+ * A flat mean, and deferring recency weighting is a decision rather than an
+ * oversight. FEATURES.md section F lists "rating aggregation, distribution
+ * histogram, recency weighting" on one P0 line; the first two ship here.
+ *
+ * The obstacle is not choosing a decay curve, it is where the number is stored.
+ * A time-weighted mean is a function of now(), and Course.ratingAverage is only
+ * ever rewritten when someone writes a review. A course nobody has reviewed for
+ * six months would keep serving the weighting it had at its last write, so the
+ * catalog card and the "highest rated" sort (section B, P0) — which read that
+ * column and cannot afford to recompute — would be wrong in a way that gets
+ * worse the longer nothing happens. Recency weighting therefore costs a
+ * scheduled recompute over every course, not an edit to this function.
+ *
+ * It would also put the headline at odds with the histogram directly beneath
+ * it, which counts every review once: a 4.6 above bars that visibly average 4.1
+ * reads as a bug, and a star summary has no room to explain the difference.
+ *
+ * A flat mean is the number a learner believes they are being shown. Revisit
+ * when there is a half-life someone can defend and a job that keeps the
+ * denormalised column true between writes.
  */
 export function summariseRatings(buckets: readonly RatingBucket[]): RatingSummary {
   const counts = new Map<number, number>();
@@ -93,14 +121,24 @@ export function summariseRatings(buckets: readonly RatingBucket[]): RatingSummar
   return { average, count, distribution };
 }
 
-type Client = Prisma.TransactionClient | typeof db;
-
 /**
  * Runs `work` atomically, so the Review row and the Course aggregates always
  * commit or roll back together. Same shape as lib/enrollment.ts: atomicity is
  * decided by whether the caller supplied a client, never by inspecting one.
+ *
+ * The client is `Prisma.TransactionClient` and deliberately not the union with
+ * `typeof db` that lib/enrollment.ts uses, because the two are not
+ * interchangeable here. Handing in the base client turns this into a pass-through
+ * and the row lock below then runs in its own implicit transaction, which
+ * commits — releasing the lock — before the GROUP BY is even sent. That is
+ * precisely the interleaving the lock exists to prevent, restored silently and
+ * with no type error to notice. Narrowing makes it unrepresentable rather than
+ * merely undocumented.
  */
-function inTransaction<T>(client: Client | undefined, work: (tx: Client) => Promise<T>): Promise<T> {
+function inTransaction<T>(
+  client: Prisma.TransactionClient | undefined,
+  work: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
   return client ? work(client) : db.$transaction((tx) => work(tx));
 }
 
@@ -117,7 +155,7 @@ function inTransaction<T>(client: Client | undefined, work: (tx: Client) => Prom
 export async function recomputeCourseRating(
   courseId: string,
   /** Omit to get a fresh transaction; pass your own when already inside one. */
-  client?: Client,
+  client?: Prisma.TransactionClient,
 ): Promise<RatingSummary> {
   return inTransaction(client, async (tx) => {
     // Serialises recomputes for one course. Recomputing from the rows removes
@@ -127,7 +165,24 @@ export async function recomputeCourseRating(
     // would store a count short by one. Taking the course row first means the
     // second transaction's GROUP BY — a new statement, so a new snapshot — sees
     // the first one's committed review.
-    await tx.$queryRaw`SELECT id FROM courses WHERE id = ${courseId} FOR UPDATE`;
+    //
+    // FOR NO KEY UPDATE rather than FOR UPDATE, and the difference is not
+    // cosmetic. Inserting a Review makes Postgres take FOR KEY SHARE on the
+    // parent course row, so the course cannot be deleted out from under a row
+    // that references it. FOR UPDATE conflicts with FOR KEY SHARE. Two learners
+    // reviewing the same course at once therefore each held a KEY SHARE from
+    // their own insert and then asked for a lock the other's insert blocked —
+    // a cycle, which Postgres resolves by killing one transaction with 40P01
+    // "deadlock detected". The stronger lock did not make the write safer; it
+    // converted a lost update into a failed request, under exactly the
+    // concurrency it was added for. FOR NO KEY UPDATE does not conflict with
+    // FOR KEY SHARE, does conflict with itself — which is the entire
+    // requirement — and is the same lock the UPDATE at the end of this function
+    // takes anyway, because ratingAverage and ratingCount are in no key.
+    //
+    // tests/integration/reviews.test.ts fails with 40P01 if this is put back to
+    // FOR UPDATE, and stores a count short by one if the lock is removed.
+    await tx.$queryRaw`SELECT id FROM courses WHERE id = ${courseId} FOR NO KEY UPDATE`;
 
     // One grouped query rather than one row per review: this runs on the write
     // path of a page whose read cost must not grow with a course's popularity.
