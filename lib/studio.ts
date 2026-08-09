@@ -90,6 +90,10 @@ export async function getOwnedCurriculum(courseId: string, instructorId: string)
               position: true,
               isPreview: true,
               lecture: {
+                // articleBody is deliberately absent: the list renders none of it,
+                // and lectureSchema caps it at 50k chars, so selecting it ships
+                // megabytes per render on a large course for nothing. The item
+                // editor fetches it separately.
                 select: {
                   contentType: true,
                   durationSeconds: true,
@@ -97,6 +101,12 @@ export async function getOwnedCurriculum(courseId: string, instructorId: string)
                     select: { id: true, status: true, failureReason: true },
                   },
                 },
+              },
+              // The count, not the questions: the list only needs to warn about
+              // an empty quiz, and pulling options here would drag isCorrect
+              // through a query that does not need it.
+              assessment: {
+                select: { id: true, _count: { select: { questions: true } } },
               },
             },
           },
@@ -106,6 +116,68 @@ export async function getOwnedCurriculum(courseId: string, instructorId: string)
   });
 
   return course;
+}
+
+/**
+ * Everything the item editor page renders, for either item type, in one owned
+ * query. `courseId` is part of the `where` rather than compared afterwards, so a
+ * URL pairing one course with another course's item 404s instead of resolving.
+ *
+ * This selects `AnswerOption.isCorrect`, which the learner-facing read in
+ * lib/progress.ts deliberately does not. The studio is instructor-only and an
+ * author who cannot see the correct option cannot edit it — but nothing derived
+ * from this shape may cross onto a learner path.
+ */
+export async function getOwnedItemForEditing(
+  courseId: string,
+  itemId: string,
+  instructorId: string,
+) {
+  return db.curriculumItem.findFirst({
+    where: { id: itemId, section: { courseId, course: { instructorId } } },
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      isPreview: true,
+      section: { select: { id: true, title: true, courseId: true } },
+      lecture: {
+        select: {
+          id: true,
+          contentType: true,
+          description: true,
+          articleBody: true,
+          durationSeconds: true,
+          asset: { select: { id: true, status: true } },
+        },
+      },
+      assessment: {
+        select: {
+          id: true,
+          description: true,
+          timeLimitSeconds: true,
+          passThresholdPct: true,
+          shuffleQuestions: true,
+          allowRetakes: true,
+          questions: {
+            orderBy: { position: "asc" },
+            select: {
+              id: true,
+              prompt: true,
+              type: true,
+              explanation: true,
+              knowledgeArea: true,
+              position: true,
+              options: {
+                orderBy: { position: "asc" },
+                select: { id: true, text: true, isCorrect: true, position: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
 }
 
 /**
@@ -151,7 +223,17 @@ export async function readinessChecks(courseId: string): Promise<ReadinessCheck[
     select: {
       title: true,
       subtitle: true,
-      sections: { select: { _count: { select: { items: true } } } },
+      sections: {
+        select: {
+          _count: { select: { items: true } },
+          items: {
+            select: {
+              type: true,
+              assessment: { select: { _count: { select: { questions: true } } } },
+            },
+          },
+        },
+      },
       prices: { where: { isActive: true }, select: { id: true } },
     },
   });
@@ -159,6 +241,20 @@ export async function readinessChecks(courseId: string): Promise<ReadinessCheck[
   if (!course) return [];
 
   const itemCount = course.sections.reduce((sum, s) => sum + s._count.items, 0);
+
+  // An empty quiz is a hole in the gate, not a wall. lib/progress.ts scores it
+  // `total === 0 ? 100`, so submitting an empty form passes, marks the item
+  // complete, unlocks everything after it, and counts toward the certificate —
+  // an assessment that assesses nothing while looking like it did. A QUIZ item
+  // with no assessment row at all fails this check the same way, which is the
+  // right answer for a shape the player cannot render either.
+  const emptyQuizzes = course.sections
+    .flatMap((section) => section.items)
+    .filter(
+      (item) =>
+        (item.type === "QUIZ" || item.type === "PRACTICE_TEST") &&
+        (item.assessment?._count.questions ?? 0) === 0,
+    ).length;
 
   return [
     {
@@ -180,6 +276,14 @@ export async function readinessChecks(courseId: string): Promise<ReadinessCheck[
       label: "Has at least one lecture",
       ok: itemCount > 0,
       hint: "Add a lecture to a section.",
+    },
+    {
+      label: "Every quiz has questions",
+      ok: emptyQuizzes === 0,
+      hint:
+        emptyQuizzes === 1
+          ? "One quiz has no questions, so it auto-passes every learner and unlocks the rest of the course."
+          : `${emptyQuizzes} quizzes have no questions, so they auto-pass every learner and unlock the rest of the course.`,
     },
     {
       label: "Has a price",

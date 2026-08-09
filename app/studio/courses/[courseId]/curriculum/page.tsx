@@ -35,7 +35,7 @@ export default async function CurriculumPage({ params }: Params) {
       </p>
 
       <div className="mt-8">
-        <SectionList sections={course.sections} />
+        <SectionList courseId={course.id} sections={course.sections} />
       </div>
 
       <Card className="mt-8 rounded-2xl">
