@@ -3,6 +3,7 @@
 import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { isFreeCourse } from "@/lib/courses";
 import { db } from "@/lib/db";
 import { grantEnrollment } from "@/lib/enrollment";
 import { isEnrolled } from "@/lib/entitlement";
@@ -11,8 +12,11 @@ import { getCurrentUser } from "@/lib/session";
 /**
  * Free enrolment: the one purchase path that needs no payment rail.
  *
- * A course is free when it has no active price or an active price of 0. The
- * check runs here, server-side — "free" is a property of the course, never a
+ * A course is free when every active price is 0 — see `isFreeCourse`. The same
+ * predicate decides whether the landing page offers the button, so the two
+ * cannot drift into a button that silently refuses.
+ *
+ * The check runs here, server-side — "free" is a property of the course, never a
  * claim the browser gets to make (invariant 6: server-side prices).
  */
 export async function enrollFree(formData: FormData) {
@@ -35,8 +39,7 @@ export async function enrollFree(formData: FormData) {
     redirect(`/sign-in?next=${encodeURIComponent(`/courses/${course.slug}`)}`);
   }
 
-  const isFree = course.prices.length === 0 || course.prices.every((p) => p.amount === 0);
-  if (!isFree) return;
+  if (!isFreeCourse(course.prices)) return;
 
   if (!(await isEnrolled(user.id, course.id))) {
     await grantEnrollment(user.id, course.id, "FREE");
