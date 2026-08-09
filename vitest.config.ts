@@ -21,6 +21,10 @@ export default defineConfig({
       "globalmentor360/**",
       ".claude/**",
       "e2e/**",
+      // Database-backed; runs via `npm run test:db:flows` under
+      // vitest.integration.config.ts. This suite must stay runnable with no
+      // Postgres, so the include glob must never reach it.
+      "tests/integration/**",
     ],
   },
 });
