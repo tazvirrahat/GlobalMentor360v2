@@ -11,6 +11,17 @@ export type ReviewState =
   | { status: "done"; message: string };
 
 /**
+ * Reported when the status filter on a write below matches zero rows.
+ *
+ * Two admins working the same queue — or one double-clicking — both read
+ * PENDING_VERIFICATION before either writes, so checking the status before the
+ * transaction decides nothing. The status therefore lives in the WHERE clause and
+ * the database arbitrates, the same way the Stripe rail absorbs a retried webhook
+ * delivery (lib/payments/stripe.ts). Telling the loser "done" would be a lie.
+ */
+const LOST_RACE = "Another admin reviewed this payment first — nothing changed.";
+
+/**
  * Approving is the manual rail's equivalent of a Stripe webhook firing.
  *
  * The payment update and the enrollment grant happen in one transaction: a
@@ -39,13 +50,14 @@ export async function approvePayment(
   if (!payment) return { status: "error", message: "Payment not found." };
 
   if (payment.status !== "PENDING_VERIFICATION") {
-    // Someone else got here first. Not an error worth alarming about.
+    // Fast path for a stale queue — a courtesy, not the guard. The guard is the
+    // status filter in the write below.
     return { status: "error", message: `Already ${payment.status.toLowerCase()}.` };
   }
 
-  await db.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: payment.id },
+  const approved = await db.$transaction(async (tx) => {
+    const claimed = await tx.payment.updateMany({
+      where: { id: payment.id, status: "PENDING_VERIFICATION" },
       data: {
         status: "COMPLETED",
         // The DB constraint rejects COMPLETED without this. Setting it here is
@@ -56,6 +68,11 @@ export async function approvePayment(
         paidAt: new Date(),
       },
     });
+
+    // A concurrent approval already moved the row out of PENDING_VERIFICATION.
+    // Returning before the order, enrollment, and audit writes keeps this
+    // transaction empty rather than duplicating the winner's work.
+    if (claimed.count === 0) return false;
 
     await tx.order.update({
       where: { id: payment.order.id },
@@ -75,9 +92,15 @@ export async function approvePayment(
         metadata: { orderId: payment.order.id },
       },
     });
+
+    return true;
   });
 
+  // Revalidated either way: the loser's queue is stale and refreshing it drops
+  // the row the winner just handled.
   revalidatePath("/admin/payments");
+
+  if (!approved) return { status: "error", message: LOST_RACE };
   return { status: "done", message: "Approved and enrolled." };
 }
 
@@ -105,11 +128,17 @@ export async function rejectPayment(
     return { status: "error", message: `Already ${payment.status.toLowerCase()}.` };
   }
 
-  await db.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: payment.id },
+  const rejected = await db.$transaction(async (tx) => {
+    const claimed = await tx.payment.updateMany({
+      where: { id: payment.id, status: "PENDING_VERIFICATION" },
       data: { status: "FAILED", verificationNotes: notes, verifiedById: admin.id, verifiedAt: new Date() },
     });
+
+    // Same race as approvePayment, and the same arbitration. Losing here matters
+    // more, not less: the winner may have approved, and overwriting the order
+    // would strand a learner who has already been enrolled.
+    if (claimed.count === 0) return false;
+
     await tx.order.update({ where: { id: payment.orderId }, data: { status: "FAILED" } });
     await tx.auditLog.create({
       data: {
@@ -120,8 +149,12 @@ export async function rejectPayment(
         metadata: { reason: notes },
       },
     });
+
+    return true;
   });
 
   revalidatePath("/admin/payments");
+
+  if (!rejected) return { status: "error", message: LOST_RACE };
   return { status: "done", message: "Rejected." };
 }

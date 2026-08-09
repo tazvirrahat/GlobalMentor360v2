@@ -1,6 +1,13 @@
 -- Proves the payments CHECK constraints reject bad writes.
 -- Runs entirely inside a transaction that is rolled back, so nothing persists.
-\set ON_ERROR_STOP off
+--
+-- ON_ERROR_STOP must stay ON: with it off, psql walks past the final
+-- `RAISE EXCEPTION 'CONSTRAINT TESTS FAILED'` and still exits 0, so a broken
+-- constraint reports as a passing test run. The individual cases below catch
+-- check_violation inside the DO block, so nothing reaches psql except a genuine
+-- failure. The trailing ROLLBACK does not run in that case and does not need to:
+-- an aborted transaction is discarded when the session closes.
+\set ON_ERROR_STOP on
 BEGIN;
 
 DO $$
