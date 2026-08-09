@@ -150,8 +150,10 @@ export async function addItem(_prev: CurriculumState, formData: FormData): Promi
 const lectureSchema = z.object({
   itemId: z.string().min(1),
   title: z.string().trim().min(1, "Give the lecture a title.").max(200),
-  description: z.string().trim().max(2000).optional().or(z.literal("")),
-  articleBody: z.string().trim().max(50_000).optional().or(z.literal("")),
+  // Both are read as `?? ""` and both are optional to the author, which
+  // z.string().trim().max(n) already expresses: "" passes it.
+  description: z.string().trim().max(2000),
+  articleBody: z.string().trim().max(50_000),
 });
 
 /**
@@ -267,9 +269,13 @@ export async function moveItem(_prev: CurriculumState, formData: FormData): Prom
   if (!neighbour) return { status: "done", message: "Already at the end." };
 
   // @@unique([sectionId, position]) means a direct swap collides mid-transaction.
-  // Park one row at a position that cannot exist, then swap.
+  // Park one row at a position that cannot exist, then swap. The slot is reserved
+  // from `resequence` below — see MOVE_PARK_POSITION.
   await db.$transaction(async (tx) => {
-    await tx.curriculumItem.update({ where: { id: item.id }, data: { position: -1 } });
+    await tx.curriculumItem.update({
+      where: { id: item.id },
+      data: { position: MOVE_PARK_POSITION },
+    });
     await tx.curriculumItem.update({
       where: { id: neighbour.id },
       data: { position: item.position },
@@ -287,11 +293,24 @@ export async function moveItem(_prev: CurriculumState, formData: FormData): Prom
 type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
 /**
+ * Where moveItem parks the row it is moving.
+ *
+ * Reserved: `resequence` parks its own rows from -2 downwards precisely so that
+ * nothing of its own lands here. Both used to start at -1, so a delete and a move
+ * in one section raced for a single slot — two writes that touch no row in common
+ * — and the loser surfaced a raw unique-violation out of Prisma rather than the
+ * action's error message. Same reservation as QUESTION_MOVE_PARK_POSITION in
+ * lib/assessments.ts, which carries the longer note.
+ */
+const MOVE_PARK_POSITION = -1;
+
+/**
  * Rewrites positions to 0..n-1.
  *
  * Two passes with negative parking positions, because @@unique on
  * (sectionId, position) rejects the intermediate states of a single pass — row 2
- * cannot take position 1 while row 1 still holds it.
+ * cannot take position 1 while row 1 still holds it. The first pass starts at -2
+ * to stay clear of MOVE_PARK_POSITION.
  *
  * The two models are handled in separate branches rather than through one
  * variable: `tx.section` and `tx.curriculumItem` have incompatible generic
@@ -300,7 +319,7 @@ type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 async function resequence(tx: Tx, kind: "section" | "item", rows: { id: string }[]) {
   if (kind === "section") {
     for (const [index, row] of rows.entries()) {
-      await tx.section.update({ where: { id: row.id }, data: { position: -(index + 1) } });
+      await tx.section.update({ where: { id: row.id }, data: { position: -(index + 2) } });
     }
     for (const [index, row] of rows.entries()) {
       await tx.section.update({ where: { id: row.id }, data: { position: index } });
@@ -309,7 +328,7 @@ async function resequence(tx: Tx, kind: "section" | "item", rows: { id: string }
   }
 
   for (const [index, row] of rows.entries()) {
-    await tx.curriculumItem.update({ where: { id: row.id }, data: { position: -(index + 1) } });
+    await tx.curriculumItem.update({ where: { id: row.id }, data: { position: -(index + 2) } });
   }
   for (const [index, row] of rows.entries()) {
     await tx.curriculumItem.update({ where: { id: row.id }, data: { position: index } });

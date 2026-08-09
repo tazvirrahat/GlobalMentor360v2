@@ -51,7 +51,15 @@ export async function writeQuestionOptions(tx: Tx, questionId: string, options: 
 
   for (const [position, option] of options.entries()) {
     const id = option.id !== null && owned.has(option.id) ? option.id : null;
-    const data = { text: option.text, isCorrect: option.isCorrect, position };
+    const data = {
+      text: option.text,
+      isCorrect: option.isCorrect,
+      // Written on every save, including as null: the form always posts one note
+      // per row, so an absent value means the author cleared it. Reusing the
+      // stored note instead would make an emptied box un-emptiable.
+      explanation: option.explanation,
+      position,
+    };
 
     if (id) {
       await tx.answerOption.update({ where: { id }, data });
@@ -62,11 +70,29 @@ export async function writeQuestionOptions(tx: Tx, questionId: string, options: 
 }
 
 /**
+ * Where moveQuestion parks the row it is moving.
+ *
+ * Reserved: resequenceQuestions parks its own rows from -2 downwards precisely so
+ * that nothing of its own lands here. Both reorderers used to start at -1, so a
+ * delete and a move on one assessment raced for a single slot — two writes that
+ * touch no row in common — and the loser surfaced a raw unique-violation out of
+ * Prisma instead of the action's error message.
+ *
+ * Two concurrent *moves* still meet here, which no choice of slot would fix: they
+ * are rewriting the same positions either way. Serialising authoring writes per
+ * assessment is the answer to that one, and it is not a constant.
+ */
+export const QUESTION_MOVE_PARK_POSITION = -1;
+
+/**
  * Rewrites question positions to 0..n-1.
  *
  * Two passes with negative parking positions for the same reason as the
  * `resequence` helper in app/studio/curriculum-actions.ts: @@unique on
  * (assessmentId, position) rejects the intermediate states of a single pass.
+ *
+ * The first pass starts at -2, not -1, to stay clear of QUESTION_MOVE_PARK_POSITION
+ * above.
  */
 export async function resequenceQuestions(tx: Tx, assessmentId: string) {
   const rows = await tx.question.findMany({
@@ -76,7 +102,7 @@ export async function resequenceQuestions(tx: Tx, assessmentId: string) {
   });
 
   for (const [index, row] of rows.entries()) {
-    await tx.question.update({ where: { id: row.id }, data: { position: -(index + 1) } });
+    await tx.question.update({ where: { id: row.id }, data: { position: -(index + 2) } });
   }
   for (const [index, row] of rows.entries()) {
     await tx.question.update({ where: { id: row.id }, data: { position: index } });

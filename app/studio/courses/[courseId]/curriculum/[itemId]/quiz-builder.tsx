@@ -42,7 +42,13 @@ export type EditableAssessment = {
     explanation: string | null;
     knowledgeArea: string | null;
     position: number;
-    options: { id: string; text: string; isCorrect: boolean; position: number }[];
+    options: {
+      id: string;
+      text: string;
+      isCorrect: boolean;
+      explanation: string | null;
+      position: number;
+    }[];
   }[];
 };
 
@@ -61,18 +67,31 @@ function isQuestionType(value: string): value is QuestionType {
 /** Row keys only need to be unique within one open editor. */
 let nextRowKey = 0;
 
-type OptionRow = { key: number; id: string; text: string; correct: boolean };
+type OptionRow = {
+  key: number;
+  id: string;
+  text: string;
+  correct: boolean;
+  /** "" rather than null: this is a controlled input's value, not the stored column. */
+  explanation: string;
+};
 
 function blankRow(text = "", correct = false): OptionRow {
   nextRowKey += 1;
-  return { key: nextRowKey, id: "", text, correct };
+  return { key: nextRowKey, id: "", text, correct, explanation: "" };
 }
 
 function rowsFor(question: Question | null): OptionRow[] {
   if (!question) return [blankRow(), blankRow()];
   return question.options.map((option) => {
     nextRowKey += 1;
-    return { key: nextRowKey, id: option.id, text: option.text, correct: option.isCorrect };
+    return {
+      key: nextRowKey,
+      id: option.id,
+      text: option.text,
+      correct: option.isCorrect,
+      explanation: option.explanation ?? "",
+    };
   });
 }
 
@@ -213,12 +232,14 @@ function QuestionEditorForm({
     setRows((current) => {
       if (next === "TRUE_FALSE") {
         // Keep the first two ids so the existing rows are updated rather than
-        // deleted and recreated; the labels themselves are not the author's.
+        // deleted and recreated; the labels themselves are not the author's, but
+        // the notes written against them are, so they survive the switch.
         return TRUE_FALSE_LABELS.map((text, index) => ({
           key: current[index]?.key ?? blankRow().key,
           id: current[index]?.id ?? "",
           text,
           correct: current[index]?.correct ?? false,
+          explanation: current[index]?.explanation ?? "",
         }));
       }
       if (next === "SINGLE_CHOICE") {
@@ -233,6 +254,10 @@ function QuestionEditorForm({
       }
       return current;
     });
+  }
+
+  function updateRow(key: number, patch: Partial<OptionRow>) {
+    setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   }
 
   function setCorrect(key: number, correct: boolean) {
@@ -308,53 +333,68 @@ function QuestionEditorForm({
           </span>
         </legend>
 
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-3">
           {rows.map((row, index) => (
-            <li key={row.key} className="flex items-center gap-2">
-              <input type="hidden" name="optionId" value={row.id} />
-              <input
-                type={multi ? "checkbox" : "radio"}
-                name="correct"
-                value={index}
-                checked={row.correct}
-                onChange={(event) => setCorrect(row.key, event.target.checked)}
-                aria-label={`Mark answer ${index + 1} correct`}
-              />
+            <li key={row.key} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <input type="hidden" name="optionId" value={row.id} />
+                <input
+                  type={multi ? "checkbox" : "radio"}
+                  name="correct"
+                  value={index}
+                  checked={row.correct}
+                  onChange={(event) => setCorrect(row.key, event.target.checked)}
+                  aria-label={`Mark answer ${index + 1} correct`}
+                />
 
-              {trueFalse ? (
-                <>
-                  <input type="hidden" name="optionText" value={row.text} />
-                  <span className="text-sm">{row.text}</span>
-                </>
-              ) : (
-                <>
-                  <Input
-                    name="optionText"
-                    value={row.text}
-                    onChange={(event) => {
-                      const text = event.target.value;
-                      setRows((current) =>
-                        current.map((item) => (item.key === row.key ? { ...item, text } : item)),
-                      );
-                    }}
-                    aria-label={`Answer ${index + 1}`}
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={rows.length <= 2}
-                    aria-label={`Remove answer ${index + 1}`}
-                    className="text-destructive hover:text-destructive"
-                    onClick={() =>
-                      setRows((current) => current.filter((item) => item.key !== row.key))
-                    }
-                  >
-                    <Trash2 aria-hidden />
-                  </Button>
-                </>
-              )}
+                {trueFalse ? (
+                  <>
+                    <input type="hidden" name="optionText" value={row.text} />
+                    <span className="text-sm">{row.text}</span>
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      name="optionText"
+                      value={row.text}
+                      onChange={(event) => updateRow(row.key, { text: event.target.value })}
+                      aria-label={`Answer ${index + 1}`}
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={rows.length <= 2}
+                      aria-label={`Remove answer ${index + 1}`}
+                      className="text-destructive hover:text-destructive"
+                      onClick={() =>
+                        setRows((current) => current.filter((item) => item.key !== row.key))
+                      }
+                    >
+                      <Trash2 aria-hidden />
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {/*
+                One optionExplanation per row, rendered inside the row it belongs
+                to. readOptionDrafts pairs the option arrays by position, so a row
+                that skipped this input — including a True/False row — would slide
+                every later note onto the wrong answer. It is labelled rather than
+                <Label htmlFor>-ed because two editors can be open at once and the
+                ids would collide.
+              */}
+              <Input
+                name="optionExplanation"
+                value={row.explanation}
+                onChange={(event) => updateRow(row.key, { explanation: event.target.value })}
+                aria-label={`Explanation for answer ${index + 1}`}
+                placeholder="Why this answer is right or wrong (optional)"
+                maxLength={2000}
+                className="ml-6 h-8 text-xs"
+              />
             </li>
           ))}
         </ul>
@@ -371,6 +411,11 @@ function QuestionEditorForm({
             <Plus aria-hidden /> Add answer
           </Button>
         )}
+
+        <p className="text-xs text-muted-foreground">
+          Per-answer notes are saved against each option. The player currently shows the
+          question-level explanation below, not these.
+        </p>
       </fieldset>
 
       <div className="flex flex-col gap-1.5">
@@ -412,63 +457,72 @@ function QuestionControls({
   isLast: boolean;
   onEdit: () => void;
 }) {
-  const [, move, moving] = useActionState(moveQuestion, initial);
-  const [, remove, removing] = useActionState(deleteQuestion, initial);
+  // Both results are rendered, not discarded. These actions fail the same way
+  // every other one does — "Question not found." after the row was deleted in
+  // another tab — and dropping the state left the author clicking a button that
+  // did nothing and said nothing.
+  const [moveState, move, moving] = useActionState(moveQuestion, initial);
+  const [removeState, remove, removing] = useActionState(deleteQuestion, initial);
 
   return (
-    <span className="flex items-center gap-1">
-      <form action={move}>
-        <input type="hidden" name="questionId" value={question.id} />
-        <input type="hidden" name="direction" value="up" />
+    <div className="flex flex-col items-end gap-1">
+      <span className="flex items-center gap-1">
+        <form action={move}>
+          <input type="hidden" name="questionId" value={question.id} />
+          <input type="hidden" name="direction" value="up" />
+          <Button
+            type="submit"
+            variant="ghost"
+            size="icon-sm"
+            disabled={moving || isFirst}
+            aria-label="Move question up"
+          >
+            <ArrowUp aria-hidden />
+          </Button>
+        </form>
+
+        <form action={move}>
+          <input type="hidden" name="questionId" value={question.id} />
+          <input type="hidden" name="direction" value="down" />
+          <Button
+            type="submit"
+            variant="ghost"
+            size="icon-sm"
+            disabled={moving || isLast}
+            aria-label="Move question down"
+          >
+            <ArrowDown aria-hidden />
+          </Button>
+        </form>
+
         <Button
-          type="submit"
+          type="button"
           variant="ghost"
           size="icon-sm"
-          disabled={moving || isFirst}
-          aria-label="Move question up"
+          onClick={onEdit}
+          aria-label="Edit question"
         >
-          <ArrowUp aria-hidden />
+          <Pencil aria-hidden />
         </Button>
-      </form>
 
-      <form action={move}>
-        <input type="hidden" name="questionId" value={question.id} />
-        <input type="hidden" name="direction" value="down" />
-        <Button
-          type="submit"
-          variant="ghost"
-          size="icon-sm"
-          disabled={moving || isLast}
-          aria-label="Move question down"
-        >
-          <ArrowDown aria-hidden />
-        </Button>
-      </form>
+        <form action={remove}>
+          <input type="hidden" name="questionId" value={question.id} />
+          <Button
+            type="submit"
+            variant="ghost"
+            size="icon-sm"
+            disabled={removing}
+            aria-label="Delete question"
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 aria-hidden />
+          </Button>
+        </form>
+      </span>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        onClick={onEdit}
-        aria-label="Edit question"
-      >
-        <Pencil aria-hidden />
-      </Button>
-
-      <form action={remove}>
-        <input type="hidden" name="questionId" value={question.id} />
-        <Button
-          type="submit"
-          variant="ghost"
-          size="icon-sm"
-          disabled={removing}
-          aria-label="Delete question"
-          className="text-destructive hover:text-destructive"
-        >
-          <Trash2 aria-hidden />
-        </Button>
-      </form>
-    </span>
+      <StatusLine state={moveState} />
+      <StatusLine state={removeState} />
+    </div>
   );
 }
 
@@ -516,8 +570,13 @@ function QuestionCard({
             ) : (
               <span className="mt-0.5 size-4 shrink-0" />
             )}
-            <span className={option.isCorrect ? "font-medium" : "text-muted-foreground"}>
-              {option.text}
+            <span className="flex flex-col">
+              <span className={option.isCorrect ? "font-medium" : "text-muted-foreground"}>
+                {option.text}
+              </span>
+              {option.explanation ? (
+                <span className="text-xs text-muted-foreground">{option.explanation}</span>
+              ) : null}
             </span>
           </li>
         ))}
