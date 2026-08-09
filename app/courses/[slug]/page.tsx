@@ -22,10 +22,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { RatingHistogram } from "@/components/site/rating-histogram";
+import { ReviewList } from "@/components/site/review-list";
+import { StarRating } from "@/components/site/star-rating";
 import { isEnrolled } from "@/lib/entitlement";
 import { formatPrice, getPublishedCourseBySlug } from "@/lib/courses";
+import { getCourseReviewPanel } from "@/lib/reviews";
 import { getCurrentUser } from "@/lib/session";
 import { enrollFree } from "./enroll-free-action";
+import { ReviewForm } from "./review-form";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -75,6 +80,14 @@ export default async function CourseLandingPage({ params }: Params) {
       .flatMap((section) => section.items)
       .filter((item) => item.isPreview || enrolled)
       .map((item) => item.id),
+  );
+
+  // Three queries whatever the review count, fetched alongside nothing else the
+  // page needs — the N+1 the playable set above was fixed to remove came from
+  // the same instinct, one round trip per rendered row.
+  const { summary, reviews, ownReview, hiddenByPageSize } = await getCourseReviewPanel(
+    course.id,
+    user?.id ?? null,
   );
 
   const free = course.isFree;
@@ -267,6 +280,47 @@ export default async function CourseLandingPage({ params }: Params) {
               </ul>
             </section>
           ) : null}
+
+          {/* Reviews */}
+          <section id="reviews" className="flex flex-col gap-6">
+            <h2 className="text-2xl font-extrabold tracking-tight">Learner reviews</h2>
+
+            {summary.count > 0 ? (
+              <div className="grid items-center gap-6 rounded-xl border p-5 sm:grid-cols-[auto_1fr]">
+                <div className="flex flex-col items-center gap-1 sm:pr-6">
+                  <span className="text-4xl font-extrabold tabular-nums text-amber-600">
+                    {summary.average.toFixed(1)}
+                  </span>
+                  <StarRating value={summary.average} />
+                  <span className="text-xs text-muted-foreground">
+                    {summary.count} {summary.count === 1 ? "rating" : "ratings"}
+                  </span>
+                </div>
+                <RatingHistogram distribution={summary.distribution} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No ratings yet — enrolled learners can be the first to review this course.
+              </p>
+            )}
+
+            {/* Rendering the form is a convenience, not the authorisation:
+                submitReview re-checks the enrollment server-side (invariant 4). */}
+            {enrolled ? (
+              <ReviewForm
+                courseId={course.id}
+                existing={ownReview ? { rating: ownReview.rating, body: ownReview.body } : null}
+              />
+            ) : null}
+
+            <ReviewList reviews={reviews} />
+
+            {hiddenByPageSize > 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Showing the {reviews.length} most recent reviews of {summary.count}.
+              </p>
+            ) : null}
+          </section>
         </div>
 
         {/* Instructor panel */}
