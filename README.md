@@ -6,20 +6,29 @@ instructors, no revenue share, no marketplace mechanics. Mentorship features
 
 ## Status
 
-P0 MVP is in place end to end:
+The buy → watch → complete spine works end to end. Several P0 features from
+[docs/FEATURES.md](docs/FEATURES.md) are not built yet — the table says which.
 
 | Area | Status |
 |---|---|
 | Auth (Better Auth: email/password, required email verification, password reset, roles) | Working |
-| Catalog + search/filters | Working |
+| Catalog + search | Working — substring match; filters limited to level and category |
 | Course landing with Buy / Enrol free | Working |
 | bKash manual checkout + admin verification | Working |
 | Stripe Checkout (automatic rail) | Working when credentials are set |
-| Authoring studio + curriculum | Working |
+| Authoring studio: course, curriculum, video upload | Working |
+| Authoring studio: quiz builder, article body, landing-page editor | **Not built** — quizzes exist only via seed |
 | AWS video upload / MediaConvert / CloudFront | Provider wired; needs rotated AWS keys |
 | Course player + quiz-gated unlock | Working |
-| Progress + certificates | Working |
+| Progress + certificates | Working — certificate PDF not generated (`pdfKey` unused) |
 | My Learning dashboard | Working |
+| Reviews, Q&A, announcements | **Not built** — schema only, all P0 |
+| Cart, order history, receipts | **Not built** — schema only |
+| Admin beyond the payment queue | **Not built** — no user, course, or taxonomy admin |
+| Analytics + event pipeline | **Not built** — `AnalyticsEvent` unused |
+
+Free preview lectures are playable signed-out at `/learn/[slug]/[itemId]`, but the
+course landing page does not link to them yet.
 
 ## Stack
 
