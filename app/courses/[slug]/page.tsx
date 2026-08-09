@@ -10,7 +10,6 @@ import {
   Globe,
   Lock,
   PlayCircle,
-  Star,
   Users,
 } from "lucide-react";
 import {
@@ -24,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { RatingHistogram } from "@/components/site/rating-histogram";
 import { ReviewList } from "@/components/site/review-list";
-import { StarRating } from "@/components/site/star-rating";
+import { CompactRating, StarRating } from "@/components/site/star-rating";
 import { isEnrolled } from "@/lib/entitlement";
 import { formatPrice, getPublishedCourseBySlug } from "@/lib/courses";
 import { getCourseReviewPanel } from "@/lib/reviews";
@@ -108,12 +107,24 @@ export default async function CourseLandingPage({ params }: Params) {
             {course.subtitle ? <p className="text-lg text-white/80">{course.subtitle}</p> : null}
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/80">
-              {course.ratingCount > 0 ? (
-                <span className="flex items-center gap-1 font-semibold text-amber-300">
-                  <Star className="size-4 fill-current" aria-hidden />
-                  {course.ratingAverage.toFixed(1)}
-                  <span className="font-normal text-white/60">({course.ratingCount} ratings)</span>
-                </span>
+              {/* `summary`, not course.ratingAverage. This page renders the
+                  histogram computed from the rows a few sections down, so the
+                  denormalised copy up here is a second answer to the same
+                  question — and it is the answer that goes stale, because
+                  nothing rewrites it when a cascaded User delete removes reviews
+                  or a moderator hides one. The panel query is already paid for,
+                  so the true number costs nothing extra here. The copy stays
+                  authoritative on the catalog card, which cannot afford a query
+                  per card; being one moderation action behind is invisible
+                  there and self-contradictory here. */}
+              {summary.count > 0 ? (
+                <CompactRating
+                  average={summary.average}
+                  count={summary.count}
+                  showRatingsWord
+                  className="text-amber-300"
+                  countClassName="text-white/60"
+                />
               ) : (
                 <span>No ratings yet</span>
               )}
@@ -307,10 +318,12 @@ export default async function CourseLandingPage({ params }: Params) {
             {/* Rendering the form is a convenience, not the authorisation:
                 submitReview re-checks the enrollment server-side (invariant 4). */}
             {enrolled ? (
-              <ReviewForm
-                courseId={course.id}
-                existing={ownReview ? { rating: ownReview.rating, body: ownReview.body } : null}
-              />
+              // ownReview.status goes through as-is. A hidden review is still
+              // returned by getCourseReviewPanel but is filtered out of
+              // `reviews`, so dropping the status here is what produced a form
+              // that says "your review is live" above a list the learner cannot
+              // find themselves in.
+              <ReviewForm courseId={course.id} existing={ownReview} />
             ) : null}
 
             <ReviewList reviews={reviews} />

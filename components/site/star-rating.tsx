@@ -41,3 +41,48 @@ export function StarRating({
     </span>
   );
 }
+
+/**
+ * The one-glyph "4.5 (12)" summary, for places five stars do not fit: the
+ * catalog card and the landing page hero, which both had their own copy of it.
+ *
+ * Same accessible name in both, and it says what the numbers are. The visible
+ * text alone announces as "4.5 12" — a screen reader has no way to know the
+ * first number is out of five and the second is a count, because the only thing
+ * that distinguished them was a star glyph and a bracket.
+ *
+ * Callers decide what an empty course renders. There is no sensible shared
+ * answer: the hero says "No ratings yet" and the card shows nothing at all.
+ */
+export function CompactRating({
+  average,
+  count,
+  className,
+  starClassName,
+  countClassName,
+  showRatingsWord = false,
+}: {
+  average: number;
+  count: number;
+  className?: string;
+  starClassName?: string;
+  countClassName?: string;
+  /** "(12 ratings)" where there is room for it; "(12)" in the catalog grid. */
+  showRatingsWord?: boolean;
+}) {
+  const ratings = `${count} ${count === 1 ? "rating" : "ratings"}`;
+
+  return (
+    <span
+      className={cn("flex items-center gap-1 font-semibold", className)}
+      role="img"
+      aria-label={`${average.toFixed(1)} out of 5 stars, ${ratings}`}
+    >
+      <Star className={cn("size-4 fill-current", starClassName)} aria-hidden />
+      {average.toFixed(1)}
+      <span className={cn("font-normal", countClassName)}>
+        ({showRatingsWord ? ratings : count})
+      </span>
+    </span>
+  );
+}

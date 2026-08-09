@@ -5,6 +5,7 @@ import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { OwnReview } from "@/lib/reviews";
 import { cn } from "@/lib/utils";
 import { submitReview, type ReviewState } from "./review-action";
 
@@ -13,10 +14,24 @@ const initial: ReviewState = { status: "idle" };
 /** Five, because a review carries a 1-5 rating — see `isValidRating` in lib/reviews.ts. */
 const STARS = [1, 2, 3, 4, 5];
 
+/**
+ * What a learner is told when their own review is not on the page.
+ *
+ * Only VISIBLE reviews are listed, so anything else means the learner is looking
+ * for a review that is not there. Saying nothing leaves them to conclude the post
+ * failed and write it again; `saveReview` deliberately does not reset `status` on
+ * an edit, so the second attempt would vanish exactly like the first.
+ */
+const MODERATION_NOTICE: Partial<Record<OwnReview["status"], string>> = {
+  PENDING: "Your review is waiting on moderation, so it is not shown below yet.",
+  HIDDEN:
+    "A moderator has hidden your review, so it is not shown below. Editing it will not restore it.",
+};
+
 export type ReviewFormProps = {
   courseId: string;
   /** The learner's existing review, when they are editing rather than writing. */
-  existing: { rating: number; body: string | null } | null;
+  existing: OwnReview | null;
 };
 
 export function ReviewForm({ courseId, existing }: ReviewFormProps) {
@@ -28,6 +43,10 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
   const fieldError = (name: string) =>
     state.status === "error" ? state.fieldErrors?.[name]?.[0] : undefined;
 
+  // A first review is created VISIBLE, so no existing row means the save really
+  // does go live. Anything else is whatever the row already carried.
+  const notice = existing ? MODERATION_NOTICE[existing.status] : undefined;
+
   return (
     <form action={action} className="flex flex-col gap-4 rounded-xl border p-5">
       <input type="hidden" name="courseId" value={courseId} />
@@ -38,6 +57,12 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
           Only learners enrolled in this course can review it.
         </p>
       </div>
+
+      {notice ? (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          {notice}
+        </p>
+      ) : null}
 
       <fieldset className="flex flex-col gap-1.5">
         <legend className="text-sm font-medium">Your rating</legend>
@@ -57,6 +82,13 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
                 required
                 checked={rating === star}
                 onChange={() => setRating(star)}
+                // On the inputs rather than the fieldset: a description hung off
+                // a fieldset is not reliably announced, and the radio is what
+                // has focus when the learner needs to hear why it was refused.
+                // No aria-invalid to go with it — ARIA does not support it on
+                // role=radio, only on the radiogroup, and this fieldset is not
+                // one.
+                aria-describedby={fieldError("rating") ? "review-rating-error" : undefined}
                 className="peer sr-only"
               />
               <Star
@@ -73,7 +105,7 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
           ))}
         </div>
         {fieldError("rating") ? (
-          <p role="alert" className="text-sm font-medium text-destructive">
+          <p id="review-rating-error" role="alert" className="text-sm font-medium text-destructive">
             {fieldError("rating")}
           </p>
         ) : null}
@@ -88,9 +120,11 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
           maxLength={4000}
           defaultValue={existing?.body ?? ""}
           placeholder="What did this course get right? What would you tell someone considering it?"
+          aria-invalid={fieldError("body") ? true : undefined}
+          aria-describedby={fieldError("body") ? "review-body-error" : undefined}
         />
         {fieldError("body") ? (
-          <p role="alert" className="text-sm font-medium text-destructive">
+          <p id="review-body-error" role="alert" className="text-sm font-medium text-destructive">
             {fieldError("body")}
           </p>
         ) : null}
@@ -104,7 +138,7 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
 
       {state.status === "saved" ? (
         <p role="status" className="text-sm font-medium text-brand">
-          Thanks — your review is live.
+          {notice ? "Saved. Your review is still not shown below." : "Thanks — your review is live."}
         </p>
       ) : null}
 
