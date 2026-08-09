@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/session";
 import { getOwnedCourse, readinessChecks, slugify, uniqueSlug } from "@/lib/studio";
@@ -57,6 +58,65 @@ export async function createCourse(_prev: ActionState, formData: FormData): Prom
   redirect(`/studio/courses/${course.id}`);
 }
 
+/** `amount` is a Postgres INTEGER — past this a "price" is a typo, not money. */
+const MAX_MINOR_UNITS = 2_147_483_647;
+
+/**
+ * Parses a decimal amount into integer minor units without a float in the path.
+ *
+ * `Math.round(Number(input) * 100)` lands on the right integer for the amounts a
+ * form produces, but it gets there through binary floating point — 49.99 * 100
+ * is 4998.999999999999. Splitting on the decimal point keeps money integral all
+ * the way down, which is the rule everywhere else in commerce.
+ *
+ * Null for anything that is not a plain non-negative decimal with at most two
+ * fraction digits — including the third digit that rounding used to swallow.
+ */
+function toMinorUnits(input: string): number | null {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(input.trim());
+  if (!match) return null;
+
+  const minor = Number(match[1] ?? "0") * 100 + Number((match[2] ?? "").padEnd(2, "0"));
+  return minor <= MAX_MINOR_UNITS ? minor : null;
+}
+
+/**
+ * Sets the active price for ONE currency, leaving every other currency alone.
+ *
+ * The scoping is the point. Stripe settles in USD and bKash settles in BDT, so a
+ * course sold on both rails must hold an active price in each — "save" cannot
+ * read as "make this the only price". What this replaced upserted on a compound
+ * key that included isActive, which meant switching the currency in the form
+ * created a second active row instead of moving the price, and the catalog was
+ * then left guessing which of the two to show.
+ *
+ * A change archives the old row rather than overwriting it, because the partial
+ * unique index (migration 20260807000002) constrains only active rows: history
+ * is now free, and "exactly one active price per currency" stays true at every
+ * instant an outside reader could look.
+ */
+async function setActivePrice(courseId: string, currency: string, amount: number): Promise<void> {
+  await db.$transaction(async (tx) => {
+    const current = await tx.price.findFirst({
+      where: { courseId, currency, isActive: true },
+      select: { id: true, amount: true },
+    });
+
+    if (current?.amount === amount) return;
+
+    if (current) {
+      await tx.price.update({ where: { id: current.id }, data: { isActive: false } });
+    }
+
+    await tx.price.create({ data: { courseId, currency, amount, isActive: true } });
+  });
+}
+
+/** Two saves racing for the same course and currency; the index rejects the loser. */
+function isDuplicateActivePrice(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
 const settingsSchema = z.object({
   courseId: z.string().min(1),
   title: z.string().trim().min(4).max(120),
@@ -104,20 +164,26 @@ export async function updateCourse(_prev: ActionState, formData: FormData): Prom
   });
 
   if (input.priceCurrency && input.priceAmount !== undefined && input.priceAmount !== "") {
-    const major = Number(input.priceAmount);
-    if (Number.isNaN(major) || major < 0) {
-      return { status: "error", message: "Price must be a number of 0 or more." };
+    // Stored as integer minor units so no float ever touches money.
+    const amount = toMinorUnits(input.priceAmount);
+    if (amount === null) {
+      return {
+        status: "error",
+        message: "Price must be 0 or more, with at most 2 decimal places.",
+      };
     }
 
-    // Stored as integer minor units so no float ever touches money.
-    const amount = Math.round(major * 100);
-    const currency = input.priceCurrency.toUpperCase();
-
-    await db.price.upsert({
-      where: { courseId_currency_isActive: { courseId: owned.id, currency, isActive: true } },
-      update: { amount },
-      create: { courseId: owned.id, currency, amount, isActive: true },
-    });
+    // The form submits one currency at a time, so this touches that currency and
+    // no other. Prices in the other currency are left exactly as they were.
+    try {
+      await setActivePrice(owned.id, input.priceCurrency.toUpperCase(), amount);
+    } catch (error) {
+      if (!isDuplicateActivePrice(error)) throw error;
+      return {
+        status: "error",
+        message: "This course's price was changed elsewhere. Reload and try again.",
+      };
+    }
   }
 
   revalidatePath(`/studio/courses/${owned.id}`);

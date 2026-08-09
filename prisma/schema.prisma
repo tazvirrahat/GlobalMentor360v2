@@ -419,7 +419,10 @@ enum CaptionSource {
 
 model MediaAsset {
   id              String      @id @default(uuid(7))
-  provider        String      @default("bunny")
+  // Matches `video.name` in lib/video — the app always passes it explicitly, so
+  // this only catches rows written outside that path. It said "bunny" long after
+  // AWS superseded it (TECH-SPEC "Video: AWS, superseding Bunny").
+  provider        String      @default("aws")
   providerAssetId String?     @unique
   originalKey     String?
   status          MediaStatus @default(UPLOADING)
@@ -872,7 +875,14 @@ model Price {
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
-  @@unique([courseId, currency, isActive])
+  // The rule — at most one ACTIVE price per course per currency — is a partial
+  // unique index, which Prisma cannot express here. It lives in raw SQL in
+  // migration 20260807000002_price_active_unique, alongside the CHECK
+  // constraints, and is proven by prisma/tests/price-constraints.sql.
+  //
+  // The @@unique([courseId, currency, isActive]) that used to sit here was not
+  // that rule: it also capped the archive at one inactive row per currency, so
+  // a second price change had nowhere to go.
   @@index([courseId])
   @@map("prices")
 }
