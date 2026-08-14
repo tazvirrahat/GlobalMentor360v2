@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { BookOpen, Clock, Star } from "lucide-react";
+import { BookOpen, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { CompactRating } from "@/components/site/star-rating";
 import { formatPrice } from "@/lib/courses";
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -63,12 +64,18 @@ export function CourseCard({ course }: { course: CourseCardData }) {
           <p className="text-xs text-muted-foreground">{course.instructor.name}</p>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {/* The denormalised copy, and the only surface entitled to it: the
+                grid renders one of these per course, so an aggregate query here
+                is an aggregate query per card. Recomputed on every review write
+                and stale in between — see lib/reviews.ts. */}
             {course.ratingCount > 0 ? (
-              <span className="flex items-center gap-1 font-semibold text-amber-600">
-                <Star className="size-3.5 fill-current" aria-hidden />
-                {course.ratingAverage.toFixed(1)}
-                <span className="font-normal text-muted-foreground">({course.ratingCount})</span>
-              </span>
+              <CompactRating
+                average={course.ratingAverage}
+                count={course.ratingCount}
+                className="text-amber-600"
+                starClassName="size-3.5"
+                countClassName="text-muted-foreground"
+              />
             ) : null}
             <span className="flex items-center gap-1">
               <BookOpen className="size-3.5" aria-hidden />

@@ -17,12 +17,15 @@ The buy → watch → complete spine works end to end. Several P0 features from
 | bKash manual checkout + admin verification | Working |
 | Stripe Checkout (automatic rail) | Working when credentials are set |
 | Authoring studio: course, curriculum, video upload | Working |
-| Authoring studio: quiz builder, article body, landing-page editor | **Not built** — quizzes exist only via seed |
+| Authoring studio: quiz builder, article body, per-answer explanations | Working |
+| Authoring studio: landing-page editor (objectives, requirements, thumbnail) | **Not built** |
 | AWS video upload / MediaConvert / CloudFront | Provider wired; needs rotated AWS keys |
 | Course player + quiz-gated unlock | Working |
 | Progress + certificates | Working — certificate PDF not generated (`pdfKey` unused) |
 | My Learning dashboard | Working |
-| Reviews, Q&A, announcements | **Not built** — schema only, all P0 |
+| Course reviews + rating aggregation + histogram | Working — recency weighting deferred |
+| Course Q&A (threaded, per lecture and per course) | Working — instructor Q&A dashboard not built |
+| Course announcements | **Not built** — schema only, P0 |
 | Cart, order history, receipts | **Not built** — schema only |
 | Admin beyond the payment queue | **Not built** — no user, course, or taxonomy admin |
 | Analytics + event pipeline | **Not built** — `AnalyticsEvent` unused |

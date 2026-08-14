@@ -20,6 +20,7 @@ import {
 } from "@/lib/progress";
 import { getCurrentUser, requireUser } from "@/lib/session";
 import { completeLectureAction } from "../actions";
+import { QaPanel } from "../qa-panel";
 import { QuizForm } from "../quiz-form";
 import { VideoPlayer } from "../video-player";
 
@@ -154,6 +155,17 @@ export default async function LearnItemPage({ params }: Params) {
               Next: {next.title} <ChevronRight className="size-4" aria-hidden />
             </Link>
           </Button>
+        ) : null}
+
+        {/* Q&A is for people taking the course, so it is absent on the preview
+            path a signed-out visitor reaches this page through. Hiding it is not
+            the guard — lib/qa.ts re-checks the enrollment on every write. */}
+        {course.enrolled ? (
+          <QaPanel
+            courseId={course.id}
+            curriculumItemId={current.id}
+            lectureTitle={current.title}
+          />
         ) : null}
       </div>
 

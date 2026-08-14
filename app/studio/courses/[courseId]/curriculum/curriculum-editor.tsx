@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Trash2 } from "lucide-react";
+import type { Route } from "next";
+import Link from "next/link";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Trash2, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -27,6 +29,8 @@ type Item = {
   position: number;
   isPreview: boolean;
   lecture: LectureVideoInfo | null;
+  /** Present on QUIZ items. The count drives the empty-quiz warning below. */
+  assessment: { id: string; _count: { questions: number } } | null;
 };
 
 type Section = {
@@ -65,11 +69,20 @@ function AddItemForm({ sectionId }: { sectionId: string }) {
     <form action={action} className="flex flex-wrap items-end gap-3">
       <input type="hidden" name="sectionId" value={sectionId} />
       <div className="flex min-w-52 flex-1 flex-col gap-1.5">
-        <Label htmlFor={`item-${sectionId}`}>New lecture title</Label>
+        <Label htmlFor={`item-${sectionId}`}>New item title</Label>
         <Input id={`item-${sectionId}`} name="title" required />
       </div>
-      <Button type="submit" variant="outline" size="sm" disabled={pending}>
+      {/*
+        Two submit buttons rather than a type dropdown: `type` is the only field
+        that differs, and a select the author must set before submitting is one
+        more way to create the wrong thing. formData takes the clicked button's
+        value, which is what addItem reads.
+      */}
+      <Button type="submit" name="type" value="LECTURE" variant="outline" size="sm" disabled={pending}>
         {pending ? "Adding…" : "Add lecture"}
+      </Button>
+      <Button type="submit" name="type" value="QUIZ" variant="outline" size="sm" disabled={pending}>
+        {pending ? "Adding…" : "Add quiz"}
       </Button>
       {state.status === "error" ? (
         <p role="alert" className="w-full text-sm font-medium text-destructive">
@@ -164,7 +177,7 @@ function DeleteSectionForm({ sectionId }: { sectionId: string }) {
   );
 }
 
-export function SectionList({ sections }: { sections: Section[] }) {
+export function SectionList({ courseId, sections }: { courseId: string; sections: Section[] }) {
   if (sections.length === 0)
     return <p className="text-muted-foreground">No sections yet — add the first one below.</p>;
 
@@ -186,8 +199,24 @@ export function SectionList({ sections }: { sections: Section[] }) {
                   {section.items.map((item, index) => (
                     <li key={item.id} className="flex flex-col gap-2 py-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-2 text-sm">
-                          {item.title}
+                        <span className="flex min-w-0 items-center gap-2 text-sm">
+                          {/*
+                            The title is the way into the item editor. Without a
+                            link here the editor route is reachable only by typing
+                            a URL, which is how the quiz builder and the article
+                            editor both shipped orphaned the first time.
+                          */}
+                          <Link
+                            href={
+                              `/studio/courses/${courseId}/curriculum/${item.id}` as Route
+                            }
+                            className="truncate font-medium hover:text-brand hover:underline"
+                          >
+                            {item.title}
+                          </Link>
+                          <Badge variant="secondary">
+                            {item.type === "QUIZ" ? "Quiz" : "Lecture"}
+                          </Badge>
                           {item.isPreview ? (
                             <Badge variant="outline" className="text-brand">
                               Preview
@@ -200,6 +229,16 @@ export function SectionList({ sections }: { sections: Section[] }) {
                           isLast={index === section.items.length - 1}
                         />
                       </div>
+                      {item.type === "QUIZ" && item.assessment?._count.questions === 0 ? (
+                        <p
+                          role="status"
+                          className="flex items-center gap-1.5 text-sm font-medium text-destructive"
+                        >
+                          <TriangleAlert className="size-4 shrink-0" aria-hidden />
+                          No questions yet — an empty quiz auto-passes every learner. Add
+                          questions before publishing.
+                        </p>
+                      ) : null}
                       {item.type === "LECTURE" ? (
                         <LectureVideoPanel itemId={item.id} lecture={item.lecture} />
                       ) : null}
