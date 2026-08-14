@@ -274,3 +274,158 @@ export async function postReply(input: {
 
   return { ok: true, slug: thread.course.slug };
 }
+
+// ---------------------------------------------------------------------------
+// Instructor inbox
+//
+// An instructor teaching several courses otherwise has to open each course's
+// player, lecture by lecture, to find out whether anyone is waiting on them.
+// These reads answer "what needs me?" across every course they own.
+// ---------------------------------------------------------------------------
+
+/**
+ * What counts as the instructor having answered: a reply of theirs that is still
+ * visible.
+ *
+ * Defined once and reused by every reader below. It was three separate object
+ * literals, and two of them omitted `status`, so a thread whose only instructor
+ * reply had been moderated away rendered as "needs an answer" while the filter
+ * built to surface exactly those threads excluded it — and the per-course badge
+ * undercounted to match. Same shape as the quiz-completion drift in
+ * lib/progress.ts: one rule, several dialects, agreeing until they didn't.
+ */
+const VISIBLE_INSTRUCTOR_REPLY = { isInstructor: true, status: "VISIBLE" } as const;
+
+/** Threads per page in the inbox. An instructor with 5,000 must not render them all. */
+export const INBOX_PAGE_SIZE = 25;
+
+export type InboxThread = {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: Date;
+  askedBy: string;
+  courseId: string;
+  courseTitle: string;
+  courseSlug: string;
+  /** Null for a course-wide thread. */
+  lectureTitle: string | null;
+  replyCount: number;
+  /** Whether the instructor has answered. Drives the "unanswered" filter. */
+  answered: boolean;
+};
+
+export type InboxFilters = {
+  /** Restrict to one course; undefined means every course this instructor owns. */
+  courseId?: string;
+  /** Only threads the instructor has not answered. */
+  unansweredOnly?: boolean;
+  /** Only threads opened on or after this instant. */
+  since?: Date;
+  page?: number;
+};
+
+export type InboxPage = {
+  threads: InboxThread[];
+  total: number;
+  page: number;
+  pageCount: number;
+};
+
+/**
+ * "Unanswered" means *the instructor* has not replied — not that nobody has.
+ *
+ * The alternative reading (no replies at all) hides the case that matters most:
+ * a thread where learners have been guessing at an answer for a week still needs
+ * the instructor, and under a reply-count test it would look handled. Expressed
+ * as a relation filter over VISIBLE_INSTRUCTOR_REPLY so the
+ * database applies it, rather than over-fetching and filtering in memory.
+ */
+export async function getInstructorInbox(
+  instructorId: string,
+  filters: InboxFilters = {},
+): Promise<InboxPage> {
+  const page = Math.max(1, Math.floor(filters.page ?? 1));
+
+  // Ownership is the `where`, not a check afterwards (lib/studio.ts header): a
+  // courseId belonging to another instructor narrows this to nothing rather than
+  // widening it to their threads.
+  const where = {
+    status: "VISIBLE" as const,
+    course: { instructorId, ...(filters.courseId ? { id: filters.courseId } : {}) },
+    ...(filters.unansweredOnly ? { replies: { none: VISIBLE_INSTRUCTOR_REPLY } } : {}),
+    ...(filters.since ? { createdAt: { gte: filters.since } } : {}),
+  };
+
+  // Two queries regardless of how many threads come back: the reply count and
+  // the answered flag are aggregated by the database, not by a query per row.
+  const [total, rows] = await Promise.all([
+    db.questionThread.count({ where }),
+    db.questionThread.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * INBOX_PAGE_SIZE,
+      take: INBOX_PAGE_SIZE,
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        createdAt: true,
+        user: { select: { name: true } },
+        course: { select: { id: true, title: true, slug: true } },
+        curriculumItem: { select: { title: true } },
+        _count: { select: { replies: { where: { status: "VISIBLE" } } } },
+        replies: {
+          where: VISIBLE_INSTRUCTOR_REPLY,
+          take: 1,
+          select: { id: true },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    threads: rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      createdAt: row.createdAt,
+      askedBy: row.user.name,
+      courseId: row.course.id,
+      courseTitle: row.course.title,
+      courseSlug: row.course.slug,
+      lectureTitle: row.curriculumItem?.title ?? null,
+      replyCount: row._count.replies,
+      // `take: 1` above makes this an existence check rather than a count.
+      answered: row.replies.length > 0,
+    })),
+    total,
+    page,
+    pageCount: Math.max(1, Math.ceil(total / INBOX_PAGE_SIZE)),
+  };
+}
+
+/** The courses the inbox filter offers, with how many threads are waiting on each. */
+export async function getInboxCourseFilters(instructorId: string) {
+  const courses = await db.course.findMany({
+    where: { instructorId },
+    orderBy: { title: "asc" },
+    select: {
+      id: true,
+      title: true,
+      _count: {
+        select: {
+          threads: {
+            where: { status: "VISIBLE", replies: { none: VISIBLE_INSTRUCTOR_REPLY } },
+          },
+        },
+      },
+    },
+  });
+
+  return courses.map((course) => ({
+    id: course.id,
+    title: course.title,
+    unanswered: course._count.threads,
+  }));
+}

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Megaphone, MessageCircleQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/session";
@@ -25,6 +26,22 @@ export default async function StudioPage() {
     <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
       <h1 className="text-3xl font-extrabold tracking-tight">Studio</h1>
       <p className="mt-2 text-muted-foreground">Create and manage your courses.</p>
+
+      {/* The way in to everything that is not scoped to one course. A studio
+          surface with no link from here is reachable only by typing its URL,
+          which is how the quiz builder shipped orphaned past a green build. */}
+      <nav aria-label="Studio sections" className="mt-4 flex flex-wrap gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href="/studio/qa">
+            <MessageCircleQuestion className="size-4" aria-hidden /> Questions
+          </Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/studio/announcements">
+            <Megaphone className="size-4" aria-hidden /> Announcements
+          </Link>
+        </Button>
+      </nav>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_360px]">
         <section>
