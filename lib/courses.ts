@@ -72,26 +72,82 @@ export function isFreeCourse(prices: readonly { amount: number }[]): boolean {
   return prices.length > 0 && prices.every((price) => price.amount === 0);
 }
 
+/**
+ * How the catalog is ordered.
+ *
+ * `relevance` is deliberately absent. Search is a substring match, so there is no
+ * relevance score to sort by — offering the option would be a control that
+ * silently does nothing. It arrives with Postgres full-text search, which
+ * TECH-SPEC already plans; until then `newest` is the honest default.
+ */
+export type CatalogSort = "newest" | "popular" | "rating" | "price-low" | "price-high";
+
 export type CatalogFilters = {
   /** Case-insensitive substring match on title, subtitle or description. */
   query?: string;
   level?: CourseLevel;
   categorySlug?: string;
+  /** ISO code on Course.language, e.g. "en". */
+  language?: string;
+  /** Only courses whose displayed price is 0, or only those above it. */
+  price?: "free" | "paid";
+  /** Minimum star rating, 1-5. Reads the denormalised aggregate. */
+  minRating?: number;
+  sort?: CatalogSort;
+};
+
+/**
+ * The catalog is a public page with no pagination control, so the read is capped
+ * rather than left to grow with the catalog. Unbounded findMany on a public
+ * route is the shape that made the announcements panel load every announcement
+ * ever sent on every page view.
+ */
+export const CATALOG_PAGE_SIZE = 48;
+
+/**
+ * Only the orderings the database can actually apply.
+ *
+ * price-low / price-high are absent here on purpose: the displayed price is
+ * chosen per rail by selectDisplayPrice after the rows come back, so Postgres
+ * cannot order by it without either a denormalised column or a join that picks
+ * the same currency this code does. Those two sorts are applied in memory below,
+ * within the capped page — which is honest about being a page-local sort rather
+ * than pretending to be a global one.
+ */
+const DB_ORDER: Record<
+  Exclude<CatalogSort, "price-low" | "price-high">,
+  Prisma.CourseOrderByWithRelationInput
+> = {
+  newest: { publishedAt: "desc" },
+  popular: { enrollmentCount: "desc" },
+  rating: { ratingAverage: "desc" },
 };
 
 export async function listPublishedCourses(filters: CatalogFilters = {}) {
-  const { query, level, categorySlug } = filters;
+  const { query, level, categorySlug, language, price, minRating, sort = "newest" } = filters;
 
   const where: Prisma.CourseWhereInput = {
     status: "PUBLISHED",
     ...(level ? { level } : {}),
     ...(categorySlug ? { primaryCategory: { slug: categorySlug } } : {}),
+    ...(language ? { language } : {}),
+    ...(minRating ? { ratingAverage: { gte: minRating } } : {}),
+    // "free" is every active price being zero, matching isFreeCourse — a course
+    // with a zero BDT price and a paid USD one is not free to the learner who
+    // sees the USD one. `none` and `some` express that without a second dialect.
+    ...(price === "free"
+      ? { prices: { none: { isActive: true, amount: { gt: 0 } } } }
+      : {}),
+    ...(price === "paid" ? { prices: { some: { isActive: true, amount: { gt: 0 } } } } : {}),
     ...(query
       ? {
           OR: [
             { title: { contains: query, mode: "insensitive" } },
             { subtitle: { contains: query, mode: "insensitive" } },
             { description: { contains: query, mode: "insensitive" } },
+            // Searching the instructor is a P0 line in FEATURES section B and
+            // costs one relation filter here.
+            { instructor: { name: { contains: query, mode: "insensitive" } } },
           ],
         }
       : {}),
@@ -99,7 +155,8 @@ export async function listPublishedCourses(filters: CatalogFilters = {}) {
 
   const courses = await db.course.findMany({
     where,
-    orderBy: { publishedAt: "desc" },
+    take: CATALOG_PAGE_SIZE,
+    orderBy: DB_ORDER[sort === "price-low" || sort === "price-high" ? "newest" : sort],
     select: {
       id: true,
       title: true,
@@ -124,7 +181,7 @@ export async function listPublishedCourses(filters: CatalogFilters = {}) {
     },
   });
 
-  return courses.map((course) => {
+  const mapped = courses.map((course) => {
     const seconds = course.sections
       .flatMap((section) => section.items)
       .reduce((sum, item) => sum + (item.lecture?.durationSeconds ?? 0), 0);
@@ -141,6 +198,31 @@ export async function listPublishedCourses(filters: CatalogFilters = {}) {
       isFree: isFreeCourse(course.prices),
     };
   });
+
+  if (sort === "price-low" || sort === "price-high") {
+    // Sorted here, not in SQL, because the price a learner sees is chosen per
+    // rail by selectDisplayPrice above — the database has no single column to
+    // order by. That makes this a sort within the capped page rather than across
+    // the whole catalog; at CATALOG_PAGE_SIZE the two coincide, and the day the
+    // catalog outgrows one page this needs a denormalised display price rather
+    // than a bigger cap.
+    const direction = sort === "price-low" ? 1 : -1;
+    mapped.sort((a, b) => ((a.price?.amount ?? 0) - (b.price?.amount ?? 0)) * direction);
+  }
+
+  return mapped;
+}
+
+/** The languages actually present in the catalog, so the filter offers no dead options. */
+export async function listCatalogLanguages(): Promise<string[]> {
+  const rows = await db.course.findMany({
+    where: { status: "PUBLISHED" },
+    distinct: ["language"],
+    orderBy: { language: "asc" },
+    select: { language: true },
+  });
+
+  return rows.map((row) => row.language);
 }
 
 /** Categories that have at least one published course — for catalog filter pills. */
