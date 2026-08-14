@@ -21,6 +21,13 @@ type Result = {
   isCorrect: boolean;
   explanation: string | null;
   correctOptionIds: string[];
+  options: {
+    id: string;
+    text: string;
+    isCorrect: boolean;
+    selected: boolean;
+    explanation: string | null;
+  }[];
 };
 
 export function QuizForm({
@@ -128,8 +135,43 @@ export function QuizForm({
                 >
                   {result?.isCorrect ? "Correct" : "Incorrect"}
                 </p>
+                {/* The answer key, option by option. Shown only after submitting:
+                    this is the review, and a per-option note before that would
+                    give the question away. */}
+                {result ? (
+                  <ul className="mt-3 flex flex-col gap-2">
+                    {result.options.map((option) => (
+                      <li
+                        key={option.id}
+                        className={
+                          option.isCorrect
+                            ? "rounded-lg border border-brand/40 bg-brand/5 p-2.5"
+                            : option.selected
+                              ? "rounded-lg border border-destructive/40 bg-destructive/5 p-2.5"
+                              : "rounded-lg border p-2.5"
+                        }
+                      >
+                        <p className="flex items-center gap-2 text-sm">
+                          <span className="font-medium">{option.text}</span>
+                          {option.isCorrect ? (
+                            <span className="text-xs font-semibold text-brand">Correct answer</span>
+                          ) : null}
+                          {option.selected && !option.isCorrect ? (
+                            <span className="text-xs font-semibold text-destructive">
+                              You chose this
+                            </span>
+                          ) : null}
+                        </p>
+                        {option.explanation ? (
+                          <p className="mt-1 text-sm text-muted-foreground">{option.explanation}</p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
                 {!result?.isCorrect && result?.explanation ? (
-                  <p className="mt-2 text-sm text-muted-foreground">{result.explanation}</p>
+                  <p className="mt-3 text-sm text-muted-foreground">{result.explanation}</p>
                 ) : null}
               </li>
             );

@@ -702,7 +702,16 @@ export async function submitQuizAttempt(
           id: true,
           type: true,
           explanation: true,
-          options: { select: { id: true, isCorrect: true } },
+          // text and explanation join this query but never getPlayerCourse's.
+          // The distinction is the moment: after an attempt is submitted the
+          // answers are being revealed on purpose, and a per-option note is only
+          // useful next to the option it belongs to. Before submitting, a note on
+          // the correct option gives the question away — which is why the
+          // learner-facing read still selects neither.
+          options: {
+            orderBy: { position: "asc" },
+            select: { id: true, text: true, isCorrect: true, explanation: true },
+          },
         },
       },
     },
@@ -746,6 +755,16 @@ export async function submitQuizAttempt(
       isCorrect,
       explanation: question.explanation,
       correctOptionIds: [...correctIds],
+      // Everything the review needs about one option, resolved here rather than
+      // in the component: whether it was right, whether this learner picked it,
+      // and the author's note about it.
+      options: question.options.map((option) => ({
+        id: option.id,
+        text: option.text,
+        isCorrect: option.isCorrect,
+        selected: selected.has(option.id),
+        explanation: option.explanation,
+      })),
     };
   });
 
