@@ -413,8 +413,8 @@ function QuestionEditorForm({
         )}
 
         <p className="text-xs text-muted-foreground">
-          Per-answer notes are saved against each option. The player currently shows the
-          question-level explanation below, not these.
+          Shown to the learner beside this answer after they submit — never before,
+          since a note on the correct option gives the question away.
         </p>
       </fieldset>
 
