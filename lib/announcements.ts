@@ -25,6 +25,17 @@ export type CourseAnnouncement = {
   authorName: string;
 };
 
+/**
+ * How many announcements a learner sees in the player.
+ *
+ * This read runs on every lecture page view, so it has to be bounded by
+ * something other than how long the course has been taught — matching
+ * THREAD_PAGE_SIZE in lib/qa.ts and REVIEW_PAGE_SIZE in lib/reviews.ts, the two
+ * other learner-facing lists. Newest first, so the cap drops the ones already
+ * read rather than the ones that just arrived.
+ */
+export const ANNOUNCEMENT_PAGE_SIZE = 20;
+
 /** How many recipients one send will mail before it refuses. See sendAnnouncement. */
 export const MAX_INLINE_RECIPIENTS = 500;
 
@@ -46,6 +57,7 @@ export async function getLearnerAnnouncements(
   const rows = await db.announcement.findMany({
     where: { courseId, sentAt: { not: null } },
     orderBy: { sentAt: "desc" },
+    take: ANNOUNCEMENT_PAGE_SIZE,
     select: {
       id: true,
       subject: true,
@@ -62,32 +74,6 @@ export async function getLearnerAnnouncements(
     sentAt: row.sentAt,
     authorName: row.author.name,
   }));
-}
-
-/** Everything the studio composer lists, for one course this instructor owns. */
-export async function getOwnedCourseAnnouncements(courseId: string, instructorId: string) {
-  const course = await db.course.findFirst({
-    where: { id: courseId, instructorId },
-    select: {
-      id: true,
-      title: true,
-      slug: true,
-      _count: { select: { enrollments: { where: { revokedAt: null } } } },
-      announcements: {
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          subject: true,
-          body: true,
-          sentAt: true,
-          createdAt: true,
-          author: { select: { name: true } },
-        },
-      },
-    },
-  });
-
-  return course;
 }
 
 /** The courses the composer offers, so an instructor picks rather than types an id. */

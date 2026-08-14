@@ -283,6 +283,19 @@ export async function postReply(input: {
 // These reads answer "what needs me?" across every course they own.
 // ---------------------------------------------------------------------------
 
+/**
+ * What counts as the instructor having answered: a reply of theirs that is still
+ * visible.
+ *
+ * Defined once and reused by every reader below. It was three separate object
+ * literals, and two of them omitted `status`, so a thread whose only instructor
+ * reply had been moderated away rendered as "needs an answer" while the filter
+ * built to surface exactly those threads excluded it — and the per-course badge
+ * undercounted to match. Same shape as the quiz-completion drift in
+ * lib/progress.ts: one rule, several dialects, agreeing until they didn't.
+ */
+const VISIBLE_INSTRUCTOR_REPLY = { isInstructor: true, status: "VISIBLE" } as const;
+
 /** Threads per page in the inbox. An instructor with 5,000 must not render them all. */
 export const INBOX_PAGE_SIZE = 25;
 
@@ -325,7 +338,7 @@ export type InboxPage = {
  * The alternative reading (no replies at all) hides the case that matters most:
  * a thread where learners have been guessing at an answer for a week still needs
  * the instructor, and under a reply-count test it would look handled. Expressed
- * as a relation filter (`replies: { none: { isInstructor: true } }`) so the
+ * as a relation filter over VISIBLE_INSTRUCTOR_REPLY so the
  * database applies it, rather than over-fetching and filtering in memory.
  */
 export async function getInstructorInbox(
@@ -340,7 +353,7 @@ export async function getInstructorInbox(
   const where = {
     status: "VISIBLE" as const,
     course: { instructorId, ...(filters.courseId ? { id: filters.courseId } : {}) },
-    ...(filters.unansweredOnly ? { replies: { none: { isInstructor: true } } } : {}),
+    ...(filters.unansweredOnly ? { replies: { none: VISIBLE_INSTRUCTOR_REPLY } } : {}),
     ...(filters.since ? { createdAt: { gte: filters.since } } : {}),
   };
 
@@ -363,7 +376,7 @@ export async function getInstructorInbox(
         curriculumItem: { select: { title: true } },
         _count: { select: { replies: { where: { status: "VISIBLE" } } } },
         replies: {
-          where: { isInstructor: true, status: "VISIBLE" },
+          where: VISIBLE_INSTRUCTOR_REPLY,
           take: 1,
           select: { id: true },
         },
@@ -403,7 +416,7 @@ export async function getInboxCourseFilters(instructorId: string) {
       _count: {
         select: {
           threads: {
-            where: { status: "VISIBLE", replies: { none: { isInstructor: true } } },
+            where: { status: "VISIBLE", replies: { none: VISIBLE_INSTRUCTOR_REPLY } },
           },
         },
       },

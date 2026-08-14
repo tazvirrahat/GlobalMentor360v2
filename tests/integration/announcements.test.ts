@@ -128,6 +128,28 @@ describe("publishAnnouncement", () => {
   });
 });
 
+describe("getLearnerAnnouncements bounds", () => {
+  it("caps what one lecture page loads, however long the course has run", async () => {
+    // This read runs on every lecture page view. A course that has been taught
+    // for two years accumulates announcements the learner has long since read,
+    // and an unbounded fetch pays for all of them on every page.
+    await db.announcement.createMany({
+      data: Array.from({ length: 25 }, (_, index) => ({
+        courseId,
+        authorId: ownerId,
+        subject: `Bulk ${index}`,
+        body: "Body.",
+        sentAt: new Date(Date.now() - index * 1000),
+      })),
+    });
+
+    const rows = await getLearnerAnnouncements(learnerId, courseId);
+    expect(rows.length).toBeLessThanOrEqual(20);
+    // Newest first, so the cap keeps the ones that matter.
+    expect(rows[0]?.subject).toBe("Bulk 0");
+  });
+});
+
 describe("getLearnerAnnouncements", () => {
   beforeEach(async () => {
     hoisted.actorId = ownerId;
