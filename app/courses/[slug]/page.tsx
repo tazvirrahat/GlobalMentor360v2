@@ -10,7 +10,6 @@ import {
   Globe,
   Lock,
   PlayCircle,
-  Star,
   Users,
 } from "lucide-react";
 import {
@@ -22,10 +21,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { RatingHistogram } from "@/components/site/rating-histogram";
+import { ReviewList } from "@/components/site/review-list";
+import { CompactRating, StarRating } from "@/components/site/star-rating";
 import { isEnrolled } from "@/lib/entitlement";
 import { formatPrice, getPublishedCourseBySlug } from "@/lib/courses";
+import { getCourseReviewPanel } from "@/lib/reviews";
 import { getCurrentUser } from "@/lib/session";
 import { enrollFree } from "./enroll-free-action";
+import { ReviewForm } from "./review-form";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -77,6 +81,14 @@ export default async function CourseLandingPage({ params }: Params) {
       .map((item) => item.id),
   );
 
+  // Three queries whatever the review count, fetched alongside nothing else the
+  // page needs — the N+1 the playable set above was fixed to remove came from
+  // the same instinct, one round trip per rendered row.
+  const { summary, reviews, ownReview, hiddenByPageSize } = await getCourseReviewPanel(
+    course.id,
+    user?.id ?? null,
+  );
+
   const free = course.isFree;
   const purchasable = course.price !== null;
 
@@ -95,12 +107,24 @@ export default async function CourseLandingPage({ params }: Params) {
             {course.subtitle ? <p className="text-lg text-white/80">{course.subtitle}</p> : null}
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/80">
-              {course.ratingCount > 0 ? (
-                <span className="flex items-center gap-1 font-semibold text-amber-300">
-                  <Star className="size-4 fill-current" aria-hidden />
-                  {course.ratingAverage.toFixed(1)}
-                  <span className="font-normal text-white/60">({course.ratingCount} ratings)</span>
-                </span>
+              {/* `summary`, not course.ratingAverage. This page renders the
+                  histogram computed from the rows a few sections down, so the
+                  denormalised copy up here is a second answer to the same
+                  question — and it is the answer that goes stale, because
+                  nothing rewrites it when a cascaded User delete removes reviews
+                  or a moderator hides one. The panel query is already paid for,
+                  so the true number costs nothing extra here. The copy stays
+                  authoritative on the catalog card, which cannot afford a query
+                  per card; being one moderation action behind is invisible
+                  there and self-contradictory here. */}
+              {summary.count > 0 ? (
+                <CompactRating
+                  average={summary.average}
+                  count={summary.count}
+                  showRatingsWord
+                  className="text-amber-300"
+                  countClassName="text-white/60"
+                />
               ) : (
                 <span>No ratings yet</span>
               )}
@@ -267,6 +291,49 @@ export default async function CourseLandingPage({ params }: Params) {
               </ul>
             </section>
           ) : null}
+
+          {/* Reviews */}
+          <section id="reviews" className="flex flex-col gap-6">
+            <h2 className="text-2xl font-extrabold tracking-tight">Learner reviews</h2>
+
+            {summary.count > 0 ? (
+              <div className="grid items-center gap-6 rounded-xl border p-5 sm:grid-cols-[auto_1fr]">
+                <div className="flex flex-col items-center gap-1 sm:pr-6">
+                  <span className="text-4xl font-extrabold tabular-nums text-amber-600">
+                    {summary.average.toFixed(1)}
+                  </span>
+                  <StarRating value={summary.average} />
+                  <span className="text-xs text-muted-foreground">
+                    {summary.count} {summary.count === 1 ? "rating" : "ratings"}
+                  </span>
+                </div>
+                <RatingHistogram distribution={summary.distribution} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No ratings yet — enrolled learners can be the first to review this course.
+              </p>
+            )}
+
+            {/* Rendering the form is a convenience, not the authorisation:
+                submitReview re-checks the enrollment server-side (invariant 4). */}
+            {enrolled ? (
+              // ownReview.status goes through as-is. A hidden review is still
+              // returned by getCourseReviewPanel but is filtered out of
+              // `reviews`, so dropping the status here is what produced a form
+              // that says "your review is live" above a list the learner cannot
+              // find themselves in.
+              <ReviewForm courseId={course.id} existing={ownReview} />
+            ) : null}
+
+            <ReviewList reviews={reviews} />
+
+            {hiddenByPageSize > 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Showing the {reviews.length} most recent reviews of {summary.count}.
+              </p>
+            ) : null}
+          </section>
         </div>
 
         {/* Instructor panel */}
