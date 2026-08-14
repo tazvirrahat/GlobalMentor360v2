@@ -12,7 +12,7 @@ The buy → watch → complete spine works end to end. Several P0 features from
 | Area | Status |
 |---|---|
 | Auth (Better Auth: email/password, required email verification, password reset, roles) | Working |
-| Catalog + search | Working — substring match; filters limited to level and category |
+| Catalog + search | Working — filters (level, category, price, rating, language) and sort; substring match, not full-text |
 | Course landing with Buy / Enrol free | Working |
 | bKash manual checkout + admin verification | Working |
 | Stripe Checkout (automatic rail) | Working when credentials are set |
@@ -24,11 +24,14 @@ The buy → watch → complete spine works end to end. Several P0 features from
 | Progress + certificates | Working — certificate PDF not generated (`pdfKey` unused) |
 | My Learning dashboard | Working |
 | Course reviews + rating aggregation + histogram | Working — recency weighting deferred |
-| Course Q&A (threaded, per lecture and per course) | Working — instructor Q&A dashboard not built |
-| Course announcements | **Not built** — schema only, P0 |
-| Cart, order history, receipts | **Not built** — schema only |
+| Course Q&A (threaded, per lecture and per course) | Working |
+| Instructor Q&A inbox | Working |
+| Course announcements + email | Working — capped at 500 recipients until a queue exists |
+| Order history + receipts | Working |
+| Cart, multi-item checkout | **Not built** — checkout is one course at a time |
 | Admin beyond the payment queue | **Not built** — no user, course, or taxonomy admin |
-| Analytics + event pipeline | **Not built** — `AnalyticsEvent` unused |
+| Product event pipeline | Working — events recorded; no dashboard yet |
+| Engagement + revenue dashboards | **Not built** |
 
 Free preview lectures are playable signed-out at `/learn/[slug]/[itemId]`, but the
 course landing page does not link to them yet.
@@ -67,8 +70,9 @@ Seed accounts (password `dev-password-12345`):
 | `npm run build` | Production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
-| `npm run test` | Vitest (unit) |
-| `npm run test:db` | Payment CHECK constraint tests (needs Postgres) |
+| `npm run test` | Vitest unit suite — needs no database |
+| `npm run test:db` | Every database-backed suite (needs Postgres) |
+| `npm run test:db:flows` | Integration tests: payment rails, authoring, Q&A, reviews, orders |
 | `npm run test:e2e` | Playwright critical path (needs `npm run dev`) |
 | `npm run db:migrate` | Apply migrations |
 | `npm run db:seed` | Taxonomy, staff/learner accounts, sample course |
