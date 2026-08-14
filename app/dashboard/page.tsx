@@ -1,6 +1,6 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { Archive, Award, BookOpen, CheckCircle2, PlayCircle } from "lucide-react";
+import { Archive, Award, BookOpen, CheckCircle2, PlayCircle, Receipt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -126,7 +126,17 @@ export default async function DashboardPage() {
             ))}
           </div>
         </div>
-        <SignOutButton />
+        <div className="flex items-center gap-2">
+          {/* The only route into the purchase record. A page nothing links to is
+              reachable only by typing its URL — the gap that left the quiz
+              builder orphaned past a green build. */}
+          <Button asChild variant="outline" size="sm">
+            <Link href="/orders">
+              <Receipt className="size-4" aria-hidden /> Purchases
+            </Link>
+          </Button>
+          <SignOutButton />
+        </div>
       </header>
 
       <section className="mt-10">
