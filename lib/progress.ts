@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { recordEvent } from "@/lib/analytics";
 import { issueCertificateIfComplete } from "@/lib/certificates";
 import { canPlayItem, isEnrolled } from "@/lib/entitlement";
 
@@ -590,6 +591,11 @@ export async function markLectureComplete(userId: string, curriculumItemId: stri
     create: { userId, curriculumItemId, completedAt: new Date() },
   });
 
+  await recordEvent("lecture_completed", userId, {
+    courseId: item.section.courseId,
+    curriculumItemId,
+  });
+
   await recomputeCourseProgress(userId, item.section.courseId);
   return { ok: true as const };
 }
@@ -782,6 +788,15 @@ export async function submitQuizAttempt(
       },
     });
   }
+
+  // scorePct and passed are the two numbers section K's assessment analytics
+  // are built from; the answers themselves stay in quiz_attempt_answers.
+  await recordEvent("quiz_submitted", userId, {
+    courseId,
+    assessmentId,
+    scorePct,
+    passed,
+  });
 
   await recomputeCourseProgress(userId, courseId);
 
