@@ -135,6 +135,50 @@ describe("addItem", () => {
   });
 });
 
+describe("per-answer explanations reach the learner", () => {
+  it("returns each option's note in the graded result, after submitting", async () => {
+    await addItem({ status: "idle" }, form({ sectionId, title: `Reviewed ${run}`, type: "QUIZ" }));
+    const item = await db.curriculumItem.findFirstOrThrow({
+      where: { sectionId, title: `Reviewed ${run}` },
+      select: { id: true, assessment: { select: { id: true } } },
+    });
+    const reviewedAssessmentId = item.assessment!.id;
+
+    await saveQuestion(
+      { status: "idle" },
+      questionForm({ itemId: item.id, prompt: "Pick one", type: "SINGLE_CHOICE" }, [
+        { text: "Right", correct: true, explanation: "Because this one is right." },
+        { text: "Wrong", correct: false, explanation: "A common trap." },
+      ]),
+    );
+
+    const question = await db.question.findFirstOrThrow({
+      where: { assessmentId: reviewedAssessmentId },
+      select: { id: true, options: { select: { id: true, isCorrect: true } } },
+    });
+
+    await grantEnrollment(learnerId, courseId, "GRANT");
+    const wrongOption = question.options.find((o) => !o.isCorrect)!;
+
+    const result = await submitQuizAttempt(learnerId, reviewedAssessmentId, [
+      { questionId: question.id, selectedOptionIds: [wrongOption.id] },
+    ]);
+
+    // Authored but never shown is the failure this guards: the column round-trips
+    // to the database, so a storage test passes while the learner sees nothing.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const graded = result.results.find((r) => r.questionId === question.id)!;
+    const notes = graded.options.map((o) => o.explanation);
+    expect(notes).toEqual(expect.arrayContaining(["Because this one is right.", "A common trap."]));
+
+    const chosen = graded.options.find((o) => o.id === wrongOption.id)!;
+    expect(chosen.selected).toBe(true);
+    expect(chosen.isCorrect).toBe(false);
+  });
+});
+
 describe("saveQuestion", () => {
   let itemId: string;
   let assessmentId: string;
