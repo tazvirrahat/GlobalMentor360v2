@@ -143,6 +143,43 @@ describe("getInstructorInbox", () => {
   });
 });
 
+describe("the answered predicate", () => {
+  it("agrees with the unanswered filter when an instructor reply is hidden", async () => {
+    const thread = await db.questionThread.create({
+      data: {
+        courseId: ownedCourseId,
+        userId: learnerId,
+        title: `Hidden-answer thread ${run}`,
+        body: "The only instructor reply here was moderated away.",
+      },
+      select: { id: true },
+    });
+
+    await db.threadReply.create({
+      data: {
+        threadId: thread.id,
+        userId: ownerId,
+        body: "Moderated answer.",
+        isInstructor: true,
+        status: "HIDDEN",
+      },
+    });
+
+    const all = await getInstructorInbox(ownerId);
+    const row = all.threads.find((t) => t.id === thread.id);
+
+    // No VISIBLE instructor reply exists, so the list marks it as needing one.
+    expect(row?.answered).toBe(false);
+
+    // The filter whose entire purpose is to surface those threads must agree.
+    const unanswered = await getInstructorInbox(ownerId, { unansweredOnly: true });
+    expect(unanswered.threads.map((t) => t.id)).toContain(thread.id);
+
+    await db.threadReply.deleteMany({ where: { threadId: thread.id } });
+    await db.questionThread.delete({ where: { id: thread.id } });
+  });
+});
+
 describe("replyFromInbox", () => {
   it("writes a reply indistinguishable from one made in the player", async () => {
     const formData = new FormData();
