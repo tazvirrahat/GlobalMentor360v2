@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { EnrollmentSource } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { recordEvent } from "@/lib/analytics";
 
 /**
  * The single path that grants course access.
@@ -42,7 +43,12 @@ export async function grantEnrollment(
   /** Omit to get a fresh transaction; pass your own when already inside one. */
   client?: Client,
 ) {
-  return inTransaction(client, async (tx) => {
+  // Set inside the transaction, read after it commits: an event announcing an
+  // enrollment that a rollback then discarded is worse than a missing one,
+  // because nothing later contradicts it.
+  let granted = false;
+
+  const enrollment = await inTransaction(client, async (tx) => {
     // Course.enrollmentCount counts *transitions into* an active enrollment, not
     // calls to this function: a retried webhook or a double-clicked approval must
     // add nothing, while a re-grant after a refund must count again.
@@ -69,7 +75,9 @@ export async function grantEnrollment(
       skipDuplicates: true,
     });
 
-    if (created.count > 0 || revived.count > 0) {
+    granted = created.count > 0 || revived.count > 0;
+
+    if (granted) {
       await tx.course.update({
         where: { id: courseId },
         data: { enrollmentCount: { increment: 1 } },
@@ -80,6 +88,15 @@ export async function grantEnrollment(
       where: { userId_courseId: { userId, courseId } },
     });
   });
+
+  // Emitted here rather than per rail: this is the one path every rail converges
+  // on (invariant 7), so it is the only place the event cannot be missed by a
+  // rail that forgets it.
+  if (granted) {
+    await recordEvent("enrollment_granted", userId, { courseId, source });
+  }
+
+  return enrollment;
 }
 
 /**
