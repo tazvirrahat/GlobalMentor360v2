@@ -18,8 +18,10 @@ import {
   getPlayerCourse,
   type PlayerItem,
 } from "@/lib/progress";
+import { getLearnerAnnouncements } from "@/lib/announcements";
 import { getCurrentUser, requireUser } from "@/lib/session";
 import { completeLectureAction } from "../actions";
+import { AnnouncementsPanel } from "../announcements-panel";
 import { QaPanel } from "../qa-panel";
 import { QuizForm } from "../quiz-form";
 import { VideoPlayer } from "../video-player";
@@ -66,6 +68,11 @@ export default async function LearnItemPage({ params }: Params) {
     // them to the landing page.
     redirect((user ? `/learn/${slug}` : `/courses/${slug}`) as Route);
   }
+
+  // Only for enrolled learners: getLearnerAnnouncements re-checks the enrollment
+  // itself, so this is a cost guard rather than the access guard.
+  const announcements =
+    user && course.enrolled ? await getLearnerAnnouncements(user.id, course.id) : [];
 
   const currentIndex = flat.findIndex((item) => item.id === itemId);
   const next = flat.slice(currentIndex + 1).find((item) => !item.locked);
@@ -160,6 +167,11 @@ export default async function LearnItemPage({ params }: Params) {
         {/* Q&A is for people taking the course, so it is absent on the preview
             path a signed-out visitor reaches this page through. Hiding it is not
             the guard — lib/qa.ts re-checks the enrollment on every write. */}
+        {/* Above Q&A deliberately: an announcement is the instructor telling
+            every learner something, and burying it under the thread list is how
+            it goes unread. Empty renders nothing, so it costs no space. */}
+        {course.enrolled ? <AnnouncementsPanel announcements={announcements} /> : null}
+
         {course.enrolled ? (
           <QaPanel
             courseId={course.id}
