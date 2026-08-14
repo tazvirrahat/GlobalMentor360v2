@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, Megaphone } from "lucide-react";
+import { ExternalLink, Megaphone, MessageCircleQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +31,11 @@ export default async function StudioPage() {
           surface with no link from here is reachable only by typing its URL,
           which is how the quiz builder shipped orphaned past a green build. */}
       <nav aria-label="Studio sections" className="mt-4 flex flex-wrap gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href="/studio/qa">
+            <MessageCircleQuestion className="size-4" aria-hidden /> Questions
+          </Link>
+        </Button>
         <Button asChild variant="outline" size="sm">
           <Link href="/studio/announcements">
             <Megaphone className="size-4" aria-hidden /> Announcements
