@@ -26,7 +26,12 @@ export async function POST(req: Request): Promise<Response> {
     return new Response("Invalid signature", { status: 401 });
   }
 
-  // 200 acknowledges receipt so Stripe stops retrying; whether it was a paying
-  // event is Stripe's business only for our logs, not the status code.
+  // Missing rows and amount mismatches must not ACK: Stripe retries until the
+  // row exists or an operator sees the failing delivery. COMPLETED duplicates
+  // and REFUNDED replays are terminal — ACK those so retries stop.
+  if (result.retry) {
+    return new Response("Stripe fulfill skipped", { status: 500 });
+  }
+
   return Response.json({ received: true, paid: result.paid });
 }

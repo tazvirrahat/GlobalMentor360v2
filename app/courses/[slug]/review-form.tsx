@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { OwnReview } from "@/lib/reviews";
 import { cn } from "@/lib/utils";
+import { FieldError } from "@/components/site/field-error";
 import { submitReview, type ReviewState } from "./review-action";
 
 const initial: ReviewState = { status: "idle" };
@@ -105,9 +106,7 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
           ))}
         </div>
         {fieldError("rating") ? (
-          <p id="review-rating-error" role="alert" className="text-sm font-medium text-destructive">
-            {fieldError("rating")}
-          </p>
+          <FieldError id="review-rating-error" message={fieldError("rating")!} />
         ) : null}
       </fieldset>
 
@@ -124,16 +123,12 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
           aria-describedby={fieldError("body") ? "review-body-error" : undefined}
         />
         {fieldError("body") ? (
-          <p id="review-body-error" role="alert" className="text-sm font-medium text-destructive">
-            {fieldError("body")}
-          </p>
+          <FieldError id="review-body-error" message={fieldError("body")!} />
         ) : null}
       </div>
 
       {state.status === "error" && !state.fieldErrors ? (
-        <p role="alert" className="text-sm font-medium text-destructive">
-          {state.message}
-        </p>
+        <FieldError message={state.message} />
       ) : null}
 
       {state.status === "saved" ? (

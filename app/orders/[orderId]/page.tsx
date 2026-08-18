@@ -5,7 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { formatPrice } from "@/lib/courses";
+import { formatDate, formatPrice } from "@/lib/format";
 import { getLearnerOrder } from "@/lib/orders";
 import { requireUser } from "@/lib/session";
 
@@ -41,7 +41,7 @@ export default async function ReceiptPage({ params }: Params) {
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">Receipt</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Order {order.id} · {order.createdAt.toLocaleDateString("en-GB")}
+              Order {order.id} · {formatDate(order.createdAt)}
             </p>
           </div>
           <Badge variant={order.status === "PAID" ? "default" : "secondary"}>
@@ -102,7 +102,7 @@ export default async function ReceiptPage({ params }: Params) {
                   <span>
                     {METHOD_LABEL[payment.method] ?? payment.method} ·{" "}
                     {payment.status.replace("_", " ").toLowerCase()}
-                    {payment.paidAt ? ` · ${payment.paidAt.toLocaleDateString("en-GB")}` : ""}
+                    {payment.paidAt ? ` · ${formatDate(payment.paidAt)}` : ""}
                   </span>
                   {payment.reference ? (
                     <span className="break-all text-xs">Reference: {payment.reference}</span>

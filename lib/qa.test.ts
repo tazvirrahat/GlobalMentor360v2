@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assembleThreads,
+  earlierRepliesCopy,
   QUESTION_TITLE_MAX,
   questionSubmissionSchema,
   replySubmissionSchema,
@@ -123,6 +124,7 @@ describe("assembleThreads", () => {
   it("gives a thread with no replies an empty list, not undefined", () => {
     const assembled = assembleThreads([thread("t1", "item-1")], []);
     expect(assembled[0]?.replies).toEqual([]);
+    expect(assembled[0]?.earlierReplyCount).toBe(0);
   });
 
   it("derives the scope from the nullable item id", () => {
@@ -145,10 +147,30 @@ describe("assembleThreads", () => {
     expect(assembled[0]?.replies.map((r) => r.isInstructor)).toEqual([true, false]);
   });
 
+  it("carries how many earlier replies were dropped off the page", () => {
+    const assembled = assembleThreads(
+      [thread("t1", "item-1")],
+      [reply("r-new", "t1")],
+      new Map([["t1", 12]]),
+    );
+    expect(assembled[0]?.earlierReplyCount).toBe(12);
+  });
+
   it("drops a reply whose thread is not on this page", () => {
     // Only threads that were fetched can be rendered; an orphan must not throw
     // or silently attach itself to the first thread.
     const assembled = assembleThreads([thread("t1", "item-1")], [reply("r1", "t-missing")]);
     expect(assembled[0]?.replies).toEqual([]);
+  });
+});
+
+describe("earlierRepliesCopy", () => {
+  it("is silent when nothing was dropped", () => {
+    expect(earlierRepliesCopy(0)).toBeNull();
+  });
+
+  it("names a single earlier reply and pluralises the rest", () => {
+    expect(earlierRepliesCopy(1)).toBe("1 earlier reply");
+    expect(earlierRepliesCopy(12)).toBe("12 earlier replies");
   });
 });

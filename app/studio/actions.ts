@@ -82,6 +82,13 @@ function toMinorUnits(input: string): number | null {
   return minor <= MAX_MINOR_UNITS ? minor : null;
 }
 
+/** Two saves racing for the same course and currency; the index rejects the loser. */
+function isDuplicateActivePrice(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
 /**
  * Sets the active price for ONE currency, leaving every other currency alone.
  *
@@ -97,26 +104,50 @@ function toMinorUnits(input: string): number | null {
  * is now free, and "exactly one active price per currency" stays true at every
  * instant an outside reader could look.
  */
-async function setActivePrice(courseId: string, currency: string, amount: number): Promise<void> {
-  await db.$transaction(async (tx) => {
-    const current = await tx.price.findFirst({
-      where: { courseId, currency, isActive: true },
-      select: { id: true, amount: true },
-    });
-
-    if (current?.amount === amount) return;
-
-    if (current) {
-      await tx.price.update({ where: { id: current.id }, data: { isActive: false } });
-    }
-
-    await tx.price.create({ data: { courseId, currency, amount, isActive: true } });
+async function setActivePrice(
+  tx: Tx,
+  courseId: string,
+  currency: string,
+  amount: number,
+): Promise<void> {
+  const current = await tx.price.findFirst({
+    where: { courseId, currency, isActive: true },
+    select: { id: true, amount: true },
   });
+
+  if (current?.amount === amount) return;
+
+  if (current) {
+    await tx.price.update({ where: { id: current.id }, data: { isActive: false } });
+  }
+
+  await tx.price.create({ data: { courseId, currency, amount, isActive: true } });
 }
 
-/** Two saves racing for the same course and currency; the index rejects the loser. */
-function isDuplicateActivePrice(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+async function replaceLinedField(
+  tx: Tx,
+  courseId: string,
+  table: "courseObjective" | "courseRequirement" | "courseTargetAudience",
+  values: string[],
+): Promise<void> {
+  const rows = values
+    .map((text) => text.trim())
+    .filter((text) => text.length > 0)
+    .slice(0, 20)
+    .map((text, position) => ({ courseId, text: text.slice(0, 300), position }));
+
+  if (table === "courseObjective") {
+    await tx.courseObjective.deleteMany({ where: { courseId } });
+    if (rows.length) await tx.courseObjective.createMany({ data: rows });
+    return;
+  }
+  if (table === "courseRequirement") {
+    await tx.courseRequirement.deleteMany({ where: { courseId } });
+    if (rows.length) await tx.courseRequirement.createMany({ data: rows });
+    return;
+  }
+  await tx.courseTargetAudience.deleteMany({ where: { courseId } });
+  if (rows.length) await tx.courseTargetAudience.createMany({ data: rows });
 }
 
 const settingsSchema = z.object({
@@ -154,19 +185,11 @@ export async function updateCourse(_prev: ActionState, formData: FormData): Prom
   const owned = await getOwnedCourse(input.courseId, user.id);
   if (!owned) return { status: "error", message: "Course not found." };
 
-  await db.course.update({
-    where: { id: owned.id },
-    data: {
-      title: input.title,
-      subtitle: input.subtitle || null,
-      description: input.description || null,
-      level: input.level,
-      language: input.language,
-    },
-  });
-
+  // Price is validated before any write. Lined fields used to be delete-and-
+  // recreated first, so a bad amount or a unique-constraint race on price left
+  // the lists already wiped (or half-written) while the action returned an error.
+  let price: { currency: string; amount: number } | null = null;
   if (input.priceCurrency && input.priceAmount !== undefined && input.priceAmount !== "") {
-    // Stored as integer minor units so no float ever touches money.
     const amount = toMinorUnits(input.priceAmount);
     if (amount === null) {
       return {
@@ -174,18 +197,53 @@ export async function updateCourse(_prev: ActionState, formData: FormData): Prom
         message: "Price must be 0 or more, with at most 2 decimal places.",
       };
     }
+    price = { currency: input.priceCurrency.toUpperCase(), amount };
+  }
 
-    // The form submits one currency at a time, so this touches that currency and
-    // no other. Prices in the other currency are left exactly as they were.
-    try {
-      await setActivePrice(owned.id, input.priceCurrency.toUpperCase(), amount);
-    } catch (error) {
-      if (!isDuplicateActivePrice(error)) throw error;
-      return {
-        status: "error",
-        message: "This course's price was changed elsewhere. Reload and try again.",
-      };
-    }
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.course.update({
+        where: { id: owned.id },
+        data: {
+          title: input.title,
+          subtitle: input.subtitle || null,
+          description: input.description || null,
+          level: input.level,
+          language: input.language,
+        },
+      });
+
+      await replaceLinedField(
+        tx,
+        owned.id,
+        "courseObjective",
+        formData.getAll("objectives").map(String),
+      );
+      await replaceLinedField(
+        tx,
+        owned.id,
+        "courseRequirement",
+        formData.getAll("requirements").map(String),
+      );
+      await replaceLinedField(
+        tx,
+        owned.id,
+        "courseTargetAudience",
+        formData.getAll("audience").map(String),
+      );
+
+      if (price) {
+        // The form submits one currency at a time, so this touches that currency
+        // and no other. Prices in the other currency are left exactly as they were.
+        await setActivePrice(tx, owned.id, price.currency, price.amount);
+      }
+    });
+  } catch (error) {
+    if (!isDuplicateActivePrice(error)) throw error;
+    return {
+      status: "error",
+      message: "This course's price was changed elsewhere. Reload and try again.",
+    };
   }
 
   revalidatePath(`/studio/courses/${owned.id}`);

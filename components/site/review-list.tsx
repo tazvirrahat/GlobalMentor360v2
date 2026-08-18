@@ -1,14 +1,6 @@
 import type { CourseReview } from "@/lib/reviews";
 import { StarRating } from "@/components/site/star-rating";
-
-// Fixed locale rather than the request's: this renders inside a Server
-// Component, so a locale-dependent string would be chosen by the server's
-// environment and then differ from what a client re-render produces.
-const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
+import { formatDateMedium } from "@/lib/format";
 
 export function ReviewList({ reviews }: { reviews: CourseReview[] }) {
   if (reviews.length === 0) {
@@ -28,7 +20,7 @@ export function ReviewList({ reviews }: { reviews: CourseReview[] }) {
             <span className="text-sm font-semibold">{review.authorName}</span>
             <span className="text-xs text-muted-foreground">
               <time dateTime={review.createdAt.toISOString()}>
-                {DATE_FORMAT.format(review.createdAt)}
+                {formatDateMedium(review.createdAt)}
               </time>
               {/* An edited review carries a date that is no longer when it was
                   written, and a reader weighing recency deserves to know. */}

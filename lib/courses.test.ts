@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPrice, isFreeCourse, selectDisplayPrice } from "./courses";
+import { formatPrice, isFreeCourse, sanitizeSearchQuery, selectDisplayPrice } from "./courses";
 
 const usd = { amount: 4900, currency: "USD" };
 const bdt = { amount: 599000, currency: "BDT" };
@@ -20,8 +20,12 @@ describe("formatPrice", () => {
 });
 
 describe("selectDisplayPrice", () => {
-  it("prefers the automatic rail's currency when a course is sold on both", () => {
-    expect(selectDisplayPrice([bdt, usd])).toBe(usd);
+  it("prefers the bKash currency when a course is sold on both rails", () => {
+    // bKash is the rail that is always configured, so the headline price must be
+    // the one that rail can actually charge — not the USD price Stripe would
+    // take if it had keys.
+    expect(selectDisplayPrice([bdt, usd])).toBe(bdt);
+    expect(selectDisplayPrice([usd, bdt])).toBe(bdt);
   });
 
   it("gives the same answer whatever order the rows arrive in", () => {
@@ -30,6 +34,13 @@ describe("selectDisplayPrice", () => {
 
   it("falls back to the only rail a course is actually sold on", () => {
     expect(selectDisplayPrice([bdt])).toBe(bdt);
+  });
+
+  it("does not invent a USD headline when a BDT row exists, even at zero", () => {
+    expect(selectDisplayPrice([usd, { amount: 0, currency: "BDT" }])).toEqual({
+      amount: 0,
+      currency: "BDT",
+    });
   });
 
   it("is deterministic for currencies no rail sells in", () => {
@@ -57,5 +68,15 @@ describe("isFreeCourse", () => {
 
   it("does not give away a course that has no active price", () => {
     expect(isFreeCourse([])).toBe(false);
+  });
+});
+
+describe("sanitizeSearchQuery", () => {
+  it("keeps words and drops query operators", () => {
+    expect(sanitizeSearchQuery("  TypeScript & (foundations) ")).toBe("TypeScript foundations");
+  });
+
+  it("returns empty for punctuation-only input", () => {
+    expect(sanitizeSearchQuery("!!!")).toBe("");
   });
 });

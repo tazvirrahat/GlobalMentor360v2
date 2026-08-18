@@ -1,5 +1,6 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import {
   BookOpen,
@@ -25,18 +26,23 @@ import { RatingHistogram } from "@/components/site/rating-histogram";
 import { ReviewList } from "@/components/site/review-list";
 import { CompactRating, StarRating } from "@/components/site/star-rating";
 import { isEnrolled } from "@/lib/entitlement";
-import { formatPrice, getPublishedCourseBySlug } from "@/lib/courses";
+import { getPublishedCourseBySlug } from "@/lib/courses";
+import { courseLevelLabel, coursePriceLabel } from "@/lib/labels";
+import { getPlayerLockedItemIds } from "@/lib/progress";
 import { getCourseReviewPanel } from "@/lib/reviews";
 import { getCurrentUser } from "@/lib/session";
 import { enrollFree } from "./enroll-free-action";
 import { ReviewForm } from "./review-form";
+import { addCourseToCart } from "@/app/cart/actions";
 
 type Params = { params: Promise<{ slug: string }> };
 
+const getCourse = cache(getPublishedCourseBySlug);
+
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
-  const course = await getPublishedCourseBySlug(slug);
-  if (!course) return { title: "Not found" };
+  const course = await getCourse(slug);
+  if (!course) notFound();
 
   return {
     title: course.title,
@@ -52,16 +58,9 @@ const ITEM_LABEL: Record<string, string> = {
   CODING_EXERCISE: "Coding exercise",
 };
 
-const LEVEL_LABEL: Record<string, string> = {
-  BEGINNER: "Beginner",
-  INTERMEDIATE: "Intermediate",
-  ADVANCED: "Advanced",
-  ALL_LEVELS: "All levels",
-};
-
 export default async function CourseLandingPage({ params }: Params) {
   const { slug } = await params;
-  const course = await getPublishedCourseBySlug(slug);
+  const course = await getCourse(slug);
 
   if (!course) notFound();
 
@@ -69,15 +68,18 @@ export default async function CourseLandingPage({ params }: Params) {
   const user = await getCurrentUser();
   const enrolled = user ? await isEnrolled(user.id, course.id) : false;
 
-  // Same rule as canPlayItem (lib/entitlement.ts): preview items play for
-  // anyone, everything else needs a live enrollment. Calling it per item meant
-  // one findUnique per lesson, sequentially, on a public SEO page — 60 round
-  // trips for a 60-lesson course. `isPreview` and the enrollment are already in
-  // hand, so the answer costs nothing.
+  // Same rule as the player: preview items are always linked; enrolled learners
+  // only get /learn links for items sequential unlock has actually opened.
+  const lockedIds =
+    enrolled && user ? await getPlayerLockedItemIds(user.id, course.id) : new Set<string>();
   const playable = new Set(
     course.sections
       .flatMap((section) => section.items)
-      .filter((item) => item.isPreview || enrolled)
+      .filter((item) => {
+        if (item.isPreview) return true;
+        if (!enrolled) return false;
+        return !lockedIds.has(item.id);
+      })
       .map((item) => item.id),
   );
 
@@ -91,6 +93,12 @@ export default async function CourseLandingPage({ params }: Params) {
 
   const free = course.isFree;
   const purchasable = course.price !== null;
+  const firstPreview = course.sections
+    .flatMap((section) => section.items)
+    .find((item) => item.isPreview);
+  const previewSectionIds = course.sections
+    .filter((section) => section.items.some((item) => item.isPreview))
+    .map((section) => section.id);
 
   return (
     <main>
@@ -132,7 +140,7 @@ export default async function CourseLandingPage({ params }: Params) {
                 <Users className="size-4" aria-hidden />
                 {course.enrollmentCount} enrolled
               </span>
-              <span>{LEVEL_LABEL[course.level] ?? course.level}</span>
+              <span>{courseLevelLabel(course.level)}</span>
               <span className="flex items-center gap-1">
                 <Globe className="size-4" aria-hidden />
                 {course.language}
@@ -146,39 +154,65 @@ export default async function CourseLandingPage({ params }: Params) {
           <Card className="h-fit rounded-2xl">
             <CardContent className="flex flex-col gap-4 p-6">
               <p className="text-3xl font-extrabold text-brand">
-                {free
-                  ? "Free"
-                  : course.price
-                    ? formatPrice(course.price.amount, course.price.currency)
-                    : "Not for sale"}
+                {coursePriceLabel(free, course.price)}
               </p>
 
-              {enrolled ? (
-                <Button asChild size="lg" className="shadow-brand">
-                  <Link href={`/learn/${course.slug}` as Route}>
-                    Continue learning <ChevronRight className="size-4" aria-hidden />
-                  </Link>
-                </Button>
-              ) : free ? (
-                // Offered only when enrollFree would actually accept it — the
-                // action requires every active price to be 0, and a button that
-                // silently does nothing is worse than no button.
-                <form action={enrollFree}>
-                  <input type="hidden" name="courseId" value={course.id} />
-                  <Button type="submit" size="lg" className="w-full shadow-brand">
-                    Enrol for free
+              <div className="flex flex-col gap-2">
+                {enrolled ? (
+                  <Button asChild size="lg" className="shadow-brand">
+                    <Link href={`/learn/${course.slug}` as Route}>
+                      Continue learning <ChevronRight className="size-4" aria-hidden />
+                    </Link>
                   </Button>
-                </form>
-              ) : purchasable ? (
-                <Button asChild size="lg" className="shadow-brand">
-                  <Link href={`/courses/${course.slug}/checkout`}>Buy this course</Link>
-                </Button>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  This course has no price set, so it can&rsquo;t be bought right now. Check back
-                  soon.
-                </p>
-              )}
+                ) : (
+                  <>
+                    {firstPreview ? (
+                      <Button asChild size="lg" variant={free || purchasable ? "outline" : "default"}>
+                        <Link href={`/learn/${course.slug}/${firstPreview.id}` as Route}>
+                          Preview: {firstPreview.title}
+                        </Link>
+                      </Button>
+                    ) : null}
+                    {free ? (
+                      // Offered only when enrollFree would actually accept it — the
+                      // action requires every active price to be 0, and a button that
+                      // silently does nothing is worse than no button.
+                      <form action={enrollFree}>
+                        <input type="hidden" name="courseId" value={course.id} />
+                        <Button type="submit" size="lg" className="w-full shadow-brand">
+                          Enrol for free
+                        </Button>
+                      </form>
+                    ) : purchasable ? (
+                      <>
+                        <Button asChild size="lg" className="shadow-brand">
+                          <Link href={`/courses/${course.slug}/checkout`}>Buy this course</Link>
+                        </Button>
+                        {user ? (
+                          <form action={addCourseToCart}>
+                            <input type="hidden" name="courseId" value={course.id} />
+                            <input type="hidden" name="slug" value={course.slug} />
+                            <Button type="submit" variant="outline" size="lg" className="w-full">
+                              Add to cart
+                            </Button>
+                          </form>
+                        ) : (
+                          <Button asChild variant="outline" size="lg">
+                            <Link href={`/sign-in?next=${encodeURIComponent(`/courses/${course.slug}`)}`}>
+                              Sign in to add to cart
+                            </Link>
+                          </Button>
+                        )}
+                      </>
+                    ) : firstPreview ? null : (
+                      <p className="text-sm text-muted-foreground">
+                        This course has no price set, so it can&rsquo;t be bought right now. Check
+                        back soon.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
 
               <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
                 <li className="flex items-center gap-2">
@@ -221,12 +255,12 @@ export default async function CourseLandingPage({ params }: Params) {
               {course.sections.length} sections · {course.itemCount} items · {course.totalDuration}
             </p>
 
-            <Accordion type="multiple" className="mt-4 rounded-xl border">
+            <Accordion type="multiple" defaultValue={previewSectionIds} className="mt-4 rounded-xl border">
               {course.sections.map((section) => (
                 <AccordionItem key={section.id} value={section.id} className="px-4">
                   <AccordionTrigger className="hover:no-underline">
-                    <span className="flex w-full items-center justify-between gap-2 pr-2 text-left">
-                      <span className="font-semibold">{section.title}</span>
+                    <span className="flex w-full min-w-0 items-center justify-between gap-2 pr-2 text-left">
+                      <span className="min-w-0 truncate font-semibold">{section.title}</span>
                       <span className="shrink-0 text-xs font-normal text-muted-foreground">
                         {section.items.length} items · {section.duration}
                       </span>
@@ -235,15 +269,26 @@ export default async function CourseLandingPage({ params }: Params) {
                   <AccordionContent>
                     <ul className="flex flex-col gap-2">
                       {section.items.map((item) => (
-                        <li key={item.id} className="flex items-center gap-2 text-sm">
+                        <li key={item.id} className="flex min-w-0 items-center gap-2 text-sm">
                           {playable.has(item.id) ? (
-                            <PlayCircle className="size-4 shrink-0 text-brand" aria-hidden />
+                            <Link
+                              href={`/learn/${course.slug}/${item.id}` as Route}
+                              className="flex min-w-0 flex-1 items-center gap-2 hover:text-brand"
+                            >
+                              <PlayCircle className="size-4 shrink-0 text-brand" aria-hidden />
+                              <span className="truncate">{item.title}</span>
+                            </Link>
                           ) : item.type === "QUIZ" ? (
-                            <FileQuestion className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                            <>
+                              <FileQuestion className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                              <span className="min-w-0 truncate">{item.title}</span>
+                            </>
                           ) : (
-                            <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                            <>
+                              <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                              <span className="min-w-0 truncate">{item.title}</span>
+                            </>
                           )}
-                          <span>{item.title}</span>
                           <span className="text-xs text-muted-foreground">
                             {ITEM_LABEL[item.type] ?? item.type}
                           </span>

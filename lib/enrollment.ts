@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { EnrollmentSource } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { recordEvent } from "@/lib/analytics";
+import { notify } from "@/lib/notifications";
 
 /**
  * The single path that grants course access.
@@ -94,6 +95,17 @@ export async function grantEnrollment(
   // rail that forgets it.
   if (granted) {
     await recordEvent("enrollment_granted", userId, { courseId, source });
+    const course = await db.course.findUnique({
+      where: { id: courseId },
+      select: { title: true, slug: true },
+    });
+    if (course) {
+      await notify(userId, "enrollment", {
+        title: "You're enrolled",
+        body: course.title,
+        href: `/learn/${course.slug}`,
+      });
+    }
   }
 
   return enrollment;

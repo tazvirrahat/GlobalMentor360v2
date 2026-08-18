@@ -1,6 +1,8 @@
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { isEnrolled } from "@/lib/entitlement";
+import { notify } from "@/lib/notifications";
+import { clampPage, pageCount, parsePage, skipTake } from "@/lib/pagination";
 import type { ThreadScope } from "@/lib/qa-rules";
 
 // Re-exported so server callers have one import site; the Client Components
@@ -16,6 +18,10 @@ export * from "@/lib/qa-rules";
  * is a POST endpoint reachable without ever loading the page, so the checks live
  * here, in the write, rather than in whatever decided to render a textarea.
  *
+ * Reads are gated the same way: `getCourseQaPanel` returns an empty panel unless
+ * the caller is enrolled, the course instructor, or an admin. Hiding the Q&A
+ * UI on the player page is not the authorization.
+ *
  * The one exception is the course's own instructor, who may always reply. That
  * identity is derived from `Course.instructorId` inside these functions and is
  * never accepted as a parameter — `ThreadReply.isInstructor` is what the UI
@@ -25,6 +31,13 @@ export * from "@/lib/qa-rules";
 
 /** One page of threads. The player already runs several queries; this must not grow with the course. */
 const THREAD_PAGE_SIZE = 20;
+/** Last N replies per thread. Older ones are counted, not loaded. */
+export const REPLY_PAGE_SIZE = 50;
+
+export function earlierRepliesCopy(count: number): string | null {
+  if (count <= 0) return null;
+  return count === 1 ? "1 earlier reply" : `${count} earlier replies`;
+}
 
 export type QaReply = {
   id: string;
@@ -43,6 +56,8 @@ export type QaThread = {
   scope: ThreadScope;
   authorName: string;
   replies: QaReply[];
+  /** Visible replies older than the last REPLY_PAGE_SIZE. */
+  earlierReplyCount: number;
 };
 
 export type QaPanel = {
@@ -81,7 +96,11 @@ type ReplyRow = {
  * Input order is preserved, so the caller's `orderBy` is the whole sort: threads
  * newest first, replies oldest first, which is the order a conversation reads in.
  */
-export function assembleThreads(threads: ThreadRow[], replies: ReplyRow[]): QaThread[] {
+export function assembleThreads(
+  threads: ThreadRow[],
+  replies: ReplyRow[],
+  earlierByThread: ReadonlyMap<string, number> = new Map(),
+): QaThread[] {
   const byThread = new Map<string, QaReply[]>();
 
   for (const reply of replies) {
@@ -108,6 +127,7 @@ export function assembleThreads(threads: ThreadRow[], replies: ReplyRow[]): QaTh
     scope: thread.curriculumItemId === null ? "COURSE" : "LECTURE",
     authorName: thread.user.name,
     replies: byThread.get(thread.id) ?? [],
+    earlierReplyCount: earlierByThread.get(thread.id) ?? 0,
   }));
 }
 
@@ -119,11 +139,32 @@ export function assembleThreads(threads: ThreadRow[], replies: ReplyRow[]): QaTh
  * round trip, then every visible reply to that page in a second. Nothing here
  * runs per thread or per reply.
  */
+const EMPTY_QA_PANEL: QaPanel = { threads: [], hiddenByPageSize: 0 };
+
+async function canReadCourseQa(userId: string, courseId: string): Promise<boolean> {
+  if (await isEnrolled(userId, courseId)) return true;
+
+  const course = await db.course.findUnique({
+    where: { id: courseId },
+    select: { instructorId: true },
+  });
+  if (course?.instructorId === userId) return true;
+
+  const admin = await db.userRole.findUnique({
+    where: { userId_role: { userId, role: "ADMIN" } },
+    select: { role: true },
+  });
+  return admin !== null;
+}
+
 export async function getCourseQaPanel(
   courseId: string,
   /** The lecture being shown, or null to list only the course-wide threads. */
   curriculumItemId: string | null,
+  userId: string,
 ): Promise<QaPanel> {
+  if (!(await canReadCourseQa(userId, courseId))) return EMPTY_QA_PANEL;
+
   const where: Prisma.QuestionThreadWhereInput = {
     courseId,
     // Moderation is not built yet, but the column has a default and a HIDDEN row
@@ -154,25 +195,78 @@ export async function getCourseQaPanel(
     db.questionThread.count({ where }),
   ]);
 
-  const replyRows = threadRows.length
-    ? await db.threadReply.findMany({
-        where: { threadId: { in: threadRows.map((row) => row.id) }, status: "VISIBLE" },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          threadId: true,
-          body: true,
-          createdAt: true,
-          isInstructor: true,
-          user: { select: { name: true } },
-        },
-      })
-    : [];
+  const { replies, earlierByThread } = await loadRecentReplies(threadRows.map((row) => row.id));
 
   return {
-    threads: assembleThreads(threadRows, replyRows),
+    threads: assembleThreads(threadRows, replies, earlierByThread),
     hiddenByPageSize: Math.max(0, total - threadRows.length),
   };
+}
+
+async function loadRecentReplies(
+  threadIds: string[],
+): Promise<{ replies: ReplyRow[]; earlierByThread: Map<string, number> }> {
+  if (threadIds.length === 0) return { replies: [], earlierByThread: new Map() };
+
+  const rows = await db.$queryRaw<
+    {
+      id: string;
+      threadId: string;
+      body: string;
+      createdAt: Date;
+      isInstructor: boolean;
+      authorName: string;
+      replyTotal: number | bigint;
+    }[]
+  >`
+    SELECT ranked.id,
+           ranked."threadId" AS "threadId",
+           ranked.body,
+           ranked."createdAt" AS "createdAt",
+           ranked."isInstructor" AS "isInstructor",
+           u.name AS "authorName",
+           ranked.reply_total AS "replyTotal"
+    FROM (
+      SELECT r.id,
+             r."threadId",
+             r.body,
+             r."createdAt",
+             r."isInstructor",
+             r."userId",
+             COUNT(*) OVER (PARTITION BY r."threadId") AS reply_total,
+             ROW_NUMBER() OVER (PARTITION BY r."threadId" ORDER BY r."createdAt" DESC) AS rn
+      FROM thread_replies r
+      WHERE r.status = 'VISIBLE'
+        AND r."threadId" IN (${Prisma.join(threadIds.map((id) => Prisma.sql`${id}`))})
+    ) ranked
+    INNER JOIN users u ON u.id = ranked."userId"
+    WHERE ranked.rn <= ${REPLY_PAGE_SIZE}
+    ORDER BY ranked."createdAt" ASC
+  `;
+
+  const shownByThread = new Map<string, number>();
+  const totalByThread = new Map<string, number>();
+  const replies: ReplyRow[] = [];
+
+  for (const row of rows) {
+    totalByThread.set(row.threadId, Number(row.replyTotal));
+    shownByThread.set(row.threadId, (shownByThread.get(row.threadId) ?? 0) + 1);
+    replies.push({
+      id: row.id,
+      threadId: row.threadId,
+      body: row.body,
+      createdAt: row.createdAt,
+      isInstructor: row.isInstructor,
+      user: { name: row.authorName },
+    });
+  }
+
+  const earlierByThread = new Map<string, number>();
+  for (const [threadId, total] of totalByThread) {
+    earlierByThread.set(threadId, Math.max(0, total - (shownByThread.get(threadId) ?? 0)));
+  }
+
+  return { replies, earlierByThread };
 }
 
 export type QaWriteResult = { ok: true; slug: string } | { ok: false; message: string };
@@ -248,8 +342,10 @@ export async function postReply(input: {
     where: { id: input.threadId, status: "VISIBLE" },
     select: {
       id: true,
+      userId: true,
+      title: true,
       courseId: true,
-      course: { select: { slug: true, instructorId: true } },
+      course: { select: { slug: true, instructorId: true, title: true } },
     },
   });
 
@@ -271,6 +367,14 @@ export async function postReply(input: {
     },
     select: { id: true },
   });
+
+  if (thread.userId !== input.userId) {
+    await notify(thread.userId, "qa_reply", {
+      title: isInstructor ? "Your instructor replied" : "New reply on your question",
+      body: thread.title,
+      href: `/learn/${thread.course.slug}`,
+    });
+  }
 
   return { ok: true, slug: thread.course.slug };
 }
@@ -322,7 +426,7 @@ export type InboxFilters = {
   unansweredOnly?: boolean;
   /** Only threads opened on or after this instant. */
   since?: Date;
-  page?: number;
+  page?: string | number;
 };
 
 export type InboxPage = {
@@ -345,7 +449,7 @@ export async function getInstructorInbox(
   instructorId: string,
   filters: InboxFilters = {},
 ): Promise<InboxPage> {
-  const page = Math.max(1, Math.floor(filters.page ?? 1));
+  const requested = parsePage(filters.page);
 
   // Ownership is the `where`, not a check afterwards (lib/studio.ts header): a
   // courseId belonging to another instructor narrows this to nothing rather than
@@ -357,32 +461,32 @@ export async function getInstructorInbox(
     ...(filters.since ? { createdAt: { gte: filters.since } } : {}),
   };
 
-  // Two queries regardless of how many threads come back: the reply count and
-  // the answered flag are aggregated by the database, not by a query per row.
-  const [total, rows] = await Promise.all([
-    db.questionThread.count({ where }),
-    db.questionThread.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * INBOX_PAGE_SIZE,
-      take: INBOX_PAGE_SIZE,
-      select: {
-        id: true,
-        title: true,
-        body: true,
-        createdAt: true,
-        user: { select: { name: true } },
-        course: { select: { id: true, title: true, slug: true } },
-        curriculumItem: { select: { title: true } },
-        _count: { select: { replies: { where: { status: "VISIBLE" } } } },
-        replies: {
-          where: VISIBLE_INSTRUCTOR_REPLY,
-          take: 1,
-          select: { id: true },
-        },
+  // Count first so an overshot ?page= lands on the last page rather than empty.
+  const total = await db.questionThread.count({ where });
+  const page = clampPage(requested, total, INBOX_PAGE_SIZE);
+  const { skip, take } = skipTake(page, INBOX_PAGE_SIZE);
+
+  const rows = await db.questionThread.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    skip,
+    take,
+    select: {
+      id: true,
+      title: true,
+      body: true,
+      createdAt: true,
+      user: { select: { name: true } },
+      course: { select: { id: true, title: true, slug: true } },
+      curriculumItem: { select: { title: true } },
+      _count: { select: { replies: { where: { status: "VISIBLE" } } } },
+      replies: {
+        where: VISIBLE_INSTRUCTOR_REPLY,
+        take: 1,
+        select: { id: true },
       },
-    }),
-  ]);
+    },
+  });
 
   return {
     threads: rows.map((row) => ({
@@ -401,31 +505,56 @@ export async function getInstructorInbox(
     })),
     total,
     page,
-    pageCount: Math.max(1, Math.ceil(total / INBOX_PAGE_SIZE)),
+    pageCount: pageCount(total, INBOX_PAGE_SIZE),
   };
 }
 
+/** Dropdown cap for the inbox course filter. Same bound as studio coupons. */
+export const INBOX_COURSE_FILTER_CAP = 200;
+
+export type InboxCourseFilters = {
+  courses: { id: string; title: string; unanswered: number }[];
+  total: number;
+  unansweredTotal: number;
+};
+
 /** The courses the inbox filter offers, with how many threads are waiting on each. */
-export async function getInboxCourseFilters(instructorId: string) {
-  const courses = await db.course.findMany({
-    where: { instructorId },
-    orderBy: { title: "asc" },
-    select: {
-      id: true,
-      title: true,
-      _count: {
-        select: {
-          threads: {
-            where: { status: "VISIBLE", replies: { none: VISIBLE_INSTRUCTOR_REPLY } },
+export async function getInboxCourseFilters(instructorId: string): Promise<InboxCourseFilters> {
+  const where = { instructorId };
+  const unansweredWhere = {
+    status: "VISIBLE" as const,
+    course: { instructorId },
+    replies: { none: VISIBLE_INSTRUCTOR_REPLY },
+  };
+
+  const [courses, total, unansweredTotal] = await Promise.all([
+    db.course.findMany({
+      where,
+      orderBy: { title: "asc" },
+      take: INBOX_COURSE_FILTER_CAP,
+      select: {
+        id: true,
+        title: true,
+        _count: {
+          select: {
+            threads: {
+              where: { status: "VISIBLE", replies: { none: VISIBLE_INSTRUCTOR_REPLY } },
+            },
           },
         },
       },
-    },
-  });
+    }),
+    db.course.count({ where }),
+    db.questionThread.count({ where: unansweredWhere }),
+  ]);
 
-  return courses.map((course) => ({
-    id: course.id,
-    title: course.title,
-    unanswered: course._count.threads,
-  }));
+  return {
+    courses: courses.map((course) => ({
+      id: course.id,
+      title: course.title,
+      unanswered: course._count.threads,
+    })),
+    total,
+    unansweredTotal,
+  };
 }

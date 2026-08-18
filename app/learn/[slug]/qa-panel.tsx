@@ -1,16 +1,9 @@
 import { Badge } from "@/components/ui/badge";
-import { getCourseQaPanel, type QaThread } from "@/lib/qa";
+import { formatDateMedium } from "@/lib/format";
+import { getCourseQaPanel, earlierRepliesCopy, type QaThread } from "@/lib/qa";
+import { getCurrentUser } from "@/lib/session";
 import { AskQuestionForm } from "./ask-question-form";
 import { ReplyForm } from "./reply-form";
-
-// Fixed locale rather than the request's, for the reason given in
-// components/site/review-list.tsx: this renders on the server, so a
-// locale-dependent string would be chosen by the server's environment.
-const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
 
 function Thread({ thread }: { thread: QaThread }) {
   return (
@@ -23,7 +16,7 @@ function Thread({ thread }: { thread: QaThread }) {
         <p className="text-xs text-muted-foreground">
           {thread.authorName} ·{" "}
           <time dateTime={thread.createdAt.toISOString()}>
-            {DATE_FORMAT.format(thread.createdAt)}
+            {formatDateMedium(thread.createdAt)}
           </time>
         </p>
       </div>
@@ -34,6 +27,11 @@ function Thread({ thread }: { thread: QaThread }) {
 
       {thread.replies.length > 0 ? (
         <ul className="flex flex-col gap-3 border-l pl-4">
+          {earlierRepliesCopy(thread.earlierReplyCount) ? (
+            <li className="text-xs text-muted-foreground">
+              {earlierRepliesCopy(thread.earlierReplyCount)}
+            </li>
+          ) : null}
           {thread.replies.map((reply) => (
             <li key={reply.id} className="flex flex-col gap-1">
               <p className="text-xs text-muted-foreground">
@@ -45,7 +43,7 @@ function Thread({ thread }: { thread: QaThread }) {
                 ) : null}{" "}
                 ·{" "}
                 <time dateTime={reply.createdAt.toISOString()}>
-                  {DATE_FORMAT.format(reply.createdAt)}
+                  {formatDateMedium(reply.createdAt)}
                 </time>
               </p>
               <p className="whitespace-pre-line text-sm leading-relaxed">{reply.body}</p>
@@ -71,8 +69,8 @@ function Thread({ thread }: { thread: QaThread }) {
  * ones, and the form to open a new one.
  *
  * Rendered only for enrolled learners. That is a display decision, not the
- * authorization — both writes re-check the enrollment row themselves, because
- * the actions are POST endpoints reachable without ever loading this page.
+ * authorization — reads and writes both re-check entitlement in lib/qa.ts,
+ * because a server function is reachable without ever loading this page.
  */
 export async function QaPanel({
   courseId,
@@ -83,7 +81,10 @@ export async function QaPanel({
   curriculumItemId: string;
   lectureTitle: string;
 }) {
-  const { threads, hiddenByPageSize } = await getCourseQaPanel(courseId, curriculumItemId);
+  const user = await getCurrentUser();
+  const { threads, hiddenByPageSize } = user
+    ? await getCourseQaPanel(courseId, curriculumItemId, user.id)
+    : { threads: [], hiddenByPageSize: 0 };
 
   return (
     <section aria-labelledby="qa-heading" className="flex flex-col gap-4">

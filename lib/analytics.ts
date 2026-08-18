@@ -109,6 +109,10 @@ export async function countEventsSince(since: Date): Promise<EventCount[]> {
  * decided here and now: because a person is identified only by `userId`, this is
  * one delete rather than a scan of every payload. Building the stream any other
  * way would have made erasure a migration.
+ *
+ * There is no FK from `analytics_events` to `users`, so deleting a user does
+ * not cascade. Integration tests that call `grantEnrollment` / `recordEvent`
+ * must `deleteMany` these rows in `afterAll` or they remain as orphans.
  */
 export async function forgetUserEvents(userId: string): Promise<number> {
   const { count } = await db.analyticsEvent.deleteMany({ where: { userId } });

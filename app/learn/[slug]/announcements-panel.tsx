@@ -1,4 +1,5 @@
 import { Megaphone } from "lucide-react";
+import { formatDate } from "@/lib/format";
 import type { CourseAnnouncement } from "@/lib/announcements";
 
 /**
@@ -35,7 +36,7 @@ export function AnnouncementsPanel({
                   dateTime={announcement.sentAt.toISOString()}
                   className="text-xs text-muted-foreground"
                 >
-                  {announcement.sentAt.toLocaleDateString("en-GB")}
+                  {formatDate(announcement.sentAt)}
                 </time>
               ) : null}
             </div>

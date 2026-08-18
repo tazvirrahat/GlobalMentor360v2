@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { bkashManualRail } from "@/lib/payments/bkash-manual";
 import { stripeRail } from "@/lib/payments/stripe";
 import { isEnrolled } from "@/lib/entitlement";
+import { processAdminRefund } from "@/lib/refunds";
 import { signedEvent } from "./signed-event";
 
 /**
@@ -79,6 +80,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Order matters: payments and orders reference the user, enrollments the course.
+  // analytics_events has no FK, so it must be deleted explicitly or it orphans.
+  await db.analyticsEvent.deleteMany({ where: { userId: { in: [userId, instructorId] } } });
   await db.payment.deleteMany({ where: { userId } });
   await db.order.deleteMany({ where: { userId } });
   await db.enrollment.deleteMany({ where: { courseId } });
@@ -188,6 +191,127 @@ describe("webhook idempotency", () => {
       select: { enrollmentCount: true },
     });
     expect(course.enrollmentCount).toBe(1);
+  });
+});
+
+describe("Stripe fulfill guards", () => {
+  it("does not revive enrollment when a webhook retries after a refund", async () => {
+    const { orderId, paymentId } = await createPendingStripeOrder();
+    const event = signedEvent({
+      eventId: `evt_${run}_refund`,
+      sessionId: `cs_${run}_refund`,
+      paymentIntentId: `pi_${run}_refund`,
+      paymentStatus: "paid",
+      metadata: { orderId, paymentId, courseId, userId },
+    });
+
+    await stripeRail.confirm(event);
+    expect(await isEnrolled(userId, courseId)).toBe(true);
+
+    expect(await processAdminRefund(instructorId, orderId, "Chargeback")).toEqual({ ok: true });
+    expect(await isEnrolled(userId, courseId)).toBe(false);
+
+    await stripeRail.confirm(event);
+    expect(await isEnrolled(userId, courseId)).toBe(false);
+
+    const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentId } });
+    expect(payment.status).toBe("REFUNDED");
+
+    const replay = await stripeRail.confirm(event);
+    expect(replay?.paid).toBe(false);
+    expect(replay?.retry).toBeFalsy();
+    expect(await isEnrolled(userId, courseId)).toBe(false);
+  });
+
+  it("does not grant when session.amount_total disagrees with the payment row", async () => {
+    const { orderId, paymentId } = await createPendingStripeOrder();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await stripeRail.confirm(
+      signedEvent({
+        eventId: `evt_${run}_amt`,
+        sessionId: `cs_${run}_amt`,
+        paymentIntentId: `pi_${run}_amt`,
+        paymentStatus: "paid",
+        amountTotal: 99,
+        metadata: { orderId, paymentId, courseId, userId },
+      }),
+    );
+    log.mockRestore();
+
+    expect(result?.paid).toBe(false);
+    expect(result?.retry).toBe(true);
+    expect(await isEnrolled(userId, courseId)).toBe(false);
+    const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentId } });
+    expect(payment.status).toBe("PENDING");
+  });
+
+  it("grants every order item, not only metadata.courseId", async () => {
+    const extraId = (
+      await db.course.create({
+        data: {
+          title: `Probe Extra ${run}`,
+          slug: `probe-extra-${run}`,
+          status: "PUBLISHED",
+          instructorId,
+          publishedAt: new Date(),
+        },
+        select: { id: true },
+      })
+    ).id;
+
+    try {
+      const order = await db.order.create({
+        data: {
+          userId,
+          status: "PENDING",
+          currency: "USD",
+          subtotal: 9800,
+          total: 9800,
+          items: {
+            create: [
+              { courseId, unitPrice: 4900 },
+              { courseId: extraId, unitPrice: 4900 },
+            ],
+          },
+        },
+      });
+      const payment = await db.payment.create({
+        data: {
+          orderId: order.id,
+          userId,
+          method: "STRIPE",
+          status: "PENDING",
+          amount: 9800,
+          currency: "USD",
+        },
+      });
+
+      await stripeRail.confirm(
+        signedEvent({
+          eventId: `evt_${run}_multi`,
+          sessionId: `cs_${run}_multi`,
+          paymentIntentId: `pi_${run}_multi`,
+          paymentStatus: "paid",
+          amountTotal: 9800,
+          metadata: {
+            orderId: order.id,
+            paymentId: payment.id,
+            courseId,
+            userId,
+          },
+        }),
+      );
+
+      expect(await isEnrolled(userId, courseId)).toBe(true);
+      expect(await isEnrolled(userId, extraId)).toBe(true);
+    } finally {
+      await db.enrollment.deleteMany({ where: { courseId: extraId } });
+      await db.payment.deleteMany({
+        where: { order: { items: { some: { courseId: extraId } } } },
+      });
+      await db.order.deleteMany({ where: { items: { some: { courseId: extraId } } } });
+      await db.course.delete({ where: { id: extraId } });
+    }
   });
 });
 

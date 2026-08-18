@@ -63,7 +63,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
   return (
     <Card className="rounded-2xl">
       <CardContent className="p-6">
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <form method="post" action="/reset-password" onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="password">New password</Label>
             <Input

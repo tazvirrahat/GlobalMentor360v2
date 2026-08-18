@@ -27,9 +27,16 @@ export type AnnouncableCourse = {
   learnerCount: number;
 };
 
-export function Composer({ courses }: { courses: AnnouncableCourse[] }) {
+export function Composer({
+  courses,
+  defaultCourseId,
+}: {
+  courses: AnnouncableCourse[];
+  defaultCourseId?: string;
+}) {
   const uid = useId();
   const [state, action, pending] = useActionState(publishAnnouncement, initial);
+  const selectedCourseId = defaultCourseId ?? courses[0]?.id;
 
   if (courses.length === 0) {
     return (
@@ -43,7 +50,7 @@ export function Composer({ courses }: { courses: AnnouncableCourse[] }) {
     <form action={action} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={`course-${uid}`}>Course</Label>
-        <Select name="courseId" defaultValue={courses[0]?.id}>
+        <Select name="courseId" defaultValue={selectedCourseId}>
           <SelectTrigger id={`course-${uid}`} className="w-full">
             <SelectValue />
           </SelectTrigger>

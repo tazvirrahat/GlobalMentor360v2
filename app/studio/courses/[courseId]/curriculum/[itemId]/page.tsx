@@ -4,7 +4,9 @@ import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { requireRole } from "@/lib/session";
 import { getOwnedItemForEditing } from "@/lib/studio";
+import { tryDrainMediaConvertEventQueue } from "@/lib/video";
 import { LectureEditor } from "./lecture-editor";
+import { CaptionUpload } from "./caption-upload";
 import { QuizBuilder } from "./quiz-builder";
 
 export const metadata = { title: "Edit item — Studio" };
@@ -15,6 +17,8 @@ type Params = { params: Promise<{ courseId: string; itemId: string }> };
 export default async function ItemEditorPage({ params }: Params) {
   const { courseId, itemId } = await params;
   const user = await requireRole("INSTRUCTOR", "ADMIN");
+
+  await tryDrainMediaConvertEventQueue();
 
   const item = await getOwnedItemForEditing(courseId, itemId, user.id);
   if (!item) notFound();
@@ -36,7 +40,12 @@ export default async function ItemEditorPage({ params }: Params) {
 
       <div className="mt-8">
         {item.type === "LECTURE" && item.lecture ? (
-          <LectureEditor itemId={item.id} title={item.title} lecture={item.lecture} />
+          <div className="flex flex-col gap-6">
+            <LectureEditor itemId={item.id} title={item.title} lecture={item.lecture} />
+            {item.lecture.asset ? (
+              <CaptionUpload itemId={item.id} captions={item.lecture.asset.captions} />
+            ) : null}
+          </div>
         ) : item.type === "QUIZ" && item.assessment ? (
           <QuizBuilder itemId={item.id} title={item.title} assessment={item.assessment} />
         ) : (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MailWarning } from "lucide-react";
+import { EmailDeliveryNote } from "@/components/auth/email-delivery-note";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,15 +32,21 @@ export function SignInForm({ next }: { next: string | null }) {
     setPending(false);
 
     if (signInError) {
-      // 403 means the credentials were right but the email isn't verified yet.
+      // 403 / FORBIDDEN: credentials were right but the email isn't verified yet.
       // The server re-sends the verification link on this attempt (sendOnSignIn).
       if (signInError.status === 403) {
         setUnverified(true);
         return;
       }
-      // Deliberately vague: distinguishing "no such account" from "wrong password"
-      // tells an attacker which emails are registered.
-      setError("Email or password is incorrect.");
+      // 401 is the only "bad credentials" code. A 5xx or a network failure is
+      // not a wrong password — saying it is strands people who typed correctly.
+      if (signInError.status === 401 || signInError.status === 400) {
+        // Deliberately vague: distinguishing "no such account" from "wrong
+        // password" tells an attacker which emails are registered.
+        setError("Email or password is incorrect.");
+        return;
+      }
+      setError("Could not sign in. Try again in a moment.");
       return;
     }
 
@@ -48,7 +55,7 @@ export function SignInForm({ next }: { next: string | null }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form method="post" action="/sign-in" onSubmit={onSubmit} className="flex flex-col gap-4">
       {unverified ? (
         <Alert role="status">
           <MailWarning className="size-4 text-brand" />
@@ -57,6 +64,7 @@ export function SignInForm({ next }: { next: string | null }) {
             Your account exists but the email isn&rsquo;t verified yet, so sign-in is blocked.
             We&rsquo;ve just sent a fresh verification link to <strong>{email}</strong> — click it
             and you&rsquo;ll be signed in automatically.
+            <EmailDeliveryNote />
           </AlertDescription>
         </Alert>
       ) : null}

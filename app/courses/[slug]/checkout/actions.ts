@@ -3,9 +3,19 @@
 import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { fulfillZeroTotalQuote, quoteBkashCourses } from "@/lib/checkout";
+import { CouponFullyRedeemedError } from "@/lib/coupons";
 import { db } from "@/lib/db";
 import { isEnrolled } from "@/lib/entitlement";
-import { bkashManualRail, BKASH_CURRENCY, bkashSubmissionSchema, stripeRail } from "@/lib/payments";
+import {
+  assertNoInFlightPayment,
+  bkashCheckoutIdentitySchema,
+  bkashManualRail,
+  bkashProofSchema,
+  DuplicateBkashTransactionError,
+  InFlightPaymentError,
+  stripeRail,
+} from "@/lib/payments";
 import { getCurrentUser, requireUser } from "@/lib/session";
 
 export type SubmitState =
@@ -20,86 +30,95 @@ export async function submitBkashPayment(
   const user = await getCurrentUser();
   if (!user) return { status: "error", message: "You need to sign in first." };
 
-  const parsed = bkashSubmissionSchema.safeParse({
+  const identity = bkashCheckoutIdentitySchema.safeParse({
     courseId: formData.get("courseId"),
+    couponCode: formData.get("couponCode") ?? "",
+  });
+  if (!identity.success) {
+    return { status: "error", message: "Course is missing from this checkout." };
+  }
+
+  const quote = await quoteBkashCourses(
+    user.id,
+    [identity.data.courseId],
+    identity.data.couponCode || undefined,
+  );
+  if (!quote.ok) return { status: "error", message: quote.message };
+
+  const course = quote.lines[0];
+  if (!course) return { status: "error", message: "Course not found." };
+
+  try {
+    await db.$transaction((tx) => assertNoInFlightPayment(tx, user.id, [course.courseId]));
+  } catch (error) {
+    if (error instanceof InFlightPaymentError) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+
+  if (quote.total === 0) {
+    try {
+      await fulfillZeroTotalQuote(user.id, quote);
+    } catch (error) {
+      if (error instanceof CouponFullyRedeemedError) {
+        return { status: "error", message: error.message };
+      }
+      if (error instanceof InFlightPaymentError) {
+        return { status: "error", message: error.message };
+      }
+      throw error;
+    }
+    revalidatePath(`/courses/${course.slug}`);
+    revalidatePath("/dashboard");
+    redirect(`/learn/${course.slug}` as Route);
+  }
+
+  const proof = bkashProofSchema.safeParse({
     transactionId: formData.get("transactionId"),
     phoneNumber: formData.get("phoneNumber"),
     paymentDate: formData.get("paymentDate"),
     reference: formData.get("reference") ?? "",
   });
-
-  if (!parsed.success) {
+  if (!proof.success) {
     return {
       status: "error",
       message: "Check the details below.",
-      fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
-    };
-  }
-
-  const input = parsed.data;
-
-  const course = await db.course.findFirst({
-    where: { id: input.courseId, status: "PUBLISHED" },
-    select: {
-      id: true,
-      slug: true,
-      // Each rail settles in one currency, so the price must exist in it. Taking
-      // the USD price and relabelling it BDT would record a wildly wrong amount —
-      // 4900 USD-cents is not 4900 poisha.
-      prices: {
-        where: { isActive: true, currency: bkashManualRail.currency },
-        select: { amount: true, currency: true },
-      },
-    },
-  });
-
-  if (!course) return { status: "error", message: "Course not found." };
-
-  if (await isEnrolled(user.id, course.id)) {
-    return { status: "error", message: "You already have access to this course." };
-  }
-
-  // Price comes from the database, never the form (invariant 6). The amount is
-  // not a field the learner can influence.
-  const price = course.prices[0];
-  if (!price) {
-    return {
-      status: "error",
-      message: `bKash isn't available for this course yet — it has no ${BKASH_CURRENCY} price.`,
-    };
-  }
-
-  const existing = await db.payment.findFirst({
-    where: {
-      userId: user.id,
-      // Scoped to this rail: an abandoned Stripe attempt leaves a PENDING
-      // STRIPE payment behind, and that must not lock the learner out of bKash.
-      method: bkashManualRail.method,
-      order: { items: { some: { courseId: course.id } } },
-      status: { in: ["PENDING", "PENDING_VERIFICATION"] },
-    },
-    select: { id: true },
-  });
-
-  if (existing) {
-    return {
-      status: "error",
-      message: "You already have a payment awaiting verification for this course.",
+      fieldErrors: proof.error.flatten().fieldErrors as Record<string, string[]>,
     };
   }
 
   // Records the claim only. Access is granted at approval, never here.
-  await bkashManualRail.submitProof({
-    userId: user.id,
-    courseId: course.id,
-    amount: price.amount,
-    proof: {
-      transactionId: input.transactionId,
-      phoneNumber: input.phoneNumber,
-      paymentDate: input.paymentDate,
-      reference: input.reference ?? null,
-    },
-  });
+  try {
+    await bkashManualRail.submitProof({
+      userId: user.id,
+      items: quote.lines.map((line) => ({
+        courseId: line.courseId,
+        unitPrice: line.unitPrice,
+        discountApplied: line.discountApplied,
+      })),
+      amount: quote.total,
+      discount: quote.discount,
+      couponId: quote.coupon?.id ?? null,
+      proof: {
+        transactionId: proof.data.transactionId,
+        phoneNumber: proof.data.phoneNumber,
+        paymentDate: proof.data.paymentDate,
+        reference: proof.data.reference ?? null,
+      },
+    });
+  } catch (error) {
+    if (error instanceof CouponFullyRedeemedError) {
+      return { status: "error", message: error.message };
+    }
+    if (error instanceof DuplicateBkashTransactionError) {
+      return { status: "error", message: error.message };
+    }
+    if (error instanceof InFlightPaymentError) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
 
   revalidatePath(`/courses/${course.slug}`);
   revalidatePath("/dashboard");
@@ -141,7 +160,7 @@ export async function startStripeCheckout(formData: FormData): Promise<void> {
 
   const price = course.prices[0];
   if (!stripeRail.isConfigured() || !price) {
-    redirect(`${checkoutPath}?status=error` as Route);
+    redirect(`${checkoutPath}?status=unavailable` as Route);
   }
 
   // Same source of truth as Better Auth's base URL — the app's own origin.
@@ -157,6 +176,9 @@ export async function startStripeCheckout(formData: FormData): Promise<void> {
     });
     redirectUrl = session.redirectUrl;
   } catch (error) {
+    if (error instanceof InFlightPaymentError) {
+      redirect(`${checkoutPath}?status=in-flight` as Route);
+    }
     console.error("Stripe checkout session creation failed:", error);
     redirect(`${checkoutPath}?status=error` as Route);
   }

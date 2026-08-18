@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { db } from "@/lib/db";
 import { grantEnrollment } from "@/lib/enrollment";
+import { assertNoInFlightPayment } from "./in-flight";
 import type { AutomaticRail } from "./rail";
 
 export const STRIPE_CURRENCY = "USD";
@@ -50,26 +51,87 @@ function readMetadata(session: Stripe.Checkout.Session): SessionMetadata | null 
  *
  *   - payment/order updates match only rows not already in their final state
  *     (updateMany with a status filter, so a second delivery updates 0 rows);
- *   - grantEnrollment is an upsert (invariant 7 — the single access-granting path).
+ *   - if the payment row did not transition, grantEnrollment is skipped — a
+ *     REFUNDED payment must not revive access;
+ *   - every order item is granted, not only metadata.courseId;
+ *   - session.amount_total must equal the payment amount we stored.
  *
  * The DB CHECK constraint requires a COMPLETED STRIPE payment to carry its
  * payment intent id, so the caller must have one before calling this.
+ *
+ * Outcomes matter for the webhook ACK: a missing or mismatched row must not
+ * look like success, while COMPLETED and REFUNDED are terminal and must ACK.
  */
-async function fulfill(meta: SessionMetadata, paymentIntentId: string): Promise<void> {
+type FulfillOutcome =
+  | "fulfilled"
+  | "already_completed"
+  | "already_refunded"
+  | "missing"
+  | "amount_mismatch";
+
+async function fulfill(
+  meta: SessionMetadata,
+  paymentIntentId: string,
+  amountTotal: number | null,
+): Promise<FulfillOutcome> {
   const now = new Date();
 
-  await db.$transaction(async (tx) => {
-    await tx.payment.updateMany({
+  return db.$transaction(async (tx) => {
+    const payment = await tx.payment.findUnique({
+      where: { id: meta.paymentId },
+      select: {
+        amount: true,
+        status: true,
+        order: { select: { items: { select: { courseId: true } } } },
+      },
+    });
+    if (!payment) {
+      console.error(
+        `Stripe fulfill skipped: payment ${meta.paymentId} is missing (session order ${meta.orderId}).`,
+      );
+      return "missing";
+    }
+
+    if (amountTotal !== payment.amount) {
+      console.error(
+        `Stripe session amount ${amountTotal} does not match payment ${meta.paymentId} amount ${payment.amount}; skipping fulfill.`,
+      );
+      return "amount_mismatch";
+    }
+
+    if (payment.status === "COMPLETED") return "already_completed";
+    if (payment.status === "REFUNDED") return "already_refunded";
+
+    const moved = await tx.payment.updateMany({
       where: { id: meta.paymentId, status: { notIn: ["COMPLETED", "REFUNDED"] } },
       data: { status: "COMPLETED", stripePaymentIntentId: paymentIntentId, paidAt: now },
     });
+
+    // Race: another delivery completed or a refund landed between the read and
+    // the write. Re-read so we ACK terminal states and retry anything else.
+    if (moved.count === 0) {
+      const current = await tx.payment.findUnique({
+        where: { id: meta.paymentId },
+        select: { status: true },
+      });
+      if (current?.status === "COMPLETED") return "already_completed";
+      if (current?.status === "REFUNDED") return "already_refunded";
+      console.error(
+        `Stripe fulfill skipped: payment ${meta.paymentId} did not transition (status=${current?.status ?? "missing"}).`,
+      );
+      return "missing";
+    }
 
     await tx.order.updateMany({
       where: { id: meta.orderId, status: "PENDING" },
       data: { status: "PAID", paidAt: now },
     });
 
-    await grantEnrollment(meta.userId, meta.courseId, "PURCHASE", tx);
+    for (const item of payment.order.items) {
+      await grantEnrollment(meta.userId, item.courseId, "PURCHASE", tx);
+    }
+
+    return "fulfilled";
   });
 }
 
@@ -106,26 +168,37 @@ export const stripeRail: AutomaticRail = {
   async createSession(input) {
     const stripe = getStripe();
 
-    // The line item needs a human-readable name; the amount arrived from the
-    // caller who read it from the Price table (invariant 6), never a form.
-    const course = await db.course.findUnique({
-      where: { id: input.courseId },
-      select: { title: true },
+    // Re-read the published USD price. The amount the caller passed is not
+    // trusted (invariant 6) — a stale checkout page must not set the charge.
+    const course = await db.course.findFirst({
+      where: { id: input.courseId, status: "PUBLISHED" },
+      select: {
+        title: true,
+        prices: {
+          where: { isActive: true, currency: STRIPE_CURRENCY },
+          select: { amount: true },
+        },
+      },
     });
-    if (!course) throw new Error(`Course ${input.courseId} not found.`);
-    if (!Number.isInteger(input.amount) || input.amount <= 0) {
-      throw new Error(`Refusing to create a Stripe session for amount ${input.amount}.`);
+    if (!course) {
+      throw new Error(`Course ${input.courseId} is not available for card checkout.`);
+    }
+    const amount = course.prices[0]?.amount;
+    if (amount === undefined || !Number.isInteger(amount) || amount <= 0) {
+      throw new Error(`Course ${input.courseId} has no active ${STRIPE_CURRENCY} price.`);
     }
 
     const { orderId, paymentId } = await db.$transaction(async (tx) => {
+      await assertNoInFlightPayment(tx, input.userId, [input.courseId]);
+
       const order = await tx.order.create({
         data: {
           userId: input.userId,
           status: "PENDING",
           currency: STRIPE_CURRENCY,
-          subtotal: input.amount,
-          total: input.amount,
-          items: { create: { courseId: input.courseId, unitPrice: input.amount } },
+          subtotal: amount,
+          total: amount,
+          items: { create: { courseId: input.courseId, unitPrice: amount } },
         },
       });
 
@@ -138,7 +211,7 @@ export const stripeRail: AutomaticRail = {
           // constraint reserves that status for manual rails. COMPLETED
           // happens only in confirm(), with the payment intent in hand.
           status: "PENDING",
-          amount: input.amount,
+          amount,
           currency: STRIPE_CURRENCY,
         },
       });
@@ -155,7 +228,7 @@ export const stripeRail: AutomaticRail = {
             quantity: 1,
             price_data: {
               currency: STRIPE_CURRENCY.toLowerCase(),
-              unit_amount: input.amount,
+              unit_amount: amount,
               product_data: { name: course.title },
             },
           },
@@ -234,8 +307,18 @@ export const stripeRail: AutomaticRail = {
         // constraint), and a paid payment-mode session always carries one.
         if (!paymentIntentId) return { paid: false, providerRef: session.id };
 
-        await fulfill(meta, paymentIntentId);
-        return { paid: true, providerRef: session.id };
+        const outcome = await fulfill(meta, paymentIntentId, session.amount_total ?? null);
+        if (outcome === "fulfilled" || outcome === "already_completed") {
+          return { paid: true, providerRef: session.id };
+        }
+        if (outcome === "already_refunded") {
+          return { paid: false, providerRef: session.id };
+        }
+
+        console.error(
+          `Stripe fulfill ${outcome} for payment ${meta.paymentId} session ${session.id}; refusing to ACK so Stripe retries.`,
+        );
+        return { paid: false, providerRef: session.id, retry: true };
       }
 
       case "checkout.session.expired":

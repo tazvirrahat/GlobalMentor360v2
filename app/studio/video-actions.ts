@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { attachUploadedCaption } from "@/lib/captions";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/session";
 import { getOwnedLectureItem } from "@/lib/studio";
-import { video, VideoProviderError } from "@/lib/video";
+import { drainMediaConvertEventQueue, releaseOrphanedLectureAsset, video, VideoProviderError } from "@/lib/video";
+import { mediaAssetMatchesUpload } from "@/lib/video/upload-bind";
 
 /**
  * The studio upload flow, in three steps the client drives:
@@ -14,8 +16,9 @@ import { video, VideoProviderError } from "@/lib/video";
  *   2. (browser PUTs the file straight to S3 — no bytes through this server)
  *   3. finalizeVideoUpload → kicks off transcoding, attaches asset to lecture
  *
- * refreshVideoStatus reconciles against the provider on demand, because in dev
- * the EventBridge webhook usually isn't wired up.
+ * refreshVideoStatus drains MediaConvert COMPLETE/ERROR events from SQS (AWS
+ * cannot POST to localhost) then reconciles against S3. The HTTP webhook at
+ * /api/video/webhook stays for when a public origin exists.
  */
 
 export type VideoActionState =
@@ -71,6 +74,8 @@ export async function startVideoUpload(input: {
         providerAssetId: upload.providerAssetId,
         originalKey: upload.originalKey,
         status: "UPLOADING",
+        createdByUserId: user.id,
+        startedForItemId: parsed.data.itemId,
       },
       select: { id: true },
     });
@@ -105,12 +110,23 @@ export async function finalizeVideoUpload(input: {
 
   const asset = await db.mediaAsset.findUnique({
     where: { id: parsed.data.mediaAssetId },
-    select: { id: true, providerAssetId: true, status: true },
+    select: {
+      id: true,
+      providerAssetId: true,
+      status: true,
+      createdByUserId: true,
+      startedForItemId: true,
+    },
   });
 
-  // Only a fresh UPLOADING asset can be finalized — prevents re-attaching an
-  // asset that already belongs to another lecture's pipeline run.
-  if (!asset?.providerAssetId || asset.status !== "UPLOADING") {
+  // Only a fresh UPLOADING asset started for this lecture by this user can be
+  // finalized — prevents attaching someone else's (or another item's) in-flight
+  // upload by guessing a mediaAssetId.
+  if (
+    !asset?.providerAssetId ||
+    asset.status !== "UPLOADING" ||
+    !mediaAssetMatchesUpload(asset, { userId: user.id, itemId: parsed.data.itemId })
+  ) {
     return { ok: false, message: "Upload not found or already processed." };
   }
 
@@ -136,6 +152,14 @@ export async function finalizeVideoUpload(input: {
     }),
   ]);
 
+  const previous = item.lecture.asset;
+  if (previous && previous.id !== asset.id) {
+    await releaseOrphanedLectureAsset({
+      id: previous.id,
+      providerAssetId: previous.providerAssetId,
+    });
+  }
+
   revalidatePath(`/studio/courses/${item.section.courseId}/curriculum`);
   return { ok: true };
 }
@@ -154,6 +178,20 @@ export async function refreshVideoStatus(
     return { status: "error", message: "No video on this lecture yet." };
   }
 
+  try {
+    await drainMediaConvertEventQueue();
+  } catch (error) {
+    // S3 still tells us READY; FAILED only arrives via SQS/webhook, so surface
+    // a queue error only when we cannot even reach the provider next.
+    if (!(error instanceof VideoProviderError)) throw error;
+  }
+
+  const assetAfterEvents = await db.mediaAsset.findUnique({
+    where: { id: asset.id },
+    select: { status: true },
+  });
+  const currentStatus = assetAfterEvents?.status ?? asset.status;
+
   let remote;
   try {
     remote = await video.getAsset(asset.providerAssetId);
@@ -161,10 +199,15 @@ export async function refreshVideoStatus(
     return { status: "error", message: providerMessage(error, "Could not reach the video provider.") };
   }
 
-  // S3 reconciliation can't observe FAILED (only the webhook can), so never
-  // let a refresh overwrite a FAILED row with PROCESSING.
-  if (asset.status === "FAILED" && remote.status !== "READY") {
+  // S3 reconciliation can't observe FAILED, and HeadObject can lag a COMPLETE
+  // event already applied from SQS — never regress a terminal row.
+  if (currentStatus === "FAILED" && remote.status !== "READY") {
+    revalidatePath(`/studio/courses/${item.section.courseId}/curriculum`);
     return { status: "done", message: "Video failed — re-upload to try again." };
+  }
+  if (currentStatus === "READY" && remote.status !== "READY") {
+    revalidatePath(`/studio/courses/${item.section.courseId}/curriculum`);
+    return { status: "done", message: "Video is ready." };
   }
 
   await db.mediaAsset.update({
@@ -196,4 +239,34 @@ export async function refreshVideoStatus(
           : "Waiting for the upload to finish.";
 
   return { status: "done", message };
+}
+
+export async function attachCaptionAction(
+  _prev: VideoActionState,
+  formData: FormData,
+): Promise<VideoActionState> {
+  const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const itemId = String(formData.get("itemId") ?? "");
+  const language = String(formData.get("language") ?? "en");
+  const file = formData.get("file");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return { status: "error", message: "Choose a .vtt file." };
+  }
+  if (file.size > 1_000_000) {
+    return { status: "error", message: "Caption files must be under 1 MB." };
+  }
+
+  const vtt = await file.text();
+  const result = await attachUploadedCaption({
+    instructorId: user.id,
+    itemId,
+    language,
+    vtt,
+  });
+  if (!result.ok) return { status: "error", message: result.message };
+
+  const item = await getOwnedLectureItem(itemId, user.id);
+  if (item) revalidatePath(`/studio/courses/${item.section.courseId}/curriculum/${itemId}`);
+  return { status: "done", message: `Captions attached (${language}).` };
 }

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { Route } from "next";
 import { CircleCheck, CircleX } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,6 @@ type Question = {
   id: string;
   prompt: string;
   type: string;
-  explanation: string | null;
   options: { id: string; text: string; position: number }[];
 };
 
@@ -36,12 +36,14 @@ export function QuizForm({
   questions,
   allowRetakes,
   previous,
+  nextHref,
 }: {
   assessmentId: string;
   slug: string;
   questions: Question[];
   allowRetakes: boolean;
   previous: { scorePct: number | null; passed: boolean | null } | null;
+  nextHref?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -95,6 +97,12 @@ export function QuizForm({
         results: result.results,
       });
       router.refresh();
+      if (result.passed && nextHref) {
+        window.setTimeout(() => {
+          router.push(nextHref as Route);
+          router.refresh();
+        }, 2500);
+      }
     });
   }
 
@@ -113,7 +121,9 @@ export function QuizForm({
           <AlertDescription>
             Pass mark is {outcome.threshold}%.
             {outcome.passed
-              ? " The next lesson is now unlocked."
+              ? nextHref
+                ? " The next lesson is now unlocked — continuing shortly."
+                : " The next lesson is now unlocked."
               : allowRetakes
                 ? " Review the answers below and try again."
                 : " Retakes are not allowed for this quiz."}
@@ -188,6 +198,12 @@ export function QuizForm({
             }}
           >
             Try again
+          </Button>
+        ) : null}
+
+        {outcome.passed && nextHref ? (
+          <Button asChild className="w-fit shadow-brand">
+            <a href={nextHref}>Continue to next lesson</a>
           </Button>
         ) : null}
       </div>

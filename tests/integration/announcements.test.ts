@@ -24,7 +24,11 @@ vi.mock("@/lib/session", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 const { publishAnnouncement } = await import("@/app/studio/announcements/actions");
-const { getLearnerAnnouncements } = await import("@/lib/announcements");
+const {
+  getLearnerAnnouncements,
+  listSentAnnouncements,
+  SENT_ANNOUNCEMENT_PAGE_SIZE,
+} = await import("@/lib/announcements");
 const { db } = await import("@/lib/db");
 const { grantEnrollment, revokeEnrollment } = await import("@/lib/enrollment");
 
@@ -76,6 +80,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.announcement.deleteMany({ where: { courseId } });
+  await db.analyticsEvent.deleteMany({
+    where: { userId: { in: [ownerId, strangerId, learnerId, refundedId] } },
+  });
   await db.enrollment.deleteMany({ where: { courseId } });
   await db.course.deleteMany({ where: { id: courseId } });
   await db.user.deleteMany({
@@ -147,6 +154,48 @@ describe("getLearnerAnnouncements bounds", () => {
     expect(rows.length).toBeLessThanOrEqual(20);
     // Newest first, so the cap keeps the ones that matter.
     expect(rows[0]?.subject).toBe("Bulk 0");
+  });
+});
+
+describe("listSentAnnouncements", () => {
+  it("pages the instructor's sent list instead of hiding older rows", async () => {
+    const extra = SENT_ANNOUNCEMENT_PAGE_SIZE + 1;
+    await db.announcement.createMany({
+      data: Array.from({ length: extra }, (_, index) => ({
+        courseId,
+        authorId: ownerId,
+        subject: `Sent ${index}`,
+        body: "Body.",
+        createdAt: new Date(Date.now() - index * 1000),
+        sentAt: new Date(Date.now() - index * 1000),
+      })),
+    });
+
+    const first = await listSentAnnouncements(ownerId, 1);
+    expect(first.items).toHaveLength(SENT_ANNOUNCEMENT_PAGE_SIZE);
+    expect(first.total).toBe(extra);
+    expect(first.pageCount).toBe(2);
+    expect(first.items[0]?.subject).toBe("Sent 0");
+
+    const second = await listSentAnnouncements(ownerId, 2);
+    expect(second.items).toHaveLength(1);
+    expect(second.page).toBe(2);
+    expect(second.items[0]?.subject).toBe(`Sent ${SENT_ANNOUNCEMENT_PAGE_SIZE}`);
+  });
+
+  it("does not include another author's posts", async () => {
+    await db.announcement.create({
+      data: {
+        courseId,
+        authorId: strangerId,
+        subject: "Not mine",
+        body: "Body.",
+        sentAt: new Date(),
+      },
+    });
+
+    const page = await listSentAnnouncements(ownerId, 1);
+    expect(page.items.map((row) => row.subject)).not.toContain("Not mine");
   });
 });
 

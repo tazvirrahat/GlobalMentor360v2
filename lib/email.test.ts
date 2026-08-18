@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sendEmail } from "./email";
+import { emailReadinessWarning, sendEmail } from "./email";
 
 // A single backslash and a raw newline, built at runtime so no layer of shell or
 // editor escaping can quietly turn a hostile case into a benign one.
@@ -253,5 +253,28 @@ describe("sendEmail transport fallback", () => {
     await sendEmail({ to: "learner@example.com", subject: "Verify", text: "Confirm." });
 
     expect(sentCommands).toHaveLength(1);
+  });
+});
+
+describe("emailReadinessWarning", () => {
+  it("warns at production startup when SES is unconfigured — the sign-up dead end", () => {
+    unconfigureSes();
+    vi.stubEnv("NODE_ENV", "production");
+
+    const warning = emailReadinessWarning();
+    expect(warning).toMatch(/never verify or sign in/);
+    expect(warning).toMatch(/EMAIL_FROM/);
+  });
+
+  it("stays quiet in development, where the console fallback is fine", () => {
+    unconfigureSes();
+    vi.stubEnv("NODE_ENV", "development");
+    expect(emailReadinessWarning()).toBeNull();
+  });
+
+  it("stays quiet in production once SES env is present", () => {
+    configureSes();
+    vi.stubEnv("NODE_ENV", "production");
+    expect(emailReadinessWarning()).toBeNull();
   });
 });

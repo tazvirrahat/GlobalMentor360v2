@@ -82,6 +82,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.review.deleteMany({ where: { courseId: { in: courseIds } } });
+  await db.analyticsEvent.deleteMany({
+    where: { userId: { in: [instructorId, learnerAId, learnerBId] } },
+  });
   await db.enrollment.deleteMany({ where: { courseId: { in: courseIds } } });
   await db.course.deleteMany({ where: { id: { in: courseIds } } });
   await db.user.deleteMany({ where: { id: { in: [instructorId, learnerAId, learnerBId] } } });

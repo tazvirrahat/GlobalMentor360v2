@@ -8,7 +8,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CourseCard } from "@/components/site/course-card";
-import { listPublishedCourses } from "@/lib/courses";
+import { listPublishedCourses, countPublishedCourses } from "@/lib/courses";
+import { availableRails } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 
@@ -35,28 +36,40 @@ const FEATURES = [
   },
 ];
 
-const STEPS = [
-  {
-    title: "Enrol in a course",
-    body: "Pick a course that fits your goal and pay securely — bKash or card.",
-  },
-  {
-    title: "Watch video lessons",
-    body: "Structured sections and lectures, built to take you from zero to done.",
-  },
-  {
-    title: "Pass the quizzes",
-    body: "Confirm your understanding to unlock the next lesson.",
-  },
-  {
-    title: "Get certified",
-    body: "Finish the course and earn a verifiable certificate.",
-  },
-];
+// Step 1 names only the payment methods actually offered: the card rail hides
+// itself without Stripe keys, and a landing page promising "card" while
+// checkout shows only bKash is the kind of copy/behaviour drift this replaced.
+function steps(cardAvailable: boolean) {
+  return [
+    {
+      title: "Enrol in a course",
+      body: `Pick a course that fits your goal and pay securely — ${
+        cardAvailable ? "bKash or card" : "with bKash"
+      }.`,
+    },
+    {
+      title: "Watch video lessons",
+      body: "Structured sections and lectures, built to take you from zero to done.",
+    },
+    {
+      title: "Pass the quizzes",
+      body: "Confirm your understanding to unlock the next lesson.",
+    },
+    {
+      title: "Get certified",
+      body: "Finish the course and earn a verifiable certificate.",
+    },
+  ];
+}
 
 export default async function HomePage() {
-  const courses = await listPublishedCourses();
-  const featured = courses.slice(0, 3);
+  const [catalog, publishedCount] = await Promise.all([
+    listPublishedCourses(),
+    countPublishedCourses(),
+  ]);
+  const featured = catalog.items.slice(0, 3);
+  const cardAvailable = availableRails().some((rail) => rail.kind === "automatic");
+  const STEPS = steps(cardAvailable);
 
   return (
     <main>
@@ -86,16 +99,16 @@ export default async function HomePage() {
             </Button>
           </div>
 
-          <dl className="mt-10 grid w-full max-w-2xl grid-cols-3 gap-4">
+          <dl className="mt-10 grid w-full max-w-2xl grid-cols-3 gap-2 sm:gap-4">
             {[
-              { value: `${courses.length}+`, label: "Courses" },
+              { value: `${publishedCount}+`, label: "Courses" },
               { value: "Own pace", label: "Learn anywhere" },
               { value: "Lifetime", label: "Course access" },
             ].map((stat) => (
-              <div key={stat.label}>
+              <div key={stat.label} className="min-w-0">
                 <dt className="sr-only">{stat.label}</dt>
-                <dd className="text-2xl font-extrabold sm:text-3xl">{stat.value}</dd>
-                <dd className="text-sm text-white/70">{stat.label}</dd>
+                <dd className="text-xl font-extrabold sm:text-3xl">{stat.value}</dd>
+                <dd className="text-xs text-white/70 sm:text-sm">{stat.label}</dd>
               </div>
             ))}
           </dl>
@@ -130,7 +143,7 @@ export default async function HomePage() {
       {featured.length > 0 ? (
         <section className="bg-surface-alt">
           <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-            <div className="flex items-end justify-between gap-4">
+            <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <h2 className="text-3xl font-extrabold tracking-tight">Featured courses</h2>
                 <p className="mt-2 text-muted-foreground">Start with our most popular paths.</p>

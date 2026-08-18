@@ -46,7 +46,7 @@ export function AddSectionForm({ courseId }: { courseId: string }) {
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
       <input type="hidden" name="courseId" value={courseId} />
-      <div className="flex min-w-52 flex-1 flex-col gap-1.5">
+      <div className="flex min-w-0 w-full flex-1 flex-col gap-1.5 sm:min-w-52 sm:w-auto">
         <Label htmlFor="new-section">New section title</Label>
         <Input id="new-section" name="title" required />
       </div>
@@ -68,7 +68,7 @@ function AddItemForm({ sectionId }: { sectionId: string }) {
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
       <input type="hidden" name="sectionId" value={sectionId} />
-      <div className="flex min-w-52 flex-1 flex-col gap-1.5">
+      <div className="flex min-w-0 w-full flex-1 flex-col gap-1.5 sm:min-w-52 sm:w-auto">
         <Label htmlFor={`item-${sectionId}`}>New item title</Label>
         <Input id={`item-${sectionId}`} name="title" required />
       </div>

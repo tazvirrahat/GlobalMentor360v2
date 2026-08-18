@@ -95,8 +95,8 @@ afterAll(async () => {
 });
 
 /** Only the courses this test created, so a seeded catalog cannot mask a bug. */
-function mine(courses: { id: string }[]) {
-  return courses.filter((course) => courseIds.includes(course.id)).map((course) => course.id);
+function mine(page: { items: { id: string }[] }) {
+  return page.items.filter((course) => courseIds.includes(course.id)).map((course) => course.id);
 }
 
 describe("filters", () => {
@@ -145,6 +145,11 @@ describe("filters", () => {
     const found = mine(await listPublishedCourses({ query: `Catalog Instructor ${run}` }));
     expect(found.length).toBeGreaterThan(0);
   });
+
+  it("finds a published course by a title token", async () => {
+    const found = mine(await listPublishedCourses({ query: "catalog-dear" }));
+    expect(found).toContain(paidDearId);
+  });
 });
 
 describe("sort", () => {
@@ -166,10 +171,17 @@ describe("sort", () => {
 });
 
 describe("bounds", () => {
-  it("caps the public catalog read", async () => {
-    // The catalog page has no pagination control, so the query has to be what
-    // bounds it. An unbounded findMany on a public route grows with the catalog.
+  it("caps the public catalog read and reports a real total", async () => {
     const all = await listPublishedCourses();
-    expect(all.length).toBeLessThanOrEqual(CATALOG_PAGE_SIZE);
+    expect(all.items.length).toBeLessThanOrEqual(CATALOG_PAGE_SIZE);
+    expect(all.total).toBeGreaterThanOrEqual(all.items.length);
+    expect(all.page).toBe(1);
+  });
+
+  it("keeps a title match when paging rather than dropping it behind a silent cap", async () => {
+    const first = await listPublishedCourses({ query: "catalog-dear", page: 1 });
+    expect(mine(first)).toContain(paidDearId);
+    expect(first.total).toBeGreaterThanOrEqual(1);
+    expect(first.items.length).toBeLessThanOrEqual(first.total);
   });
 });

@@ -30,10 +30,10 @@ const RATING_VALUES: readonly number[] = [1, 2, 3, 4, 5];
 /**
  * The only ratings that exist.
  *
- * `reviews.rating` is a plain Int with no CHECK constraint, so this is the whole
- * guard: a 0 or a 99 that reaches the table skews the average shown on every
- * catalog card, silently and permanently, because nothing downstream re-derives
- * it from anything sane. Both the zod schema and `saveReview` call this rather
+ * The table also has CHECK (rating BETWEEN 1 AND 5) — see
+ * prisma/migrations/20260817000003_schema_hardening — so a raw INSERT cannot
+ * park a 0 or a 99 that would skew every catalog card. This function is still
+ * the application guard: both the zod schema and `saveReview` call it rather
  * than each spelling out the range, so the two cannot drift apart.
  */
 export function isValidRating(rating: number): boolean {

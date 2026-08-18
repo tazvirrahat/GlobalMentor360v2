@@ -26,16 +26,17 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { addItem } = await import("@/app/studio/curriculum-actions");
+const { addItem, moveItem, updateLecture } = await import("@/app/studio/curriculum-actions");
 const { saveQuestion } = await import("@/app/studio/assessment-actions");
 const { db } = await import("@/lib/db");
-const { submitQuizAttempt } = await import("@/lib/progress");
+const { getPlayerCourse, markLectureComplete, submitQuizAttempt } = await import("@/lib/progress");
 const { grantEnrollment } = await import("@/lib/enrollment");
 
 const run = randomUUID().slice(0, 8);
 let courseId: string;
 let sectionId: string;
 let learnerId: string;
+const extraCourseIds: string[] = [];
 
 function form(entries: Record<string, string>) {
   const f = new FormData();
@@ -101,8 +102,17 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.enrollment.deleteMany({ where: { courseId } });
-  await db.course.deleteMany({ where: { id: courseId } });
+  const courseIds = [courseId, ...extraCourseIds];
+  await db.quizAttempt.deleteMany({ where: { userId: learnerId } });
+  await db.itemProgress.deleteMany({ where: { userId: learnerId } });
+  await db.courseProgress.deleteMany({ where: { userId: learnerId } });
+  await db.certificate.deleteMany({ where: { userId: learnerId } });
+  await db.analyticsEvent.deleteMany({
+    where: { userId: { in: [hoisted.instructorId, learnerId] } },
+  });
+  await db.notification.deleteMany({ where: { userId: learnerId } });
+  await db.enrollment.deleteMany({ where: { courseId: { in: courseIds } } });
+  await db.course.deleteMany({ where: { id: { in: courseIds } } });
   await db.user.deleteMany({ where: { id: { in: [hoisted.instructorId, learnerId] } } });
   await db.$disconnect();
 });
@@ -137,9 +147,22 @@ describe("addItem", () => {
 
 describe("per-answer explanations reach the learner", () => {
   it("returns each option's note in the graded result, after submitting", async () => {
-    await addItem({ status: "idle" }, form({ sectionId, title: `Reviewed ${run}`, type: "QUIZ" }));
+    const solo = await db.course.create({
+      data: {
+        title: `Reviewed course ${run}`,
+        slug: `authoring-reviewed-${run}`,
+        status: "PUBLISHED",
+        instructorId: hoisted.instructorId,
+        publishedAt: new Date(),
+        sections: { create: { title: "Only", position: 0 } },
+      },
+      select: { id: true, sections: { select: { id: true } } },
+    });
+    const soloSectionId = solo.sections[0]!.id;
+
+    await addItem({ status: "idle" }, form({ sectionId: soloSectionId, title: `Reviewed ${run}`, type: "QUIZ" }));
     const item = await db.curriculumItem.findFirstOrThrow({
-      where: { sectionId, title: `Reviewed ${run}` },
+      where: { sectionId: soloSectionId, title: `Reviewed ${run}` },
       select: { id: true, assessment: { select: { id: true } } },
     });
     const reviewedAssessmentId = item.assessment!.id;
@@ -157,7 +180,9 @@ describe("per-answer explanations reach the learner", () => {
       select: { id: true, options: { select: { id: true, isCorrect: true } } },
     });
 
-    await grantEnrollment(learnerId, courseId, "GRANT");
+    extraCourseIds.push(solo.id);
+
+    await grantEnrollment(learnerId, solo.id, "GRANT");
     const wrongOption = question.options.find((o) => !o.isCorrect)!;
 
     const result = await submitQuizAttempt(learnerId, reviewedAssessmentId, [
@@ -182,11 +207,27 @@ describe("per-answer explanations reach the learner", () => {
 describe("saveQuestion", () => {
   let itemId: string;
   let assessmentId: string;
+  let gradedCourseId: string;
 
   beforeAll(async () => {
-    await addItem({ status: "idle" }, form({ sectionId, title: `Graded ${run}`, type: "QUIZ" }));
+    const solo = await db.course.create({
+      data: {
+        title: `Graded course ${run}`,
+        slug: `authoring-graded-${run}`,
+        status: "PUBLISHED",
+        instructorId: hoisted.instructorId,
+        publishedAt: new Date(),
+        sections: { create: { title: "Only", position: 0 } },
+      },
+      select: { id: true, sections: { select: { id: true } } },
+    });
+    extraCourseIds.push(solo.id);
+    gradedCourseId = solo.id;
+    const soloSectionId = solo.sections[0]!.id;
+
+    await addItem({ status: "idle" }, form({ sectionId: soloSectionId, title: `Graded ${run}`, type: "QUIZ" }));
     const item = await db.curriculumItem.findFirstOrThrow({
-      where: { sectionId, title: `Graded ${run}` },
+      where: { sectionId: soloSectionId, title: `Graded ${run}` },
       select: { id: true, assessment: { select: { id: true } } },
     });
     itemId = item.id;
@@ -221,7 +262,7 @@ describe("saveQuestion", () => {
       select: { id: true, options: { select: { id: true, isCorrect: true } } },
     });
 
-    await grantEnrollment(learnerId, courseId, "GRANT");
+    await grantEnrollment(learnerId, gradedCourseId, "GRANT");
 
     const right = await submitQuizAttempt(learnerId, assessmentId, [
       {
@@ -374,5 +415,236 @@ describe("per-answer explanations", () => {
 
     expect(result.status).toBe("error");
     expect(await db.question.count({ where: { assessmentId, prompt } })).toBe(0);
+  });
+});
+
+describe("player JSON does not leak the answer key", () => {
+  it("omits isCorrect, option notes, and question explanations from getPlayerCourse", async () => {
+    const title = `Leak quiz ${run}`;
+    const prompt = `Which typing? ${run}`;
+    const questionNote = `QA-LEAK-QEXP-${run}`;
+    const optionNote = `QA-LEAK-OEXP-${run}`;
+
+    await addItem({ status: "idle" }, form({ sectionId, title, type: "QUIZ" }));
+    const item = await db.curriculumItem.findFirstOrThrow({
+      where: { sectionId, title },
+      select: { id: true },
+    });
+
+    const saved = await saveQuestion(
+      { status: "idle" },
+      questionForm({ itemId: item.id, prompt, type: "SINGLE_CHOICE", explanation: questionNote }, [
+        { text: "Structural", correct: true, explanation: optionNote },
+        { text: "Nominal", correct: false },
+      ]),
+    );
+    expect(saved.status).toBe("done");
+
+    await grantEnrollment(learnerId, courseId, "GRANT");
+    const player = await getPlayerCourse(`authoring-course-${run}`, learnerId, item.id);
+    const json = JSON.stringify(player);
+
+    expect(json).toContain("Structural");
+    expect(json).not.toMatch(/"isCorrect"/);
+    expect(json).not.toContain(questionNote);
+    expect(json).not.toContain(optionNote);
+
+    const quiz = player?.sections[0]?.items.find((row) => row.id === item.id);
+    const question = quiz?.assessment?.questions.find((row) => row.prompt === prompt);
+    expect(question?.options.map((option) => option.text)).toEqual(["Structural", "Nominal"]);
+    expect(question).not.toHaveProperty("explanation");
+    expect(question?.options[0]).not.toHaveProperty("isCorrect");
+    expect(question?.options[0]).not.toHaveProperty("explanation");
+  });
+});
+
+describe("updateLecture", () => {
+  it("persists the article body without flipping content type", async () => {
+    const title = `Article ${run}`;
+    await addItem({ status: "idle" }, form({ sectionId, title }));
+    const item = await db.curriculumItem.findFirstOrThrow({
+      where: { sectionId, title },
+      select: { id: true, lecture: { select: { contentType: true } } },
+    });
+    expect(item.lecture?.contentType).toBe("ARTICLE");
+
+    const body = `QA article body ${run}`;
+    const result = await updateLecture(
+      { status: "idle" },
+      form({ itemId: item.id, title, articleBody: body, description: "A note." }),
+    );
+    expect(result.status).toBe("done");
+
+    const lecture = await db.lecture.findFirstOrThrow({
+      where: { curriculumItemId: item.id },
+      select: { articleBody: true, contentType: true, description: true },
+    });
+    expect(lecture.articleBody).toBe(body);
+    expect(lecture.description).toBe("A note.");
+    expect(lecture.contentType).toBe("ARTICLE");
+  });
+});
+
+describe("moveItem", () => {
+  it("swaps two lectures inside a section", async () => {
+    const firstTitle = `Reorder A ${run}`;
+    const secondTitle = `Reorder B ${run}`;
+    await addItem({ status: "idle" }, form({ sectionId, title: firstTitle }));
+    await addItem({ status: "idle" }, form({ sectionId, title: secondTitle }));
+
+    const items = await db.curriculumItem.findMany({
+      where: { sectionId, title: { in: [firstTitle, secondTitle] } },
+      orderBy: { position: "asc" },
+      select: { id: true, title: true, position: true },
+    });
+    expect(items).toHaveLength(2);
+    const first = items[0]!;
+    const second = items[1]!;
+    expect(first.title).toBe(firstTitle);
+    expect(second.title).toBe(secondTitle);
+
+    const moved = await moveItem(
+      { status: "idle" },
+      form({ itemId: second.id, direction: "up" }),
+    );
+    expect(moved.status).toBe("done");
+
+    const after = await db.curriculumItem.findMany({
+      where: { sectionId, title: { in: [firstTitle, secondTitle] } },
+      orderBy: { position: "asc" },
+      select: { title: true },
+    });
+    expect(after.map((row) => row.title)).toEqual([secondTitle, firstTitle]);
+  });
+});
+
+/**
+ * My Learning reads CourseProgress.percent. Completing a lecture writes that
+ * rollup; adding curriculum items used not to, so a learner stayed at 75% after
+ * the course grew.
+ */
+describe("curriculum rewrite refreshes enrolled rollups", () => {
+  it("drops CourseProgress.percent when items are added, without a new completion write", async () => {
+    const solo = await db.course.create({
+      data: {
+        title: `Rollup rewrite ${run}`,
+        slug: `authoring-rollup-${run}`,
+        status: "PUBLISHED",
+        instructorId: hoisted.instructorId,
+        publishedAt: new Date(),
+        sections: { create: { title: "Only", position: 0 } },
+      },
+      select: { id: true, sections: { select: { id: true } } },
+    });
+    extraCourseIds.push(solo.id);
+    const soloSectionId = solo.sections[0]!.id;
+
+    const titles = [0, 1, 2, 3].map((index) => `Rollup lecture ${index} ${run}`);
+    for (const title of titles) {
+      const added = await addItem({ status: "idle" }, form({ sectionId: soloSectionId, title }));
+      expect(added.status).toBe("done");
+    }
+
+    const items = await db.curriculumItem.findMany({
+      where: { sectionId: soloSectionId, title: { in: titles } },
+      orderBy: { position: "asc" },
+      select: { id: true },
+    });
+    expect(items).toHaveLength(4);
+
+    await grantEnrollment(learnerId, solo.id, "GRANT");
+    for (const item of items.slice(0, 3)) {
+      const marked = await markLectureComplete(learnerId, item.id);
+      expect(marked.ok).toBe(true);
+    }
+
+    const before = await db.courseProgress.findUniqueOrThrow({
+      where: { userId_courseId: { userId: learnerId, courseId: solo.id } },
+      select: { percent: true, completedAt: true, updatedAt: true },
+    });
+    expect(before.percent).toBe(75);
+
+    const fifthTitle = `Rollup lecture 4 ${run}`;
+    const rewritten = await addItem(
+      { status: "idle" },
+      form({ sectionId: soloSectionId, title: fifthTitle }),
+    );
+    expect(rewritten.status).toBe("done");
+
+    const after = await db.courseProgress.findUniqueOrThrow({
+      where: { userId_courseId: { userId: learnerId, courseId: solo.id } },
+      select: { percent: true, completedAt: true, updatedAt: true },
+    });
+    // 3 of 5. The production change that fails this is skipping the enrollment
+    // recompute after addItem, which would leave the stored 75 in place.
+    expect(after.percent).toBe(60);
+    expect(after.completedAt).toBeNull();
+    expect(after.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime());
+
+    const fifth = await db.curriculumItem.findFirstOrThrow({
+      where: { sectionId: soloSectionId, title: fifthTitle },
+      select: { id: true },
+    });
+    expect(
+      await db.itemProgress.findUnique({
+        where: { userId_curriculumItemId: { userId: learnerId, curriculumItemId: fifth.id } },
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps an issued certificate when percent drops below 100", async () => {
+    const solo = await db.course.create({
+      data: {
+        title: `Cert rewrite ${run}`,
+        slug: `authoring-cert-rollup-${run}`,
+        status: "PUBLISHED",
+        instructorId: hoisted.instructorId,
+        publishedAt: new Date(),
+        sections: { create: { title: "Only", position: 0 } },
+      },
+      select: { id: true, sections: { select: { id: true } } },
+    });
+    extraCourseIds.push(solo.id);
+    const soloSectionId = solo.sections[0]!.id;
+
+    const titles = [0, 1].map((index) => `Cert lecture ${index} ${run}`);
+    for (const title of titles) {
+      await addItem({ status: "idle" }, form({ sectionId: soloSectionId, title }));
+    }
+    const items = await db.curriculumItem.findMany({
+      where: { sectionId: soloSectionId, title: { in: titles } },
+      orderBy: { position: "asc" },
+      select: { id: true },
+    });
+
+    await grantEnrollment(learnerId, solo.id, "GRANT");
+    for (const item of items) {
+      const marked = await markLectureComplete(learnerId, item.id);
+      expect(marked.ok).toBe(true);
+    }
+
+    const certificate = await db.certificate.findUniqueOrThrow({
+      where: { userId_courseId: { userId: learnerId, courseId: solo.id } },
+      select: { id: true, serial: true },
+    });
+
+    const added = await addItem(
+      { status: "idle" },
+      form({ sectionId: soloSectionId, title: `Cert lecture extra ${run}` }),
+    );
+    expect(added.status).toBe("done");
+
+    const rollup = await db.courseProgress.findUniqueOrThrow({
+      where: { userId_courseId: { userId: learnerId, courseId: solo.id } },
+      select: { percent: true, completedAt: true },
+    });
+    expect(rollup.percent).toBe(66.7);
+    expect(rollup.completedAt).toBeNull();
+
+    const kept = await db.certificate.findUnique({
+      where: { userId_courseId: { userId: learnerId, courseId: solo.id } },
+      select: { id: true, serial: true },
+    });
+    expect(kept).toEqual(certificate);
   });
 });

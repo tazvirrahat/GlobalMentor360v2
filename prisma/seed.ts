@@ -2,6 +2,7 @@ import "dotenv/config";
 import { auth } from "../lib/auth";
 import { db } from "../lib/db";
 import { grantEnrollment } from "../lib/enrollment";
+import { recomputeCourseProgress } from "../lib/progress";
 
 /**
  * Idempotent development seed. Safe to re-run.
@@ -259,6 +260,90 @@ async function seedCourse(instructorId: string) {
   return course;
 }
 
+async function seedSecondCourse(instructorId: string) {
+  const category = await db.category.findUniqueOrThrow({ where: { slug: "data-science" } });
+
+  const course = await db.course.upsert({
+    where: { slug: "sql-for-analysts" },
+    update: {},
+    create: {
+      title: "SQL for Analysts",
+      slug: "sql-for-analysts",
+      subtitle: "Query, join, and summarise data without waiting on an engineer.",
+      description:
+        "A practical SQL course for people who already live in spreadsheets and want the database to do the heavy lifting.",
+      level: "BEGINNER",
+      language: "en",
+      status: "PUBLISHED",
+      primaryCategoryId: category.id,
+      instructorId,
+      publishedAt: new Date(),
+    },
+  });
+
+  await db.section.deleteMany({ where: { courseId: course.id } });
+
+  const intro = await db.section.create({
+    data: { courseId: course.id, title: "Getting started", position: 0 },
+  });
+
+  await db.curriculumItem.create({
+    data: {
+      sectionId: intro.id,
+      type: "LECTURE",
+      title: "Why SQL still matters",
+      position: 0,
+      isPreview: true,
+      lecture: {
+        create: {
+          contentType: "ARTICLE",
+          articleBody:
+            "Spreadsheets are a great sandbox. SQL is how you ask the same question of a million rows without copying them into RAM first.",
+          durationSeconds: 240,
+        },
+      },
+    },
+  });
+
+  await db.curriculumItem.create({
+    data: {
+      sectionId: intro.id,
+      type: "LECTURE",
+      title: "SELECT, FROM, WHERE",
+      position: 1,
+      lecture: {
+        create: { contentType: "ARTICLE", articleBody: "Placeholder.", durationSeconds: 480 },
+      },
+    },
+  });
+
+  await setPrice(course.id, "USD", 3900);
+  await setPrice(course.id, "BDT", 399000);
+
+  await db.courseObjective.deleteMany({ where: { courseId: course.id } });
+  await db.courseObjective.createMany({
+    data: [
+      { courseId: course.id, text: "Write SELECT queries you can trust.", position: 0 },
+      { courseId: course.id, text: "Join tables without duplicating rows.", position: 1 },
+    ],
+  });
+
+  return course;
+}
+
+async function seedCoupon() {
+  await db.coupon.upsert({
+    where: { code: "SAVE10" },
+    update: { isActive: true, type: "PERCENTAGE", value: 10 },
+    create: {
+      code: "SAVE10",
+      type: "PERCENTAGE",
+      value: 10,
+      isActive: true,
+    },
+  });
+}
+
 async function main() {
   console.log("Seeding taxonomy…");
   await seedTaxonomy();
@@ -287,6 +372,8 @@ async function main() {
 
   console.log("Seeding course…");
   const course = await seedCourse(instructor.id);
+  const second = await seedSecondCourse(instructor.id);
+  await seedCoupon();
 
   // Enrol the sample learner so the critical-path E2E has something to open.
   // Routed through grantEnrollment rather than writing the row directly:
@@ -294,8 +381,9 @@ async function main() {
   // Course.enrollmentCount right — seeding the row by hand left a freshly seeded
   // database already showing "0 enrolled" for a course with an enrollment.
   await grantEnrollment(learner.id, course.id, "GRANT");
+  await recomputeCourseProgress(learner.id, course.id);
 
-  console.log(`Done. Seeded course "${course.title}" (/${course.slug}).`);
+  console.log(`Done. Seeded "${course.title}" and "${second.title}".`);
   console.log(
     "Sign in as learner@example.com, instructor@example.com or admin@example.com — password dev-password-12345",
   );

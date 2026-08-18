@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { listAnnouncableCourses } from "@/lib/announcements";
-import { db } from "@/lib/db";
+import { PageNav } from "@/components/site/page-nav";
+import {
+  listAnnouncableCourses,
+  listSentAnnouncements,
+  pickDefaultAnnouncementCourseId,
+} from "@/lib/announcements";
+import { formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/session";
 import { Composer } from "./composer";
 
@@ -9,28 +14,27 @@ export const metadata: Metadata = { title: "Announcements · Studio" };
 
 export const dynamic = "force-dynamic";
 
-export default async function AnnouncementsPage() {
+export default async function AnnouncementsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireRole("INSTRUCTOR", "ADMIN");
-  const courses = await listAnnouncableCourses(user.id);
-
-  // Scoped by author rather than by course: this is the instructor's own record
-  // of what they have sent, and an ADMIN who posted to a course they teach should
-  // see their own posts here, not everyone's.
-  const sent = await db.announcement.findMany({
-    where: { authorId: user.id },
-    orderBy: { createdAt: "desc" },
-    take: 25,
-    select: {
-      id: true,
-      subject: true,
-      body: true,
-      sentAt: true,
-      course: { select: { title: true } },
-    },
-  });
+  const { page: rawPage } = await searchParams;
+  const [courses, sentPage] = await Promise.all([
+    listAnnouncableCourses(user.id),
+    listSentAnnouncements(user.id, rawPage),
+  ]);
+  const announcable = courses.map((course) => ({
+    id: course.id,
+    title: course.title,
+    status: course.status,
+    learnerCount: course._count.enrollments,
+  }));
+  const { items: sent, page, pageCount } = sentPage;
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6">
+    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-12 sm:px-6">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Announcements</h1>
         <p className="mt-1 text-muted-foreground">
@@ -44,11 +48,8 @@ export default async function AnnouncementsPage() {
         </CardHeader>
         <CardContent>
           <Composer
-            courses={courses.map((course) => ({
-              id: course.id,
-              title: course.title,
-              learnerCount: course._count.enrollments,
-            }))}
+            courses={announcable}
+            defaultCourseId={pickDefaultAnnouncementCourseId(announcable)}
           />
         </CardContent>
       </Card>
@@ -68,7 +69,7 @@ export default async function AnnouncementsPage() {
                       <span className="text-xs text-muted-foreground">
                         {announcement.course.title}
                         {announcement.sentAt
-                          ? ` · ${announcement.sentAt.toLocaleDateString("en-GB")}`
+                          ? ` · ${formatDate(announcement.sentAt)}`
                           : " · draft"}
                       </span>
                     </div>
@@ -81,6 +82,7 @@ export default async function AnnouncementsPage() {
             ))}
           </ol>
         )}
+        <PageNav pathname="/studio/announcements" page={page} pageCount={pageCount} />
       </section>
     </main>
   );

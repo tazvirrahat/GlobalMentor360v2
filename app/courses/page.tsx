@@ -4,11 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CourseCard } from "@/components/site/course-card";
 import {
+  CATALOG_PAGE_SIZE,
   listCatalogCategories,
   listCatalogLanguages,
   listPublishedCourses,
   type CatalogSort,
 } from "@/lib/courses";
+import { COURSE_LEVELS } from "@/lib/labels";
+import { showingRange } from "@/lib/pagination";
+import { PageNav } from "@/components/site/page-nav";
 import type { CourseLevel } from "@/generated/prisma/enums";
 import { cn } from "@/lib/utils";
 
@@ -23,20 +27,15 @@ export const metadata = {
 // once we want CDN caching — but a build-time snapshot is never right here.
 export const dynamic = "force-dynamic";
 
-const LEVELS: { value: CourseLevel; label: string }[] = [
-  { value: "BEGINNER", label: "Beginner" },
-  { value: "INTERMEDIATE", label: "Intermediate" },
-  { value: "ADVANCED", label: "Advanced" },
-  { value: "ALL_LEVELS", label: "All levels" },
-];
-
-const LEVEL_VALUES = new Set<string>(LEVELS.map((entry) => entry.value));
+const LEVEL_VALUES = new Set<string>(COURSE_LEVELS.map((entry) => entry.value));
 
 /** One definition of the pill, rather than a copy per filter row. */
-const PILL = "rounded-full border px-3 py-1 transition-colors hover:border-brand hover:text-brand";
+const PILL =
+  "inline-flex min-h-11 items-center rounded-full border px-3 py-2 transition-colors hover:border-brand hover:text-brand";
 const PILL_ON = "border-brand bg-brand text-primary-foreground hover:text-primary-foreground";
 
 const SORTS: { value: CatalogSort; label: string }[] = [
+  { value: "relevance", label: "Relevance" },
   { value: "newest", label: "Newest" },
   { value: "popular", label: "Most popular" },
   { value: "rating", label: "Highest rated" },
@@ -101,7 +100,8 @@ export default async function CoursesPage({
   const hrefWith = (patch: Partial<Record<keyof typeof active, string | undefined>>) =>
     catalogHref({ ...active, ...patch });
 
-  const [courses, categories, languages] = await Promise.all([
+  const rawPage = first(params.page);
+  const [catalog, categories, languages] = await Promise.all([
     listPublishedCourses({
       query: q,
       level,
@@ -110,26 +110,29 @@ export default async function CoursesPage({
       price,
       minRating,
       sort,
+      page: rawPage,
     }),
     listCatalogCategories(),
     listCatalogLanguages(),
   ]);
 
   const filtered = Boolean(q || level || category || language || price || minRating);
+  const courses = catalog.items;
+  const range = showingRange(catalog.page, CATALOG_PAGE_SIZE, catalog.total);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
       <h1 className="text-3xl font-extrabold tracking-tight">Courses</h1>
       <p className="mt-2 text-muted-foreground">
-        {courses.length === 0
+        {catalog.total === 0
           ? filtered
             ? "No courses match your filters."
             : "No published courses yet — check back soon."
-          : `${courses.length} course${courses.length === 1 ? "" : "s"}${filtered ? " found" : " to choose from"}.`}
+          : `Showing ${range.from}–${range.to} of ${catalog.total} course${catalog.total === 1 ? "" : "s"}${filtered ? " found" : ""}.`}
       </p>
 
       {/* Search — GET form so results are linkable and back-button friendly. */}
-      <form action="/courses" method="get" className="mt-6 flex max-w-xl gap-2" role="search">
+      <form action="/courses" method="get" className="mt-6 flex max-w-xl min-w-0 flex-col gap-2 sm:flex-row" role="search">
         <div className="relative flex-1">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
@@ -154,26 +157,20 @@ export default async function CoursesPage({
       </form>
 
       {/* Level filter */}
-      <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
+      <div className="mt-5 flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="Level">
         <span className="font-semibold text-muted-foreground">Level:</span>
         <Link
           href={hrefWith({ level: undefined })}
-          className={cn(
-            "rounded-full border px-3 py-1 transition-colors hover:border-brand hover:text-brand",
-            !level && "border-brand bg-brand text-primary-foreground hover:text-primary-foreground",
-          )}
+          className={cn(PILL, !level && PILL_ON)}
+          aria-label="Any level"
         >
           Any
         </Link>
-        {LEVELS.map((entry) => (
+        {COURSE_LEVELS.map((entry) => (
           <Link
             key={entry.value}
             href={hrefWith({ level: entry.value })}
-            className={cn(
-              "rounded-full border px-3 py-1 transition-colors hover:border-brand hover:text-brand",
-              level === entry.value &&
-                "border-brand bg-brand text-primary-foreground hover:text-primary-foreground",
-            )}
+            className={cn(PILL, level === entry.value && PILL_ON)}
           >
             {entry.label}
           </Link>
@@ -181,11 +178,12 @@ export default async function CoursesPage({
       </div>
 
       {/* Price */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="Price">
         <span className="font-semibold text-muted-foreground">Price:</span>
         <Link
           href={hrefWith({ price: undefined })}
           className={cn(PILL, !price && PILL_ON)}
+          aria-label="Any price"
         >
           Any
         </Link>
@@ -201,11 +199,12 @@ export default async function CoursesPage({
       </div>
 
       {/* Rating */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="Rating">
         <span className="font-semibold text-muted-foreground">Rating:</span>
         <Link
           href={hrefWith({ rating: undefined })}
           className={cn(PILL, !minRating && PILL_ON)}
+          aria-label="Any rating"
         >
           Any
         </Link>
@@ -214,19 +213,21 @@ export default async function CoursesPage({
             key={stars}
             href={hrefWith({ rating: minRating === stars ? undefined : String(stars) })}
             className={cn(PILL, minRating === stars && PILL_ON)}
+            aria-label={`${stars} stars and up`}
           >
-            {stars}★ &amp; up
+            {stars}★ and up
           </Link>
         ))}
       </div>
 
       {/* Language — only when the catalog actually has more than one. */}
       {languages.length > 1 ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="Language">
           <span className="font-semibold text-muted-foreground">Language:</span>
           <Link
             href={hrefWith({ language: undefined })}
             className={cn(PILL, !language && PILL_ON)}
+            aria-label="Any language"
           >
             Any
           </Link>
@@ -243,14 +244,15 @@ export default async function CoursesPage({
       ) : null}
 
       {/* Sort */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="Sort">
         <span className="font-semibold text-muted-foreground">Sort:</span>
-        {SORTS.map((entry) => {
-          const on = (sort ?? "newest") === entry.value;
+        {(q ? SORTS : SORTS.filter((entry) => entry.value !== "relevance")).map((entry) => {
+          const defaultSort = q ? "relevance" : "newest";
+          const on = (sort ?? defaultSort) === entry.value;
           return (
             <Link
               key={entry.value}
-              href={hrefWith({ sort: entry.value === "newest" ? undefined : entry.value })}
+              href={hrefWith({ sort: entry.value === defaultSort ? undefined : entry.value })}
               className={cn(PILL, on && PILL_ON)}
             >
               {entry.label}
@@ -261,7 +263,7 @@ export default async function CoursesPage({
 
       {/* Category pills */}
       {categories.length > 0 ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="Category">
           <span className="font-semibold text-muted-foreground">Category:</span>
           {categories.map((entry) => {
             const isActive = category === entry.slug;
@@ -269,11 +271,7 @@ export default async function CoursesPage({
               <Link
                 key={entry.id}
                 href={hrefWith({ category: isActive ? undefined : entry.slug })}
-                className={cn(
-                  "rounded-full border px-3 py-1 transition-colors hover:border-brand hover:text-brand",
-                  isActive &&
-                    "border-brand bg-brand text-primary-foreground hover:text-primary-foreground",
-                )}
+                className={cn(PILL, isActive && PILL_ON)}
               >
                 {entry.name}
               </Link>
@@ -299,6 +297,12 @@ export default async function CoursesPage({
           ))}
         </div>
       ) : null}
+      <PageNav
+        pathname="/courses"
+        params={active as Record<string, string | undefined>}
+        page={catalog.page}
+        pageCount={catalog.pageCount}
+      />
     </main>
   );
 }

@@ -92,7 +92,7 @@ afterAll(async () => {
 describe("listLearnerOrders", () => {
   it("returns the learner's own orders and nobody else's", async () => {
     const orders = await listLearnerOrders(buyerId);
-    const ids = orders.map((order) => order.id);
+    const ids = orders.items.map((order) => order.id);
 
     expect(ids).toContain(buyerOrderId);
     expect(ids).not.toContain(otherOrderId);
@@ -100,7 +100,7 @@ describe("listLearnerOrders", () => {
 
   it("carries the line items and the payment reference", async () => {
     const orders = await listLearnerOrders(buyerId);
-    const order = orders.find((row) => row.id === buyerOrderId);
+    const order = orders.items.find((row) => row.id === buyerOrderId);
 
     expect(order?.items[0]?.courseTitle).toBe(`Orders Course ${run}`);
     expect(order?.total).toBe(4900);

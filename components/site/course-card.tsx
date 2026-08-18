@@ -3,14 +3,7 @@ import { BookOpen, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { CompactRating } from "@/components/site/star-rating";
-import { formatPrice } from "@/lib/courses";
-
-const LEVEL_LABEL: Record<string, string> = {
-  BEGINNER: "Beginner",
-  INTERMEDIATE: "Intermediate",
-  ADVANCED: "Advanced",
-  ALL_LEVELS: "All levels",
-};
+import { courseLevelLabel, coursePriceLabel } from "@/lib/labels";
 
 export type CourseCardData = {
   id: string;
@@ -89,13 +82,9 @@ export function CourseCard({ course }: { course: CourseCardData }) {
 
           <div className="mt-auto flex items-center justify-between pt-2">
             <span className="text-lg font-extrabold text-brand">
-              {free
-                ? "Free"
-                : course.price
-                  ? formatPrice(course.price.amount, course.price.currency)
-                  : "Not for sale"}
+              {coursePriceLabel(free, course.price)}
             </span>
-            <span className="text-xs text-muted-foreground">{LEVEL_LABEL[course.level] ?? course.level}</span>
+            <span className="text-xs text-muted-foreground">{courseLevelLabel(course.level)}</span>
           </div>
         </CardContent>
       </Card>

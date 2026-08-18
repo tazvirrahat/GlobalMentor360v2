@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 // From lib/qa-rules, not lib/qa: this is a Client Component, and lib/qa reaches
 // lib/db (see the note in lib/qa-rules.ts).
 import { REPLY_BODY_MAX } from "@/lib/qa-rules";
+import { FieldError } from "@/components/site/field-error";
 import { replyAction, type QaState } from "./qa-actions";
 
 const initial: QaState = { status: "idle" };
@@ -36,16 +37,10 @@ export function ReplyForm({ threadId, questionTitle }: { threadId: string; quest
         aria-invalid={fieldError ? true : undefined}
       />
 
-      {fieldError ? (
-        <p role="alert" className="text-sm font-medium text-destructive">
-          {fieldError}
-        </p>
-      ) : null}
+      {fieldError ? <FieldError message={fieldError} /> : null}
 
       {state.status === "error" && !state.fieldErrors ? (
-        <p role="alert" className="text-sm font-medium text-destructive">
-          {state.message}
-        </p>
+        <FieldError message={state.message} />
       ) : null}
 
       {state.status === "posted" ? (

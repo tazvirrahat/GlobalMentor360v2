@@ -15,16 +15,20 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   canAccessPlayerItem,
+  continueTargetId,
   getPlayerCourse,
+  sequentialItemFromPlayer,
   type PlayerItem,
 } from "@/lib/progress";
 import { getLearnerAnnouncements } from "@/lib/announcements";
 import { getCurrentUser, requireUser } from "@/lib/session";
-import { completeLectureAction } from "../actions";
 import { AnnouncementsPanel } from "../announcements-panel";
+import { CompleteLectureForm } from "../complete-lecture-form";
+import { BookmarkButton, NotesPanel } from "../notes-panel";
 import { QaPanel } from "../qa-panel";
 import { QuizForm } from "../quiz-form";
 import { VideoPlayer } from "../video-player";
+import { isBookmarked, listNotes } from "@/lib/notes";
 
 type Params = { params: Promise<{ slug: string; itemId: string }> };
 
@@ -48,7 +52,7 @@ export default async function LearnItemPage({ params }: Params) {
   // the only route that renders a player (docs/FEATURES.md section B). Sign-in is
   // demanded below, once we know the item is not a preview.
   const user = await getCurrentUser();
-  const course = await getPlayerCourse(slug, user?.id ?? null);
+  const course = await getPlayerCourse(slug, user?.id ?? null, itemId);
   if (!course) notFound();
 
   const flat = course.sections.flatMap((section) => section.items);
@@ -74,8 +78,16 @@ export default async function LearnItemPage({ params }: Params) {
   const announcements =
     user && course.enrolled ? await getLearnerAnnouncements(user.id, course.id) : [];
 
-  const currentIndex = flat.findIndex((item) => item.id === itemId);
-  const next = flat.slice(currentIndex + 1).find((item) => !item.locked);
+  const nextId = continueTargetId(flat.map(sequentialItemFromPlayer), itemId);
+  const next = nextId ? (flat.find((item) => item.id === nextId) ?? null) : null;
+  const nextHref = next ? (`/learn/${course.slug}/${next.id}` as Route) : null;
+
+  const [notesPage, bookmarked] = await Promise.all([
+    user && current.lecture && course.enrolled
+      ? listNotes(user.id, current.lecture.id)
+      : Promise.resolve({ notes: [], hiddenByPageSize: 0 }),
+    user && course.enrolled ? isBookmarked(user.id, current.id) : Promise.resolve(false),
+  ]);
 
   return (
     <main className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[1fr_300px] sm:px-6">
@@ -97,10 +109,15 @@ export default async function LearnItemPage({ params }: Params) {
             ) : null}
             {current.completed ? <Badge className="bg-brand">Completed</Badge> : null}
           </div>
+          {course.enrolled ? (
+            <div className="mt-3">
+              <BookmarkButton itemId={current.id} slug={course.slug} bookmarked={bookmarked} />
+            </div>
+          ) : null}
         </div>
 
         {course.percent >= 100 && course.certificateSerial ? (
-          <div className="flex items-center justify-between gap-3 rounded-2xl bg-hero-gradient p-5 text-white">
+          <div className="flex flex-col gap-3 rounded-2xl bg-hero-gradient p-5 text-white sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-extrabold">Course complete</p>
               <p className="text-sm text-white/80">Your certificate is ready.</p>
@@ -119,6 +136,7 @@ export default async function LearnItemPage({ params }: Params) {
               itemId={current.id}
               slug={course.slug}
               startAt={current.progress?.lastPositionSeconds ?? 0}
+              nextHref={nextHref}
             />
           ) : (
             <div className="flex aspect-video items-center justify-center rounded-2xl bg-muted text-sm text-muted-foreground">
@@ -128,7 +146,7 @@ export default async function LearnItemPage({ params }: Params) {
         ) : null}
 
         {current.lecture?.contentType === "ARTICLE" ? (
-          <article className="prose prose-neutral max-w-none rounded-2xl border p-6">
+          <article className="rounded-2xl border p-6">
             <p className="whitespace-pre-line text-sm leading-relaxed">
               {current.lecture.articleBody ?? "No article content yet."}
             </p>
@@ -136,14 +154,7 @@ export default async function LearnItemPage({ params }: Params) {
         ) : null}
 
         {current.lecture && course.enrolled && !current.completed ? (
-          <form action={completeLectureAction}>
-            <input type="hidden" name="itemId" value={current.id} />
-            <input type="hidden" name="slug" value={course.slug} />
-            <Button type="submit" className="shadow-brand">
-              Mark complete{next ? " and continue" : ""}
-              {next ? <ChevronRight className="size-4" aria-hidden /> : null}
-            </Button>
-          </form>
+          <CompleteLectureForm itemId={current.id} slug={course.slug} hasNext={Boolean(next)} />
         ) : null}
 
         {current.assessment ? (
@@ -153,6 +164,7 @@ export default async function LearnItemPage({ params }: Params) {
             questions={current.assessment.questions}
             allowRetakes={current.assessment.allowRetakes}
             previous={current.assessment.latestAttempt}
+            nextHref={nextHref}
           />
         ) : null}
 
@@ -162,6 +174,16 @@ export default async function LearnItemPage({ params }: Params) {
               Next: {next.title} <ChevronRight className="size-4" aria-hidden />
             </Link>
           </Button>
+        ) : null}
+
+        {current.lecture && course.enrolled ? (
+          <NotesPanel
+            lectureId={current.lecture.id}
+            itemId={current.id}
+            slug={course.slug}
+            notes={notesPage.notes}
+            hiddenByPageSize={notesPage.hiddenByPageSize}
+          />
         ) : null}
 
         {/* Q&A is for people taking the course, so it is absent on the preview
@@ -188,10 +210,10 @@ export default async function LearnItemPage({ params }: Params) {
               <span className="font-semibold">Your progress</span>
               <span className="tabular-nums text-muted-foreground">{course.percent}%</span>
             </div>
-            <Progress value={course.percent} className="mt-2" />
+            <Progress value={course.percent} className="mt-2" aria-label="Course progress" />
           </div>
 
-          <nav className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
+          <nav aria-label="Curriculum" className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
             {course.sections.map((section) => (
               <div key={section.id}>
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

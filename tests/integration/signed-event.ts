@@ -20,6 +20,8 @@ export function signedEvent(options: {
   paymentStatus: string;
   metadata: Record<string, string>;
   type?: string;
+  /** Stripe minor units. Must match Payment.amount or fulfill refuses to grant. */
+  amountTotal?: number | null;
 }) {
   const payload = JSON.stringify({
     id: options.eventId,
@@ -31,6 +33,7 @@ export function signedEvent(options: {
         object: "checkout.session",
         payment_status: options.paymentStatus,
         payment_intent: options.paymentIntentId,
+        amount_total: options.amountTotal === undefined ? 4900 : options.amountTotal,
         metadata: options.metadata,
       },
     },

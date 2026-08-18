@@ -140,6 +140,19 @@ BEGIN
     _failed := _failed + 1;
   END;
 
+  -- 10. Duplicate bKash trx ID while pending -> MUST REJECT
+  BEGIN
+    INSERT INTO payments (id,"orderId","userId",method,status,amount,currency,
+                          "bkashTransactionId","bkashPhoneNumber","createdAt")
+    VALUES (gen_random_uuid()::text,_order,_user,'BKASH','PENDING_VERIFICATION',4900,'BDT',
+            'TXN123','01712345678',now());
+    RAISE WARNING 'FAIL  duplicate bKash trx ID was ACCEPTED';
+    _failed := _failed + 1;
+  EXCEPTION WHEN unique_violation THEN
+    RAISE NOTICE 'PASS  duplicate bKash trx ID -> rejected';
+    _passed := _passed + 1;
+  END;
+
   RAISE NOTICE '----------------------------------------';
   RAISE NOTICE 'passed=% failed=%', _passed, _failed;
   IF _failed > 0 THEN

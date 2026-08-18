@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ChevronRight, CircleCheck, CircleX } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, ChevronRight, CircleCheck, CircleX, TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CourseStatusBadge } from "@/components/site/status-badges";
+import { courseSellabilityWarning } from "@/lib/payments";
 import { requireRole } from "@/lib/session";
 import { getOwnedCourse, readinessChecks } from "@/lib/studio";
 import { PublishForm, SettingsForm } from "./settings-form";
@@ -24,6 +26,7 @@ export default async function CourseSettingsPage({ params }: Params) {
 
   const checks = await readinessChecks(course.id);
   const ready = checks.every((check) => check.ok);
+  const sellabilityWarning = courseSellabilityWarning(course.prices);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
@@ -36,10 +39,22 @@ export default async function CourseSettingsPage({ params }: Params) {
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <h1 className="text-3xl font-extrabold tracking-tight">{course.title}</h1>
-        <Badge variant={course.status === "PUBLISHED" ? "default" : "secondary"}>
-          {course.status}
-        </Badge>
+        <CourseStatusBadge status={course.status} />
       </div>
+
+      {sellabilityWarning ? (
+        <Alert
+          className="mt-6"
+          variant={course.status === "PUBLISHED" ? "destructive" : "default"}
+          role="alert"
+        >
+          <TriangleAlert className="size-4" aria-hidden />
+          <AlertTitle>
+            {course.status === "PUBLISHED" ? "Live but unpayable" : "Not payable yet"}
+          </AlertTitle>
+          <AlertDescription>{sellabilityWarning}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <Button asChild variant="outline" className="mt-4">
         <Link href={`/studio/courses/${course.id}/curriculum`}>

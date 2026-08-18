@@ -2,32 +2,42 @@ import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CircleCheck, CreditCard, Hourglass } from "lucide-react";
+import { BkashProofForm } from "@/components/checkout/bkash-proof-form";
+import { BkashQuoteCard } from "@/components/checkout/bkash-quote";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  applyCouponQueryResult,
+  bkashAmountDue,
+  quoteBkashCourses,
+  quotedBkashCouponCode,
+} from "@/lib/checkout";
+import { formatDate } from "@/lib/format";
 import { formatPrice, getPublishedCourseBySlug } from "@/lib/courses";
 import { db } from "@/lib/db";
 import { isEnrolled } from "@/lib/entitlement";
 import {
   availableRails,
   BKASH_CURRENCY,
+  getBkashMerchantNumber,
   STRIPE_CURRENCY,
 } from "@/lib/payments";
 import { requireUser } from "@/lib/session";
-import { startStripeCheckout } from "./actions";
-import { BkashForm } from "./bkash-form";
+import { startStripeCheckout, submitBkashPayment } from "./actions";
 
 type Params = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; coupon?: string }>;
 };
 
 export const metadata = { title: "Checkout" };
 
 export default async function CheckoutPage({ params, searchParams }: Params) {
   const { slug } = await params;
-  const { status } = await searchParams;
+  const { status, coupon: couponParam } = await searchParams;
+  const appliedCoupon = couponParam?.trim() || undefined;
   const course = await getPublishedCourseBySlug(slug);
   if (!course) notFound();
 
@@ -80,6 +90,7 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
   });
 
   const rails = availableRails();
+  const stripeConfigured = rails.some((rail) => rail.id === "stripe");
   const [usdPrice, bdtPrice] = await Promise.all([
     db.price.findFirst({
       where: { courseId: course.id, currency: STRIPE_CURRENCY, isActive: true },
@@ -91,8 +102,21 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
     }),
   ]);
 
-  const stripeAvailable = rails.some((rail) => rail.id === "stripe") && Boolean(usdPrice);
+  const stripeAvailable = stripeConfigured && Boolean(usdPrice);
   const bkashAvailable = rails.some((rail) => rail.id === "bkash-manual") && Boolean(bdtPrice);
+
+  let quote =
+    !pending && bkashAvailable
+      ? await quoteBkashCourses(user.id, [course.id], appliedCoupon)
+      : null;
+  let couponMessage: string | null = null;
+  if (quote) {
+    const fallback = applyCouponQueryResult(quote, appliedCoupon);
+    couponMessage = fallback.couponMessage;
+    if (fallback.retryWithoutCoupon) {
+      quote = await quoteBkashCourses(user.id, [course.id]);
+    }
+  }
 
   return (
     <main className="mx-auto max-w-lg px-4 py-12 sm:px-6">
@@ -106,10 +130,31 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
         </Alert>
       ) : null}
 
+      {status === "in-flight" ? (
+        <Alert className="mt-6" role="status">
+          <Hourglass className="size-4 text-brand" />
+          <AlertTitle>Payment already in progress</AlertTitle>
+          <AlertDescription>
+            You already have a payment awaiting verification for this course.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {status === "unavailable" ? (
+        <Alert className="mt-6" variant="destructive" role="alert">
+          <AlertTitle>Card payments unavailable</AlertTitle>
+          <AlertDescription>
+            Card payments aren&rsquo;t available right now. Try bKash, or come back later.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {status === "error" ? (
         <Alert className="mt-6" variant="destructive" role="alert">
           <AlertTitle>Could not start checkout</AlertTitle>
-          <AlertDescription>Card payments aren&rsquo;t available right now. Try bKash, or come back later.</AlertDescription>
+          <AlertDescription>
+            Something went wrong starting card checkout. Try again, or pay with bKash.
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -120,7 +165,7 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
             <AlertTitle>Awaiting verification</AlertTitle>
             <AlertDescription>
               You submitted transaction <strong>{pending.bkashTransactionId}</strong> on{" "}
-              {pending.createdAt.toLocaleDateString("en-GB")}. An admin will confirm it shortly —
+              {formatDate(pending.createdAt)}. An admin will confirm it shortly —
               you&rsquo;ll get access as soon as it&rsquo;s approved.
             </AlertDescription>
           </Alert>
@@ -163,29 +208,53 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
           </div>
         ) : null}
 
-        {!pending && bkashAvailable ? (
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle>Pay with bKash</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Amount to send:{" "}
-                <strong className="text-lg text-brand">
-                  {formatPrice(bdtPrice!.amount, bdtPrice!.currency)}
-                </strong>
-              </p>
-            </CardHeader>
-            <CardContent>
-              <BkashForm courseId={course.id} />
-            </CardContent>
-          </Card>
+        {!pending && bkashAvailable && quote && !quote.ok ? (
+          <Alert variant="destructive" role="alert">
+            <AlertTitle>Could not price this course</AlertTitle>
+            <AlertDescription>{quote.message}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {!pending && bkashAvailable && quote?.ok ? (
+          <BkashQuoteCard
+            title="Pay with bKash"
+            quote={quote}
+            appliedCoupon={appliedCoupon}
+            couponAction={`/courses/${course.slug}/checkout` as Route}
+            couponFieldsClassName="flex flex-wrap gap-2"
+            couponMessage={couponMessage}
+          >
+            <BkashProofForm
+              action={submitBkashPayment}
+              hiddenFields={
+                <>
+                  <input type="hidden" name="courseId" value={course.id} />
+                  {quotedBkashCouponCode(quote) ? (
+                    <input type="hidden" name="couponCode" value={quotedBkashCouponCode(quote)} />
+                  ) : null}
+                </>
+              }
+              amountLabel={formatPrice(bkashAmountDue(quote), BKASH_CURRENCY)}
+              merchantNumber={getBkashMerchantNumber()}
+              successDescription={
+                <>
+                  Your payment is awaiting verification. An admin will confirm it, usually within a
+                  few hours. You&rsquo;ll get access to the course as soon as it&rsquo;s approved.
+                </>
+              }
+            />
+          </BkashQuoteCard>
         ) : null}
 
         {!pending && !stripeAvailable && !bkashAvailable ? (
           <Alert>
             <AlertTitle>No payment methods available</AlertTitle>
             <AlertDescription>
-              This course needs a USD price for card payments and/or a BDT price for bKash. Ask an
-              instructor to set one in Studio.
+              {/* Only name a fix that would actually work: a USD price does
+                  nothing while the card rail is unconfigured. */}
+              {stripeConfigured
+                ? "This course needs a USD price for card payments and/or a BDT price for bKash. Ask an instructor to set one in Studio."
+                : "This course has no BDT price, so it can't be bought with bKash — the only payment method right now. Ask an instructor to set a BDT price in Studio."}
             </AlertDescription>
           </Alert>
         ) : null}

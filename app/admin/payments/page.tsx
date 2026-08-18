@@ -1,7 +1,9 @@
+import { PageNav } from "@/components/site/page-nav";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatPrice } from "@/lib/courses";
-import { db } from "@/lib/db";
+import { formatDate, formatDateTime, formatPrice } from "@/lib/format";
+import { parsePage } from "@/lib/pagination";
+import { listPendingManualPayments } from "@/lib/payments";
 import { requireRole } from "@/lib/session";
 import { ReviewForm } from "./review-form";
 
@@ -10,40 +12,28 @@ export const metadata = { title: "Payment verification" };
 // The queue must reflect reality the moment an admin acts on it.
 export const dynamic = "force-dynamic";
 
-export default async function AdminPaymentsPage() {
+export default async function AdminPaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   // Redirects non-admins. bKash approval is the one action that turns money into
   // access, so it is admin-only.
   await requireRole("ADMIN");
 
-  const pending = await db.payment.findMany({
-    where: { status: "PENDING_VERIFICATION" },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      amount: true,
-      currency: true,
-      createdAt: true,
-      bkashTransactionId: true,
-      bkashPhoneNumber: true,
-      bkashPaymentDate: true,
-      bkashReference: true,
-      user: { select: { name: true, email: true } },
-      order: {
-        select: { items: { select: { course: { select: { title: true } } } } },
-      },
-    },
-  });
+  const { page: pageParam } = await searchParams;
+  const { items: pending, total, page, pageCount } = await listPendingManualPayments(
+    parsePage(pageParam),
+  );
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-      <div className="flex items-center justify-between">
+    <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-extrabold tracking-tight">Payment verification</h1>
-        <Badge variant={pending.length > 0 ? "default" : "secondary"}>
-          {pending.length} awaiting
-        </Badge>
+        <Badge variant={total > 0 ? "default" : "secondary"}>{total} awaiting</Badge>
       </div>
 
-      {pending.length === 0 ? (
+      {total === 0 ? (
         <p className="mt-8 text-muted-foreground">Nothing to review.</p>
       ) : (
         <ul className="mt-8 flex flex-col gap-6">
@@ -60,7 +50,7 @@ export default async function AdminPaymentsPage() {
                     <div>
                       <dt className="text-muted-foreground">Learner</dt>
                       <dd className="font-medium">{payment.user.name}</dd>
-                      <dd className="text-xs text-muted-foreground">{payment.user.email}</dd>
+                      <dd className="break-all text-xs text-muted-foreground">{payment.user.email}</dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Amount</dt>
@@ -70,7 +60,7 @@ export default async function AdminPaymentsPage() {
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Transaction ID</dt>
-                      <dd className="font-mono font-medium">{payment.bkashTransactionId}</dd>
+                      <dd className="break-all font-mono font-medium">{payment.bkashTransactionId}</dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">bKash number</dt>
@@ -78,7 +68,7 @@ export default async function AdminPaymentsPage() {
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Payment date</dt>
-                      <dd>{payment.bkashPaymentDate?.toLocaleDateString("en-GB") ?? "—"}</dd>
+                      <dd>{payment.bkashPaymentDate ? formatDate(payment.bkashPaymentDate) : "—"}</dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Reference</dt>
@@ -86,7 +76,7 @@ export default async function AdminPaymentsPage() {
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Submitted</dt>
-                      <dd>{payment.createdAt.toLocaleString("en-GB")}</dd>
+                      <dd>{formatDateTime(payment.createdAt)}</dd>
                     </div>
                   </dl>
 
@@ -97,6 +87,8 @@ export default async function AdminPaymentsPage() {
           ))}
         </ul>
       )}
+
+      <PageNav pathname="/admin/payments" page={page} pageCount={pageCount} />
     </main>
   );
 }
