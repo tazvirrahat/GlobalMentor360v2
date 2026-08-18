@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SignOutButton } from "@/components/site/sign-out-button";
+import { EmptyState } from "@/components/site/empty-state";
+import { courseLevelLabel } from "@/lib/labels";
 import { getMyLearning, type MyLearningEntry } from "@/lib/my-learning";
 import { getUserRoles, requireUser } from "@/lib/session";
-import { SignOutButton } from "./sign-out-button";
 
 export const metadata = {
   title: "My Learning",
@@ -16,13 +18,6 @@ export const metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-const LEVEL_LABEL: Record<string, string> = {
-  BEGINNER: "Beginner",
-  INTERMEDIATE: "Intermediate",
-  ADVANCED: "Advanced",
-  ALL_LEVELS: "All levels",
-};
 
 function EnrolledCourseCard({ entry }: { entry: MyLearningEntry }) {
   const done = entry.percent >= 100;
@@ -58,7 +53,7 @@ function EnrolledCourseCard({ entry }: { entry: MyLearningEntry }) {
           <p className="text-xs text-muted-foreground">
             {entry.instructorName}
             {entry.categoryName ? ` · ${entry.categoryName}` : ""}
-            {` · ${LEVEL_LABEL[entry.level] ?? entry.level}`}
+            {` · ${courseLevelLabel(entry.level)}`}
           </p>
           <div className="flex items-center gap-3 pt-1">
             <Progress value={entry.percent} className="max-w-64" aria-label="Course progress" />
@@ -89,17 +84,21 @@ function EnrolledCourseCard({ entry }: { entry: MyLearningEntry }) {
   );
 }
 
-function EmptyState({ message }: { message: string }) {
+const emptyIcon = (
+  <span className="flex size-12 items-center justify-center rounded-full bg-brand text-primary-foreground">
+    <BookOpen className="size-6" aria-hidden />
+  </span>
+);
+
+function LearningEmptyState({ message }: { message: string }) {
   return (
     <Card className="rounded-2xl border-dashed">
-      <CardContent className="flex flex-col items-center gap-4 px-6 py-12 text-center">
-        <span className="flex size-12 items-center justify-center rounded-full bg-brand text-primary-foreground">
-          <BookOpen className="size-6" aria-hidden />
-        </span>
-        <p className="max-w-sm text-muted-foreground">{message}</p>
-        <Button asChild className="shadow-brand">
-          <Link href="/courses">Browse courses</Link>
-        </Button>
+      <CardContent className="p-0">
+        <EmptyState className="border-0 px-6 py-12" icon={emptyIcon} message={message}>
+          <Button asChild className="shadow-brand">
+            <Link href="/courses">Browse courses</Link>
+          </Button>
+        </EmptyState>
       </CardContent>
     </Card>
   );
@@ -126,10 +125,13 @@ export default async function DashboardPage() {
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* The only route into the purchase record. A page nothing links to is
               reachable only by typing its URL — the gap that left the quiz
               builder orphaned past a green build. */}
+          <Button asChild variant="outline" size="sm">
+            <Link href={"/account" as Route}>Account</Link>
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/orders">
               <Receipt className="size-4" aria-hidden /> Purchases
@@ -142,7 +144,7 @@ export default async function DashboardPage() {
       <section className="mt-10">
         <h2 className="sr-only">My learning</h2>
         <Tabs defaultValue="in-progress">
-          <TabsList>
+          <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start">
             <TabsTrigger value="in-progress">In progress ({inProgress.length})</TabsTrigger>
             <TabsTrigger value="completed">Completed ({completed.length})</TabsTrigger>
             {archived.length > 0 ? (
@@ -155,7 +157,7 @@ export default async function DashboardPage() {
 
           <TabsContent value="in-progress" className="mt-4 space-y-4">
             {inProgress.length === 0 ? (
-              <EmptyState
+              <LearningEmptyState
                 message={
                   completed.length === 0
                     ? "You haven't enrolled in any courses yet. Pick one and start learning today."
@@ -169,7 +171,7 @@ export default async function DashboardPage() {
 
           <TabsContent value="completed" className="mt-4 space-y-4">
             {completed.length === 0 ? (
-              <EmptyState message="No completed courses yet — finish a course to earn your certificate." />
+              <LearningEmptyState message="No completed courses yet — finish a course to earn your certificate." />
             ) : (
               completed.map((entry) => <EnrolledCourseCard key={entry.courseId} entry={entry} />)
             )}

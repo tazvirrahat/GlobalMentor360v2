@@ -37,7 +37,18 @@ export function ReviewForm({ paymentId }: { paymentId: string }) {
           <input type="hidden" name="paymentId" value={paymentId} />
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={`reject-notes-${paymentId}`}>Reason for rejection</Label>
-            <Input id={`reject-notes-${paymentId}`} name="notes" />
+            <Input
+              id={`reject-notes-${paymentId}`}
+              name="notes"
+              required
+              aria-required="true"
+              aria-describedby={`reject-notes-hint-${paymentId}`}
+              autoComplete="off"
+            />
+            <p id={`reject-notes-hint-${paymentId}`} className="text-xs text-muted-foreground">
+              Required on the payment record for staff. It is not shown on the learner
+              receipt.
+            </p>
           </div>
           <Button type="submit" variant="destructive" disabled={busy}>
             {rejecting ? "Rejecting…" : "Reject"}

@@ -86,6 +86,14 @@ async function main() {
   await db.itemProgress.deleteMany({
     where: { userId: learner.id, curriculumItem: { section: { courseId: course.id } } },
   });
+  // This script records lecture_completed / quiz_submitted; analytics_events has
+  // no FK, so leaving them would mix verify-run debris into the seed learner.
+  await db.analyticsEvent.deleteMany({
+    where: {
+      userId: learner.id,
+      name: { in: ["lecture_completed", "quiz_submitted"] },
+    },
+  });
   console.log("cleaned up test progress");
 }
 

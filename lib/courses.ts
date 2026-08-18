@@ -1,7 +1,11 @@
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import type { CourseLevel } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { formatHoursMinutes } from "@/lib/format";
+import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
 import { BKASH_CURRENCY, STRIPE_CURRENCY } from "@/lib/payments";
+
+export { formatHoursMinutes as formatDuration, formatPrice } from "@/lib/format";
 
 /**
  * Read models for the public catalog.
@@ -10,18 +14,6 @@ import { BKASH_CURRENCY, STRIPE_CURRENCY } from "@/lib/payments";
  * not be discoverable, so the status filter lives here rather than at each call
  * site where it could be forgotten.
  */
-
-function formatDuration(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.round((totalSeconds % 3600) / 60);
-  if (hours === 0) return `${minutes}m`;
-  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
-}
-
-export function formatPrice(amount: number, currency: string): string {
-  // Amounts are stored as integer minor units.
-  return new Intl.NumberFormat("en", { style: "currency", currency }).format(amount / 100);
-}
 
 /**
  * Currency preference for the single price a learner is shown, best first.
@@ -32,15 +24,14 @@ export function formatPrice(amount: number, currency: string): string {
  * catalog card, the landing page and the free/paid decision could each land on a
  * different currency, and could disagree with themselves between requests.
  *
- * The order mirrors `RAILS` in lib/payments: the automatic rail is the better
- * offer and leads at checkout, so it leads in the catalog too. Checkout still
- * prices each rail separately — this only decides the headline.
- *
- * Picking the currency the learner can actually pay in is the better answer, and
- * it needs a locale or region signal we do not collect yet. Until then the point
- * is that every surface gives the same answer every time.
+ * BDT leads because bKash is the rail that always works: it needs no credentials,
+ * while Stripe hides itself without keys. Leading with USD had the catalog quote
+ * a price the checkout could not take — a learner saw "$49" on the card and
+ * "Amount to send: ৳5,990" (or "No payment methods") one click later. Checkout
+ * still prices each rail separately — this only decides the headline, and it
+ * must be the headline the live rail can honour.
  */
-const DISPLAY_CURRENCIES: readonly string[] = [STRIPE_CURRENCY, BKASH_CURRENCY];
+const DISPLAY_CURRENCIES: readonly string[] = [BKASH_CURRENCY, STRIPE_CURRENCY];
 
 export type ActivePrice = { amount: number; currency: string };
 
@@ -75,15 +66,14 @@ export function isFreeCourse(prices: readonly { amount: number }[]): boolean {
 /**
  * How the catalog is ordered.
  *
- * `relevance` is deliberately absent. Search is a substring match, so there is no
- * relevance score to sort by — offering the option would be a control that
- * silently does nothing. It arrives with Postgres full-text search, which
- * TECH-SPEC already plans; until then `newest` is the honest default.
+ * `relevance` is the ranked full-text order and is the default whenever a query
+ * is present. Without a query it is identical to `newest` — there is nothing
+ * to rank.
  */
-export type CatalogSort = "newest" | "popular" | "rating" | "price-low" | "price-high";
+export type CatalogSort = "newest" | "popular" | "rating" | "price-low" | "price-high" | "relevance";
 
 export type CatalogFilters = {
-  /** Case-insensitive substring match on title, subtitle or description. */
+  /** Full-text / trigram search across title, subtitle, description and instructor. */
   query?: string;
   level?: CourseLevel;
   categorySlug?: string;
@@ -94,28 +84,25 @@ export type CatalogFilters = {
   /** Minimum star rating, 1-5. Reads the denormalised aggregate. */
   minRating?: number;
   sort?: CatalogSort;
+  page?: string | number;
 };
 
 /**
- * The catalog is a public page with no pagination control, so the read is capped
- * rather than left to grow with the catalog. Unbounded findMany on a public
- * route is the shape that made the announcements panel load every announcement
- * ever sent on every page view.
+ * One catalog page. The public /courses route pages with ?page= rather than
+ * silently dropping everything past the first 48.
  */
 export const CATALOG_PAGE_SIZE = 48;
 
 /**
- * Only the orderings the database can actually apply.
+ * Only the orderings Prisma can apply without a search.
  *
- * price-low / price-high are absent here on purpose: the displayed price is
- * chosen per rail by selectDisplayPrice after the rows come back, so Postgres
- * cannot order by it without either a denormalised column or a join that picks
- * the same currency this code does. Those two sorts are applied in memory below,
- * within the capped page — which is honest about being a page-local sort rather
- * than pretending to be a global one.
+ * price-low / price-high stay out: the displayed price is chosen per rail by
+ * selectDisplayPrice after the rows come back. Those two sorts still run in
+ * memory on the current page — a global price order needs a denormalised
+ * display-price column, which this pass does not add.
  */
 const DB_ORDER: Record<
-  Exclude<CatalogSort, "price-low" | "price-high">,
+  Exclude<CatalogSort, "price-low" | "price-high" | "relevance">,
   Prisma.CourseOrderByWithRelationInput
 > = {
   newest: { publishedAt: "desc" },
@@ -123,94 +110,291 @@ const DB_ORDER: Record<
   rating: { ratingAverage: "desc" },
 };
 
-export async function listPublishedCourses(filters: CatalogFilters = {}) {
-  const { query, level, categorySlug, language, price, minRating, sort = "newest" } = filters;
+const CATALOG_SELECT = {
+  id: true,
+  title: true,
+  slug: true,
+  subtitle: true,
+  level: true,
+  ratingAverage: true,
+  ratingCount: true,
+  enrollmentCount: true,
+  instructor: { select: { name: true } },
+  primaryCategory: { select: { name: true, slug: true } },
+  prices: {
+    where: { isActive: true },
+    orderBy: { currency: "asc" as const },
+    select: { amount: true, currency: true },
+  },
+  // Nested duration / lecture count: left as a per-card walk of sections → items
+  // → lecture. Denormalising those onto Course is a later pass.
+  sections: {
+    select: {
+      items: { select: { lecture: { select: { durationSeconds: true } } } },
+    },
+  },
+} as const;
 
-  const where: Prisma.CourseWhereInput = {
+/**
+ * Strips query operators so websearch_to_tsquery cannot be fed punctuation that
+ * makes it throw. Letters, numbers, spaces, apostrophes and hyphens stay.
+ */
+export function sanitizeSearchQuery(raw: string): string {
+  return raw
+    .replace(/[^\p{L}\p{N}\s'-]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+}
+
+function ilikePattern(query: string): string {
+  return `%${query.replace(/[%_\\]/g, "\\$&")}%`;
+}
+
+function catalogFilterSql(input: {
+  search: string;
+  level?: CourseLevel;
+  categorySlug?: string;
+  language?: string;
+  price?: "free" | "paid";
+  minRating?: number;
+}): Prisma.Sql {
+  const parts: Prisma.Sql[] = [Prisma.sql`c.status = 'PUBLISHED'`];
+
+  if (input.level) {
+    parts.push(Prisma.sql`c.level = ${input.level}::"CourseLevel"`);
+  }
+  if (input.language) {
+    parts.push(Prisma.sql`c.language = ${input.language}`);
+  }
+  if (input.minRating) {
+    parts.push(Prisma.sql`c."ratingAverage" >= ${input.minRating}`);
+  }
+  if (input.categorySlug) {
+    parts.push(
+      Prisma.sql`EXISTS (
+        SELECT 1 FROM categories cat
+        WHERE cat.id = c."primaryCategoryId" AND cat.slug = ${input.categorySlug}
+      )`,
+    );
+  }
+  if (input.price === "free") {
+    parts.push(
+      Prisma.sql`NOT EXISTS (
+        SELECT 1 FROM prices p
+        WHERE p."courseId" = c.id AND p."isActive" = true AND p.amount > 0
+      )`,
+    );
+  }
+  if (input.price === "paid") {
+    parts.push(
+      Prisma.sql`EXISTS (
+        SELECT 1 FROM prices p
+        WHERE p."courseId" = c.id AND p."isActive" = true AND p.amount > 0
+      )`,
+    );
+  }
+  if (input.search) {
+    const pattern = ilikePattern(input.search);
+    parts.push(
+      Prisma.sql`(
+        c.search_vector @@ websearch_to_tsquery('english', ${input.search})
+        OR c.title ILIKE ${pattern}
+        OR COALESCE(c.subtitle, '') ILIKE ${pattern}
+        OR COALESCE(c.description, '') ILIKE ${pattern}
+        OR u.name ILIKE ${pattern}
+      )`,
+    );
+  }
+
+  return Prisma.join(parts, " AND ");
+}
+
+/** Full ORDER BY clause so Prisma does not wrap comma-separated keys in parentheses. */
+function catalogOrderClause(sort: CatalogSort, search: string): Prisma.Sql {
+  if (sort === "relevance" && search) {
+    return Prisma.sql`ORDER BY COALESCE(ts_rank(c.search_vector, websearch_to_tsquery('english', ${search})), 0) DESC, c."publishedAt" DESC NULLS LAST`;
+  }
+  if (sort === "popular") {
+    return Prisma.sql`ORDER BY c."enrollmentCount" DESC, c."publishedAt" DESC NULLS LAST`;
+  }
+  if (sort === "rating") {
+    return Prisma.sql`ORDER BY c."ratingAverage" DESC, c."publishedAt" DESC NULLS LAST`;
+  }
+  return Prisma.sql`ORDER BY c."publishedAt" DESC NULLS LAST`;
+}
+
+function catalogPrismaWhere(filters: {
+  level?: CourseLevel;
+  categorySlug?: string;
+  language?: string;
+  price?: "free" | "paid";
+  minRating?: number;
+}): Prisma.CourseWhereInput {
+  return {
     status: "PUBLISHED",
-    ...(level ? { level } : {}),
-    ...(categorySlug ? { primaryCategory: { slug: categorySlug } } : {}),
-    ...(language ? { language } : {}),
-    ...(minRating ? { ratingAverage: { gte: minRating } } : {}),
+    ...(filters.level ? { level: filters.level } : {}),
+    ...(filters.categorySlug ? { primaryCategory: { slug: filters.categorySlug } } : {}),
+    ...(filters.language ? { language: filters.language } : {}),
+    ...(filters.minRating ? { ratingAverage: { gte: filters.minRating } } : {}),
     // "free" is every active price being zero, matching isFreeCourse — a course
     // with a zero BDT price and a paid USD one is not free to the learner who
     // sees the USD one. `none` and `some` express that without a second dialect.
-    ...(price === "free"
+    ...(filters.price === "free"
       ? { prices: { none: { isActive: true, amount: { gt: 0 } } } }
       : {}),
-    ...(price === "paid" ? { prices: { some: { isActive: true, amount: { gt: 0 } } } } : {}),
-    ...(query
-      ? {
-          OR: [
-            { title: { contains: query, mode: "insensitive" } },
-            { subtitle: { contains: query, mode: "insensitive" } },
-            { description: { contains: query, mode: "insensitive" } },
-            // Searching the instructor is a P0 line in FEATURES section B and
-            // costs one relation filter here.
-            { instructor: { name: { contains: query, mode: "insensitive" } } },
-          ],
-        }
-      : {}),
+    ...(filters.price === "paid" ? { prices: { some: { isActive: true, amount: { gt: 0 } } } } : {}),
   };
+}
 
-  const courses = await db.course.findMany({
-    where,
-    take: CATALOG_PAGE_SIZE,
-    orderBy: DB_ORDER[sort === "price-low" || sort === "price-high" ? "newest" : sort],
-    select: {
-      id: true,
-      title: true,
-      slug: true,
-      subtitle: true,
-      level: true,
-      ratingAverage: true,
-      ratingCount: true,
-      enrollmentCount: true,
-      instructor: { select: { name: true } },
-      primaryCategory: { select: { name: true, slug: true } },
-      prices: {
-        where: { isActive: true },
-        orderBy: { currency: "asc" },
-        select: { amount: true, currency: true },
-      },
-      sections: {
-        select: {
-          items: { select: { lecture: { select: { durationSeconds: true } } } },
-        },
-      },
-    },
-  });
+function mapCatalogCourse<
+  T extends {
+    sections: { items: { lecture: { durationSeconds: number } | null }[] }[];
+    prices: ActivePrice[];
+  },
+>(course: T) {
+  const seconds = course.sections
+    .flatMap((section) => section.items)
+    .reduce((sum, item) => sum + (item.lecture?.durationSeconds ?? 0), 0);
 
-  const mapped = courses.map((course) => {
-    const seconds = course.sections
-      .flatMap((section) => section.items)
-      .reduce((sum, item) => sum + (item.lecture?.durationSeconds ?? 0), 0);
+  const lectureCount = course.sections
+    .flatMap((section) => section.items)
+    .filter((item) => item.lecture !== null).length;
 
-    const lectureCount = course.sections
-      .flatMap((section) => section.items)
-      .filter((item) => item.lecture !== null).length;
+  return {
+    ...course,
+    totalDuration: formatHoursMinutes(seconds),
+    lectureCount,
+    price: selectDisplayPrice(course.prices),
+    isFree: isFreeCourse(course.prices),
+  };
+}
 
-    return {
-      ...course,
-      totalDuration: formatDuration(seconds),
-      lectureCount,
-      price: selectDisplayPrice(course.prices),
-      isFree: isFreeCourse(course.prices),
-    };
-  });
+export type CatalogCourse = ReturnType<typeof mapCatalogCourse> & {
+  id: string;
+  title: string;
+  slug: string;
+  subtitle: string | null;
+  level: CourseLevel;
+  ratingAverage: number;
+  ratingCount: number;
+  enrollmentCount: number;
+  instructor: { name: string };
+  primaryCategory: { name: string; slug: string } | null;
+};
+
+export type CatalogPage = Paged<CatalogCourse>;
+
+/** Cheap homepage stat — count(*) of published rows, not the length of a page. */
+export async function countPublishedCourses(): Promise<number> {
+  return db.course.count({ where: { status: "PUBLISHED" } });
+}
+
+async function searchPublishedCourseTotal(input: {
+  search: string;
+  level?: CourseLevel;
+  categorySlug?: string;
+  language?: string;
+  price?: "free" | "paid";
+  minRating?: number;
+}): Promise<number> {
+  const whereSql = catalogFilterSql(input);
+  const countRows = await db.$queryRaw<{ total: number }[]>`
+    SELECT COUNT(*)::int AS total
+    FROM courses c
+    INNER JOIN users u ON u.id = c."instructorId"
+    WHERE ${whereSql}
+  `;
+  return countRows[0]?.total ?? 0;
+}
+
+async function searchPublishedCourseIds(input: {
+  search: string;
+  level?: CourseLevel;
+  categorySlug?: string;
+  language?: string;
+  price?: "free" | "paid";
+  minRating?: number;
+  sort: CatalogSort;
+  skip: number;
+  take: number;
+}): Promise<string[]> {
+  const whereSql = catalogFilterSql(input);
+  const orderClause = catalogOrderClause(input.sort, input.search);
+  const idRows = await db.$queryRaw<{ id: string }[]>`
+    SELECT c.id
+    FROM courses c
+    INNER JOIN users u ON u.id = c."instructorId"
+    WHERE ${whereSql}
+    ${orderClause}
+    LIMIT ${input.take} OFFSET ${input.skip}
+  `;
+  return idRows.map((row) => row.id);
+}
+
+export async function listPublishedCourses(filters: CatalogFilters = {}): Promise<CatalogPage> {
+  const { query, level, categorySlug, language, price, minRating } = filters;
+  const search = query ? sanitizeSearchQuery(query) : "";
+  const sort = filters.sort ?? (search ? "relevance" : "newest");
+  const prismaWhere = catalogPrismaWhere({ level, categorySlug, language, price, minRating });
+  const searchFilters = { search, level, categorySlug, language, price, minRating };
+
+  const total = search
+    ? await searchPublishedCourseTotal(searchFilters)
+    : await db.course.count({ where: prismaWhere });
+  const current = clampPage(filters.page ?? 1, total, CATALOG_PAGE_SIZE);
+  const empty: CatalogPage = {
+    items: [],
+    total,
+    page: current,
+    pageCount: pageCount(total, CATALOG_PAGE_SIZE),
+  };
+  if (total === 0) return empty;
+
+  const { skip, take } = skipTake(current, CATALOG_PAGE_SIZE);
+  const dbSort: Exclude<CatalogSort, "price-low" | "price-high" | "relevance"> =
+    sort === "price-low" || sort === "price-high" || sort === "relevance" ? "newest" : sort;
+
+  let ordered;
+  if (search) {
+    const ids = await searchPublishedCourseIds({ ...searchFilters, sort, skip, take });
+    if (ids.length === 0) return empty;
+    const courses = await db.course.findMany({
+      where: { id: { in: ids }, status: "PUBLISHED" },
+      select: CATALOG_SELECT,
+    });
+    const byId = new Map(courses.map((course) => [course.id, course]));
+    ordered = ids.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [row] : [];
+    });
+  } else {
+    ordered = await db.course.findMany({
+      where: prismaWhere,
+      skip,
+      take,
+      orderBy: DB_ORDER[dbSort],
+      select: CATALOG_SELECT,
+    });
+  }
+
+  const mapped = ordered.map(mapCatalogCourse);
 
   if (sort === "price-low" || sort === "price-high") {
     // Sorted here, not in SQL, because the price a learner sees is chosen per
-    // rail by selectDisplayPrice above — the database has no single column to
-    // order by. That makes this a sort within the capped page rather than across
-    // the whole catalog; at CATALOG_PAGE_SIZE the two coincide, and the day the
-    // catalog outgrows one page this needs a denormalised display price rather
-    // than a bigger cap.
+    // rail by selectDisplayPrice — the database has no single column to order
+    // by. That makes this a sort within the current page rather than across
+    // the whole catalog.
     const direction = sort === "price-low" ? 1 : -1;
     mapped.sort((a, b) => ((a.price?.amount ?? 0) - (b.price?.amount ?? 0)) * direction);
   }
 
-  return mapped;
+  return {
+    items: mapped,
+    total,
+    page: current,
+    pageCount: pageCount(total, CATALOG_PAGE_SIZE),
+  };
 }
 
 /** The languages actually present in the catalog, so the filter offers no dead options. */
@@ -291,15 +475,13 @@ export async function getPublishedCourseBySlug(slug: string) {
     ...course,
     price: selectDisplayPrice(course.prices),
     isFree: isFreeCourse(course.prices),
-    totalDuration: formatDuration(totalSeconds),
+    totalDuration: formatHoursMinutes(totalSeconds),
     itemCount: allItems.length,
     sections: course.sections.map((section) => ({
       ...section,
-      duration: formatDuration(
+      duration: formatHoursMinutes(
         section.items.reduce((sum, item) => sum + (item.lecture?.durationSeconds ?? 0), 0),
       ),
     })),
   };
 }
-
-export { formatDuration };

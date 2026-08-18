@@ -9,3 +9,11 @@ import type { VideoProvider } from "./provider";
 export const video: VideoProvider = awsProvider;
 
 export * from "./provider";
+export { releaseOrphanedLectureAsset } from "./release-asset";
+export {
+  captionObjectKey,
+  drainMediaConvertEventQueue,
+  putCaptionObject,
+  readCaptionObject,
+  tryDrainMediaConvertEventQueue,
+} from "./aws";

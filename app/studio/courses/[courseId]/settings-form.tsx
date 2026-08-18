@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { setPublished, updateCourse, type ActionState } from "../../actions";
+import { COURSE_LEVELS } from "@/lib/labels";
 
 const initial: ActionState = { status: "idle" };
 
@@ -25,11 +26,54 @@ type Course = {
   language: string;
   status: string;
   prices: { currency: string; amount: number }[];
+  objectives: { text: string }[];
+  requirements: { text: string }[];
+  targetAudience: { text: string }[];
 };
+
+function LineList({
+  name,
+  label,
+  hint,
+  defaults,
+}: {
+  name: string;
+  label: string;
+  hint: string;
+  defaults: string[];
+}) {
+  const rows = defaults.length > 0 ? defaults : [""];
+  return (
+    <fieldset className="rounded-xl border p-4">
+      <legend className="px-1 text-sm font-semibold">{label}</legend>
+      <p className="mb-3 text-xs text-muted-foreground">{hint}</p>
+      <div className="flex flex-col gap-2">
+        {rows.map((text, index) => (
+          <Input
+            key={`${name}-${index}-${text.slice(0, 12)}`}
+            name={name}
+            defaultValue={text}
+            maxLength={300}
+          />
+        ))}
+        {/* Always leave blank rows so authors can add lines without a client widget. */}
+        {Array.from({ length: 2 }, (_, index) => (
+          <Input key={`${name}-blank-${index}`} name={name} maxLength={300} />
+        ))}
+      </div>
+    </fieldset>
+  );
+}
 
 export function SettingsForm({ course }: { course: Course }) {
   const [state, action, pending] = useActionState(updateCourse, initial);
-  const primary = course.prices[0];
+  // Prefer the BDT row when both rails exist — that is the price bKash can take.
+  // Do not invent a BDT amount from USD.
+  const primary = course.prices.find((price) => price.currency === "BDT") ?? course.prices[0];
+  // Hidden inputs, not Select `name`: Radix Select hydrates a native control
+  // whose submitted value can disagree with defaultValue.
+  const [level, setLevel] = useState(course.level);
+  const [currency, setCurrency] = useState(primary?.currency ?? "BDT");
 
   return (
     <form action={action} className="flex flex-col gap-4">
@@ -55,18 +99,39 @@ export function SettingsForm({ course }: { course: Course }) {
         />
       </div>
 
+      <LineList
+        name="objectives"
+        label="What you'll learn"
+        hint="Shown as the landing-page checklist. One idea per line."
+        defaults={course.objectives.map((row) => row.text)}
+      />
+      <LineList
+        name="requirements"
+        label="Requirements"
+        hint="What a learner should already know."
+        defaults={course.requirements.map((row) => row.text)}
+      />
+      <LineList
+        name="audience"
+        label="Who this course is for"
+        hint="The audience section on the public landing page."
+        defaults={course.targetAudience.map((row) => row.text)}
+      />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="level">Level</Label>
-          <Select name="level" defaultValue={course.level}>
+          <input type="hidden" name="level" value={level} />
+          <Select value={level} onValueChange={setLevel}>
             <SelectTrigger id="level" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="BEGINNER">Beginner</SelectItem>
-              <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
-              <SelectItem value="ADVANCED">Advanced</SelectItem>
-              <SelectItem value="ALL_LEVELS">All levels</SelectItem>
+              {COURSE_LEVELS.map((level) => (
+                <SelectItem key={level.value} value={level.value}>
+                  {level.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -93,17 +158,23 @@ export function SettingsForm({ course }: { course: Course }) {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="priceCurrency">Currency</Label>
-            <Select name="priceCurrency" defaultValue={primary?.currency ?? "USD"}>
+            <input type="hidden" name="priceCurrency" value={currency} />
+            <Select value={currency} onValueChange={setCurrency}>
               <SelectTrigger id="priceCurrency" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="USD">USD</SelectItem>
                 <SelectItem value="BDT">BDT (required for bKash)</SelectItem>
+                <SelectItem value="USD">USD (card, when configured)</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          bKash charges the BDT price. Without one, a published course cannot be
+          bought unless card payments are configured. Saving updates this currency
+          only — it does not copy or convert an amount into the other currency.
+        </p>
       </fieldset>
 
       {state.status !== "idle" ? (

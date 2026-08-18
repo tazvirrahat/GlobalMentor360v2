@@ -11,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { COURSE_LEVELS } from "@/lib/labels";
+import { FieldError } from "@/components/site/field-error";
 import { createCourse, type ActionState } from "./actions";
 
 const initial: ActionState = { status: "idle" };
@@ -58,10 +60,11 @@ export function NewCourseForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="BEGINNER">Beginner</SelectItem>
-            <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
-            <SelectItem value="ADVANCED">Advanced</SelectItem>
-            <SelectItem value="ALL_LEVELS">All levels</SelectItem>
+            {COURSE_LEVELS.map((level) => (
+              <SelectItem key={level.value} value={level.value}>
+                {level.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -71,11 +74,7 @@ export function NewCourseForm({
         <Input id="language" name="language" defaultValue="en" required />
       </div>
 
-      {state.status === "error" ? (
-        <p role="alert" className="text-sm font-medium text-destructive">
-          {state.message}
-        </p>
-      ) : null}
+      {state.status === "error" ? <FieldError message={state.message} /> : null}
 
       <Button type="submit" disabled={pending} className="shadow-brand">
         {pending ? "Creating…" : "Create draft"}

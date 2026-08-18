@@ -33,3 +33,31 @@ export const announcementSubmissionSchema = z.object({
 });
 
 export type AnnouncementSubmission = z.infer<typeof announcementSubmissionSchema>;
+
+export type AnnouncementCourseOption = {
+  id: string;
+  status: string;
+  learnerCount: number;
+};
+
+/**
+ * Default for the composer combobox.
+ *
+ * List order is recency (`updatedAt`), so a freshly saved 0-learner draft sits
+ * first. Sending then posts to that draft instead of the course that actually
+ * has learners. Prefer a published owned course with live enrollments, then any
+ * published owned course, then the first owned row the caller passed.
+ */
+export function pickDefaultAnnouncementCourseId(
+  courses: AnnouncementCourseOption[],
+): string | undefined {
+  const publishedWithLearners = courses.find(
+    (course) => course.status === "PUBLISHED" && course.learnerCount > 0,
+  );
+  if (publishedWithLearners) return publishedWithLearners.id;
+
+  const published = courses.find((course) => course.status === "PUBLISHED");
+  if (published) return published.id;
+
+  return courses[0]?.id;
+}

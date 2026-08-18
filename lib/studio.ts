@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
 
 /**
  * Authoring-side reads and guards.
@@ -33,10 +34,21 @@ export async function uniqueSlug(base: string): Promise<string> {
   return candidate;
 }
 
-export async function listInstructorCourses(instructorId: string) {
-  return db.course.findMany({
-    where: { instructorId },
+/** Studio course list. Same size as the other bounded admin/studio tables. */
+export const STUDIO_COURSE_PAGE_SIZE = 40;
+
+export async function listInstructorCourses(instructorId: string, page?: string | number) {
+  // Ownership stays in the `where`. An ADMIN who also teaches sees their own
+  // courses here, not the whole catalog — that list is /admin/courses.
+  const where = { instructorId };
+  const total = await db.course.count({ where });
+  const current = clampPage(page, total, STUDIO_COURSE_PAGE_SIZE);
+  const { skip, take } = skipTake(current, STUDIO_COURSE_PAGE_SIZE);
+  const items = await db.course.findMany({
+    where,
     orderBy: { updatedAt: "desc" },
+    skip,
+    take,
     select: {
       id: true,
       title: true,
@@ -45,8 +57,16 @@ export async function listInstructorCourses(instructorId: string) {
       updatedAt: true,
       enrollmentCount: true,
       _count: { select: { sections: true } },
+      prices: { where: { isActive: true }, select: { currency: true, amount: true } },
     },
   });
+
+  return {
+    items,
+    total,
+    page: current,
+    pageCount: pageCount(total, STUDIO_COURSE_PAGE_SIZE),
+  } satisfies Paged<(typeof items)[number]>;
 }
 
 /** Returns null when the course does not exist OR is not this instructor's. */
@@ -64,6 +84,9 @@ export async function getOwnedCourse(courseId: string, instructorId: string) {
       status: true,
       primaryCategoryId: true,
       prices: { where: { isActive: true }, select: { currency: true, amount: true } },
+      objectives: { orderBy: { position: "asc" }, select: { id: true, text: true } },
+      requirements: { orderBy: { position: "asc" }, select: { id: true, text: true } },
+      targetAudience: { orderBy: { position: "asc" }, select: { id: true, text: true } },
     },
   });
 }
@@ -151,7 +174,13 @@ export async function getOwnedItemForEditing(
           description: true,
           articleBody: true,
           durationSeconds: true,
-          asset: { select: { id: true, status: true } },
+          asset: {
+            select: {
+              id: true,
+              status: true,
+              captions: { orderBy: { language: "asc" }, select: { id: true, language: true } },
+            },
+          },
         },
       },
       assessment: {
@@ -297,7 +326,7 @@ export async function readinessChecks(courseId: string): Promise<ReadinessCheck[
     {
       label: "Has a price",
       ok: course.prices.length > 0,
-      hint: "Set a price. Use 0 for a free course.",
+      hint: "Set a BDT price so learners can pay with bKash. Use 0 for a free course. USD only works when card payments are configured.",
     },
   ];
 }

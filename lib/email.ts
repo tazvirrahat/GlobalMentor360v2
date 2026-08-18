@@ -41,6 +41,32 @@ function sesConfigured(): boolean {
   return missingSesEnv().length === 0;
 }
 
+/**
+ * What a production deploy should be told at startup, or null when email can
+ * work. requireEmailVerification (lib/auth.ts) means a deploy without a mail
+ * transport lets people register into accounts that can never sign in — the
+ * first sign of that must be a line in the boot log, not a support ticket.
+ * instrumentation.ts logs this once per server start.
+ *
+ * A configured EMAIL_FROM can still be inside the SES sandbox (verified
+ * recipients only) — that state is invisible from env vars, so the reminder
+ * rides along here rather than pretending we can detect it.
+ */
+export function emailReadinessWarning(): string | null {
+  if (process.env.NODE_ENV !== "production") return null;
+
+  if (!sesConfigured()) {
+    return (
+      `Email transport is NOT configured (missing ${missingSesEnv().join(", ")}). ` +
+      "Sign-up requires email verification and sendEmail refuses the console fallback in " +
+      "production, so new accounts will be able to register but never verify or sign in. " +
+      "Configure SES (out of sandbox) or another transport before taking real sign-ups."
+    );
+  }
+
+  return null;
+}
+
 function getClient(): SESv2Client {
   client ??= new SESv2Client({
     region: process.env.AWS_REGION,

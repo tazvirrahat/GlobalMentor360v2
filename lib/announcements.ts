@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { isEnrolled } from "@/lib/entitlement";
+import { notifyMany } from "@/lib/notifications";
+import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
 
 // Re-exported so server callers have one import site; the composer imports from
 // lib/announcement-rules directly (see the note in that file).
@@ -35,6 +37,9 @@ export type CourseAnnouncement = {
  * read rather than the ones that just arrived.
  */
 export const ANNOUNCEMENT_PAGE_SIZE = 20;
+
+/** Studio "Sent" list. Separate from the learner-facing cap above. */
+export const SENT_ANNOUNCEMENT_PAGE_SIZE = 25;
 
 /** How many recipients one send will mail before it refuses. See sendAnnouncement. */
 export const MAX_INLINE_RECIPIENTS = 500;
@@ -76,6 +81,51 @@ export async function getLearnerAnnouncements(
   }));
 }
 
+export type SentAnnouncement = {
+  id: string;
+  subject: string;
+  body: string;
+  sentAt: Date | null;
+  course: { title: string };
+};
+
+/**
+ * What this instructor has sent, newest first.
+ *
+ * Scoped by author, not by course: an ADMIN who posted to a course they teach
+ * sees their own posts here, not everyone's. A bare `take` without skip hid
+ * older rows and offered no way to reach them.
+ */
+export async function listSentAnnouncements(
+  authorId: string,
+  page?: string | number,
+): Promise<Paged<SentAnnouncement>> {
+  const where = { authorId };
+  const total = await db.announcement.count({ where });
+  const current = clampPage(page, total, SENT_ANNOUNCEMENT_PAGE_SIZE);
+  const { skip, take } = skipTake(current, SENT_ANNOUNCEMENT_PAGE_SIZE);
+  const items = await db.announcement.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    skip,
+    take,
+    select: {
+      id: true,
+      subject: true,
+      body: true,
+      sentAt: true,
+      course: { select: { title: true } },
+    },
+  });
+
+  return {
+    items,
+    total,
+    page: current,
+    pageCount: pageCount(total, SENT_ANNOUNCEMENT_PAGE_SIZE),
+  };
+}
+
 /** The courses the composer offers, so an instructor picks rather than types an id. */
 export async function listAnnouncableCourses(instructorId: string) {
   return db.course.findMany({
@@ -84,6 +134,7 @@ export async function listAnnouncableCourses(instructorId: string) {
     select: {
       id: true,
       title: true,
+      status: true,
       _count: { select: { enrollments: { where: { revokedAt: null } } } },
     },
   });
@@ -126,7 +177,7 @@ export async function sendAnnouncement(input: {
 
   const recipients = await db.enrollment.findMany({
     where: { courseId: course.id, revokedAt: null },
-    select: { user: { select: { email: true, name: true } } },
+    select: { userId: true, user: { select: { email: true, name: true } } },
     take: MAX_INLINE_RECIPIENTS + 1,
   });
 
@@ -156,6 +207,16 @@ export async function sendAnnouncement(input: {
     },
     select: { id: true },
   });
+
+  await notifyMany(
+    recipients.map((row) => row.userId),
+    "announcement",
+    {
+      title: input.subject,
+      body: course.title,
+      href: `/learn/${course.slug}`,
+    },
+  );
 
   const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
   let emailFailures = 0;

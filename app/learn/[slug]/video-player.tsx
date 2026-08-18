@@ -1,35 +1,64 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { Route } from "next";
 import { Loader2 } from "lucide-react";
 import { getSignedPlayback, reportWatchProgress } from "./actions";
 
+const SPEED_KEY = "gm360.playbackSpeed";
+const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
+
 /**
- * HLS player. Safari plays HLS natively; everywhere else we load hls.js.
+ * HLS player for CloudFront signed URLs.
+ *
+ * Prefer hls.js whenever Hls.isSupported() (1.6.x uses ManagedMediaSource on
+ * Safari 17.1+ / iOS 17.1+). Native HLS (el.src = signed master URL) cannot
+ * copy the CloudFront policy onto child playlists and segments, so those
+ * requests 403. xhrSetup on hls.js copies the query string.
+ *
+ * Old iOS without ManagedMediaSource cannot play protected HLS this way;
+ * CloudFront signed cookies on a custom domain are the long-term fix and are
+ * out of scope here. Show a clear unsupported message instead of a broken
+ * native player.
+ *
  * Progress is reported every ~15s, on play, and on pause/ended — never more
  * often, so a scrubbing learner doesn't hammer the server.
  *
- * We report the playhead only. The server decides how much of it counts as
- * watched, so there is nothing here worth tampering with — the report on play
- * exists to give it a starting timestamp to meter the next report against.
+ * Playback speed is remembered in localStorage per browser. Captions, when the
+ * lecture has a VTT attached, render as native <track> elements.
  */
 export function VideoPlayer({
   itemId,
   slug,
   startAt,
+  nextHref,
 }: {
   itemId: string;
   slug: string;
   startAt: number;
+  nextHref?: string | null;
 }) {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [captions, setCaptions] = useState<{ id: string; language: string; src: string }[]>([]);
+  const [speed, setSpeed] = useState(1);
+  const [advancing, setAdvancing] = useState(false);
   const lastReportRef = useRef(0);
-  // Guards reporting against a pending seek. Until the playhead is back where the
-  // learner left off, its position is 0 and persisting that would destroy the
-  // resume point they returned for.
   const seekedRef = useRef(false);
+
+  useEffect(() => {
+    const stored = Number(window.localStorage.getItem(SPEED_KEY));
+    if (SPEEDS.includes(stored)) setSpeed(stored);
+  }, []);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (el) el.playbackRate = speed;
+    window.localStorage.setItem(SPEED_KEY, String(speed));
+  }, [speed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,51 +77,42 @@ export function VideoPlayer({
         return;
       }
 
+      setCaptions(signed.captions);
+
       const el = videoRef.current;
       if (!el) return;
 
-      const canNative = el.canPlayType("application/vnd.apple.mpegurl") !== "";
-
-      if (canNative) {
-        el.src = signed.hlsUrl;
-      } else {
-        const Hls = (await import("hls.js")).default;
-        if (cancelled) return;
-        if (!Hls.isSupported()) {
-          setError("This browser cannot play HLS video.");
-          setLoading(false);
-          return;
-        }
-        const instance = new Hls({
-          // Append CloudFront signature query params to child playlists/segments.
-          xhrSetup(xhr, url) {
-            // hls.js already uses the signed master URL; child requests need the
-            // same query string when CloudFront is configured for signed URLs
-            // with a wildcard custom policy on /hls/{assetId}/*.
-            try {
-              const master = new URL(signed.hlsUrl);
-              const target = new URL(url, signed.hlsUrl);
-              if (target.origin === master.origin) {
-                master.searchParams.forEach((value, key) => {
-                  if (!target.searchParams.has(key)) target.searchParams.set(key, value);
-                });
-                xhr.open("GET", target.toString(), true);
-              }
-            } catch {
-              // Fall through to the default open.
-            }
-          },
-        });
-        instance.loadSource(signed.hlsUrl);
-        instance.attachMedia(el);
-        hls = instance;
+      const Hls = (await import("hls.js")).default;
+      if (cancelled) return;
+      if (!Hls.isSupported()) {
+        setError(
+          "This browser is not supported for protected playback. Use the latest Chrome, Firefox, Edge, or Safari 17.1+.",
+        );
+        setLoading(false);
+        return;
       }
+      const instance = new Hls({
+        xhrSetup(xhr, url) {
+          try {
+            const master = new URL(signed.hlsUrl);
+            const target = new URL(url, signed.hlsUrl);
+            if (target.origin === master.origin) {
+              master.searchParams.forEach((value, key) => {
+                if (!target.searchParams.has(key)) target.searchParams.set(key, value);
+              });
+              xhr.open("GET", target.toString(), true);
+            }
+          } catch {
+            // Fall through to the default open.
+          }
+        },
+      });
+      instance.loadSource(signed.hlsUrl);
+      instance.attachMedia(el);
+      hls = instance;
 
-      // Seek only once the element knows its duration. Assigning currentTime at
-      // readyState HAVE_NOTHING is silently dropped, which used to matter little
-      // — the first progress report was 15s away. Now that play fires one
-      // immediately (to open the metering window), a dropped seek would report
-      // position 0 and overwrite the resume point the learner came back for.
+      el.playbackRate = Number(window.localStorage.getItem(SPEED_KEY)) || 1;
+
       if (startAt > 0) {
         if (el.readyState >= HTMLMediaElement.HAVE_METADATA) {
           el.currentTime = startAt;
@@ -124,21 +144,35 @@ export function VideoPlayer({
 
   async function report(force = false) {
     const el = videoRef.current;
-    if (!el) return;
-    if (!seekedRef.current) return;
+    if (!el) return null;
+    if (!seekedRef.current) return null;
     const now = Date.now();
-    if (!force && now - lastReportRef.current < 15_000) return;
+    if (!force && now - lastReportRef.current < 15_000) return null;
     lastReportRef.current = now;
 
-    await reportWatchProgress({
+    return reportWatchProgress({
       itemId,
       slug,
       positionSeconds: Math.floor(el.currentTime),
     });
   }
 
+  async function onEnded() {
+    const result = await report(true);
+    if (!nextHref) return;
+    // nextHref is the item sequential unlock will open after *this* lecture
+    // completes. Seeking to the end does not complete it, so do not walk into
+    // a still-locked lesson.
+    if (!result?.ok || !result.completed) return;
+    setAdvancing(true);
+    window.setTimeout(() => {
+      router.push(nextHref as Route);
+      router.refresh();
+    }, 1500);
+  }
+
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-brand-ink">
+    <div className="relative min-w-0 overflow-hidden rounded-2xl bg-brand-ink">
       {loading ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center text-white/80">
           <Loader2 className="size-6 animate-spin" aria-hidden />
@@ -149,16 +183,46 @@ export function VideoPlayer({
           {error}
         </div>
       ) : (
-        <video
-          ref={videoRef}
-          className="aspect-video w-full"
-          controls
-          playsInline
-          onPlay={() => void report(true)}
-          onPause={() => void report(true)}
-          onTimeUpdate={() => void report(false)}
-          onEnded={() => void report(true)}
-        />
+        <>
+          <video
+            ref={videoRef}
+            className="aspect-video w-full"
+            controls
+            playsInline
+            onPlay={() => void report(true)}
+            onPause={() => void report(true)}
+            onTimeUpdate={() => void report(false)}
+            onEnded={onEnded}
+          >
+            {captions.map((caption) => (
+              <track
+                key={caption.id}
+                kind="subtitles"
+                src={caption.src}
+                srcLang={caption.language}
+                label={caption.language}
+                default={caption.language === "en"}
+              />
+            ))}
+          </video>
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-xs text-white/80">
+            <label className="flex items-center gap-2">
+              Speed
+              <select
+                className="rounded-md bg-white/10 px-2 py-1 text-white"
+                value={speed}
+                onChange={(event) => setSpeed(Number(event.target.value))}
+              >
+                {SPEEDS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}×
+                  </option>
+                ))}
+              </select>
+            </label>
+            {advancing && nextHref ? <span>Playing next lesson…</span> : null}
+          </div>
+        </>
       )}
     </div>
   );

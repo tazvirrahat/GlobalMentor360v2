@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  completionPercent,
+  continueTargetId,
   creditWatchedSeconds,
   isItemComplete,
   passedAssessmentIds,
   resolveCompletedAt,
+  sequentialItemFromPlayer,
+  sequentialLockedIds,
 } from "./progress";
 
 /**
@@ -17,6 +21,21 @@ import {
  */
 
 type Attempt = { assessmentId: string; passed: boolean | null };
+
+describe("completionPercent", () => {
+  it("is 0 when nothing is complete, even if a leftover rollup said 75", () => {
+    expect(completionPercent(0, 4)).toBe(0);
+    expect(completionPercent(0, 4)).not.toBe(75);
+  });
+
+  it("matches the rollup formula for a 3-of-4 course", () => {
+    expect(completionPercent(3, 4)).toBe(75);
+  });
+
+  it("is 0 for an empty curriculum", () => {
+    expect(completionPercent(0, 0)).toBe(0);
+  });
+});
 
 describe("isItemComplete", () => {
   it("counts a lecture only once its progress row is completed", () => {
@@ -125,6 +144,138 @@ describe("resolveCompletedAt", () => {
   it("falls back to now for a complete course with no timestamps", () => {
     expect(resolveCompletedAt(100, [], fallback)).toEqual(fallback);
     expect(resolveCompletedAt(100, [null], fallback)).toEqual(fallback);
+  });
+});
+
+describe("sequentialLockedIds", () => {
+  const lecture = (id: string, overrides: Partial<Parameters<typeof sequentialLockedIds>[0][number]> = {}) => ({
+    id,
+    type: "LECTURE",
+    isPreview: false,
+    lectureCompleted: false,
+    assessmentPassed: false,
+    ...overrides,
+  });
+
+  it("leaves the first item unlocked and locks everything after an incomplete item", () => {
+    const locked = sequentialLockedIds([lecture("a"), lecture("b"), lecture("c")]);
+    expect([...locked]).toEqual(["b", "c"]);
+  });
+
+  it("unlocks the next item once the previous one is complete", () => {
+    const locked = sequentialLockedIds([
+      lecture("a", { lectureCompleted: true }),
+      lecture("b"),
+      lecture("c"),
+    ]);
+    expect([...locked]).toEqual(["c"]);
+  });
+
+  it("keeps preview items playable even when the gate is shut", () => {
+    const locked = sequentialLockedIds([
+      lecture("a"),
+      lecture("preview", { isPreview: true }),
+      lecture("c"),
+    ]);
+    expect(locked.has("preview")).toBe(false);
+    expect(locked.has("c")).toBe(true);
+  });
+});
+
+describe("continueTargetId", () => {
+  const lecture = (
+    id: string,
+    overrides: Partial<Parameters<typeof sequentialLockedIds>[0][number]> = {},
+  ) => ({
+    id,
+    type: "LECTURE",
+    isPreview: false,
+    lectureCompleted: false,
+    assessmentPassed: false,
+    ...overrides,
+  });
+
+  it("continues to the sequential next item even while it is still locked", () => {
+    // The player computed "next" from items already unlocked, so an incomplete
+    // lesson had no continue target — completing it opened the next item after
+    // the Continue click had already decided there was nowhere to go.
+    const items = [lecture("a"), lecture("b"), lecture("c")];
+    expect([...sequentialLockedIds(items)]).toEqual(["b", "c"]);
+    expect(continueTargetId(items, "a")).toBe("b");
+  });
+
+  it("does not skip a locked next lesson to a later unlocked preview", () => {
+    const items = [
+      lecture("a"),
+      lecture("b"),
+      lecture("preview", { isPreview: true }),
+    ];
+    expect(sequentialLockedIds(items).has("preview")).toBe(false);
+    expect(continueTargetId(items, "a")).toBe("b");
+  });
+
+  it("keeps items beyond the sequential next locked after this completion", () => {
+    const items = [
+      lecture("a"),
+      lecture("b"),
+      lecture("c"),
+      lecture("preview", { isPreview: true }),
+    ];
+    expect(continueTargetId(items, "a")).toBe("b");
+    expect(continueTargetId(items, "a")).not.toBe("preview");
+    expect(continueTargetId(items, "a")).not.toBe("c");
+  });
+
+  it("returns null when completing the current item still leaves the rest gated", () => {
+    // On a mid-sequence preview while an earlier required item is incomplete,
+    // finishing the preview does not open the following required item.
+    const items = [
+      lecture("a"),
+      lecture("preview", { isPreview: true }),
+      lecture("c"),
+    ];
+    expect(continueTargetId(items, "preview")).toBeNull();
+  });
+
+  it("continues to the next item once the current one is already complete", () => {
+    const items = [
+      lecture("a", { lectureCompleted: true }),
+      lecture("b"),
+      lecture("c"),
+    ];
+    expect(continueTargetId(items, "a")).toBe("b");
+  });
+
+  it("returns null on the last item", () => {
+    expect(continueTargetId([lecture("a")], "a")).toBeNull();
+  });
+
+  it("treats completing a quiz as opening the following lecture", () => {
+    const items = [
+      {
+        id: "quiz",
+        type: "QUIZ",
+        isPreview: false,
+        lectureCompleted: false,
+        assessmentPassed: false,
+      },
+      lecture("b"),
+    ];
+    expect(continueTargetId(items, "quiz")).toBe("b");
+  });
+
+  it("maps player completed flags onto sequential state", () => {
+    const items = [
+      sequentialItemFromPlayer({ id: "a", type: "LECTURE", isPreview: false, completed: false }),
+      sequentialItemFromPlayer({ id: "b", type: "LECTURE", isPreview: false, completed: false }),
+      sequentialItemFromPlayer({
+        id: "preview",
+        type: "LECTURE",
+        isPreview: true,
+        completed: false,
+      }),
+    ];
+    expect(continueTargetId(items, "a")).toBe("b");
   });
 });
 

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/session";
 import { getOwnedCurriculum } from "@/lib/studio";
+import { tryDrainMediaConvertEventQueue } from "@/lib/video";
 import { AddSectionForm, SectionList } from "./curriculum-editor";
 
 export const metadata = { title: "Curriculum — Studio" };
@@ -14,6 +15,8 @@ type Params = { params: Promise<{ courseId: string }> };
 export default async function CurriculumPage({ params }: Params) {
   const { courseId } = await params;
   const user = await requireRole("INSTRUCTOR", "ADMIN");
+
+  await tryDrainMediaConvertEventQueue();
 
   const course = await getOwnedCurriculum(courseId, user.id);
   if (!course) notFound();

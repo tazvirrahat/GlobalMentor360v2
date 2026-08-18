@@ -5,6 +5,7 @@ node_modules/
 
 # next.js
 .next/
+.next-verify/
 out/
 next-env.d.ts
 
@@ -16,6 +17,8 @@ dist/
 .env
 .env.local
 .env.*.local
+*.pem
+.aws/
 
 # prisma — generated client is rebuilt from schema.prisma, never committed
 generated/
@@ -48,6 +51,9 @@ Thumbs.db
 
 # old prototype kept on disk for reference only — never commit (contains its own git repo)
 globalmentor360/
+
+# one-off workspace move script — never commit
+finish-move.ps1
 
 # claude worktrees
 .claude/

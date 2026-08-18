@@ -1,28 +1,25 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { Receipt } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatPrice } from "@/lib/courses";
+import { formatDate, formatPrice } from "@/lib/format";
 import { listLearnerOrders } from "@/lib/orders";
 import { requireUser } from "@/lib/session";
+import { PageNav } from "@/components/site/page-nav";
+import { OrderStatusBadge } from "@/components/site/status-badges";
 
 export const metadata: Metadata = { title: "Purchases" };
 export const dynamic = "force-dynamic";
 
-/** PAID is the only status worth colouring green; the rest read as neutral or bad. */
-const STATUS_TONE: Record<string, "default" | "secondary" | "destructive"> = {
-  PAID: "default",
-  PENDING: "secondary",
-  FAILED: "destructive",
-  REFUNDED: "destructive",
-  PARTIALLY_REFUNDED: "destructive",
-};
-
-export default async function OrdersPage() {
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireUser("/orders");
-  const orders = await listLearnerOrders(user.id);
+  const { page: rawPage } = await searchParams;
+  const { items: orders, page, pageCount } = await listLearnerOrders(user.id, rawPage);
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">
@@ -52,13 +49,11 @@ export default async function OrdersPage() {
                         {order.items.map((item) => item.courseTitle).join(", ") || "Order"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {order.createdAt.toLocaleDateString("en-GB")} ·{" "}
+                        {formatDate(order.createdAt)} ·{" "}
                         {formatPrice(order.total, order.currency)}
                       </p>
                     </div>
-                    <Badge variant={STATUS_TONE[order.status] ?? "secondary"}>
-                      {order.status.replace("_", " ").toLowerCase()}
-                    </Badge>
+                    <OrderStatusBadge status={order.status} />
                   </div>
 
                   <Button asChild variant="outline" size="sm" className="w-fit">
@@ -72,6 +67,7 @@ export default async function OrdersPage() {
           ))}
         </ol>
       )}
+      <PageNav pathname="/orders" page={page} pageCount={pageCount} />
     </main>
   );
 }

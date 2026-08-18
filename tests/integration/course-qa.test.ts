@@ -127,6 +127,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.analyticsEvent.deleteMany({
+    where: { userId: { in: [instructorId, otherInstructorId, learnerId, outsiderId, refundedId] } },
+  });
   await db.enrollment.deleteMany({ where: { courseId: { in: [courseId, otherCourseId] } } });
   await db.course.deleteMany({ where: { id: { in: [courseId, otherCourseId] } } });
   await db.user.deleteMany({
@@ -342,7 +345,7 @@ describe("getCourseQaPanel", () => {
       askForm({ title: elsewhere, curriculumItemId: secondItemId }),
     );
 
-    const panel = await getCourseQaPanel(courseId, itemId);
+    const panel = await getCourseQaPanel(courseId, itemId, learnerId);
     const titles = panel.threads.map((thread) => thread.title);
 
     expect(titles).toContain(here);
@@ -365,7 +368,7 @@ describe("getCourseQaPanel", () => {
     hoisted.userId = instructorId;
     await replyAction({ status: "idle" }, form({ threadId, body: "Answered." }));
 
-    const panel = await getCourseQaPanel(courseId, itemId);
+    const panel = await getCourseQaPanel(courseId, itemId, learnerId);
     const thread = panel.threads.find((t) => t.id === threadId);
 
     expect(thread?.replies).toHaveLength(1);
@@ -379,12 +382,30 @@ describe("getCourseQaPanel", () => {
     await askQuestionAction({ status: "idle" }, askForm({ title }));
     await db.questionThread.updateMany({ where: { courseId, title }, data: { status: "HIDDEN" } });
 
-    const panel = await getCourseQaPanel(courseId, itemId);
+    const panel = await getCourseQaPanel(courseId, itemId, learnerId);
     expect(panel.threads.map((t) => t.title)).not.toContain(title);
   });
 
   it("does not leak another course's threads", async () => {
-    const panel = await getCourseQaPanel(otherCourseId, otherCourseItemId);
+    const panel = await getCourseQaPanel(otherCourseId, otherCourseItemId, learnerId);
     expect(panel.threads).toHaveLength(0);
+  });
+
+  it("returns no thread bodies to a signed-in outsider", async () => {
+    hoisted.userId = learnerId;
+    const title = `Panel secret ${run}`;
+    await askQuestionAction({ status: "idle" }, askForm({ title }));
+
+    const panel = await getCourseQaPanel(courseId, itemId, outsiderId);
+    expect(panel.threads).toHaveLength(0);
+  });
+
+  it("lets the course instructor read threads without being enrolled", async () => {
+    hoisted.userId = learnerId;
+    const title = `Panel instructor read ${run}`;
+    await askQuestionAction({ status: "idle" }, askForm({ title }));
+
+    const panel = await getCourseQaPanel(courseId, itemId, instructorId);
+    expect(panel.threads.map((thread) => thread.title)).toContain(title);
   });
 });

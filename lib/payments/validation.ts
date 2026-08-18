@@ -12,8 +12,7 @@ import { z } from "zod";
 // Bangladesh mobile numbers: 11 digits starting 01.
 export const BKASH_PHONE_PATTERN = /^01\d{9}$/;
 
-export const bkashSubmissionSchema = z.object({
-  courseId: z.string().min(1),
+export const bkashProofSchema = z.object({
   transactionId: z
     .string()
     .trim()
@@ -32,6 +31,27 @@ export const bkashSubmissionSchema = z.object({
       return date.getTime() <= Date.now() + 24 * 60 * 60 * 1000;
     }, "Payment date cannot be in the future."),
   reference: z.string().trim().max(120).optional().or(z.literal("")),
+});
+
+export const bkashCouponField = z.string().trim().max(40).optional().or(z.literal(""));
+
+/** Course + optional coupon, before transfer details — a 100% coupon needs no proof. */
+export const bkashCheckoutIdentitySchema = z.object({
+  courseId: z.string().min(1),
+  couponCode: bkashCouponField,
+});
+
+export const bkashCartIdentitySchema = z.object({
+  couponCode: bkashCouponField,
+});
+
+export const bkashSubmissionSchema = bkashProofSchema.extend({
+  courseId: z.string().min(1),
+  couponCode: bkashCouponField,
+});
+
+export const bkashCartSubmissionSchema = bkashProofSchema.extend({
+  couponCode: bkashCouponField,
 });
 
 export type BkashSubmission = z.infer<typeof bkashSubmissionSchema>;

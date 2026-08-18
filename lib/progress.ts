@@ -8,7 +8,9 @@ import { canPlayItem, isEnrolled } from "@/lib/entitlement";
  *
  * INVARIANT 2: CourseProgress is a derived rollup. Every write that changes
  * ItemProgress or a QuizAttempt must call recomputeCourseProgress; the percent
- * is never edited by hand.
+ * is never edited by hand. Studio changes to the item set call
+ * recomputeProgressForCourseEnrollments so My Learning does not keep a stale
+ * percent until the learner's next completion.
  *
  * Sequential unlock: an item is playable only when every earlier required item
  * (across sections, by section.position then item.position) is complete. Preview
@@ -59,7 +61,6 @@ export type PlayerItem = {
       id: string;
       prompt: string;
       type: string;
-      explanation: string | null;
       position: number;
       options: { id: string; text: string; position: number }[];
     }[];
@@ -134,6 +135,84 @@ export function isItemComplete(item: {
     return item.assessmentPassed;
   }
   return item.lectureCompleted;
+}
+
+/**
+ * Course percent from item completion, never from a stored CourseProgress row.
+ * The rollup can lag when the curriculum is rewritten (seed recreates sections,
+ * studio adds items) and the player already knows which items are done.
+ */
+export function completionPercent(completedCount: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.round((completedCount / total) * 1000) / 10;
+}
+
+export type SequentialItem = {
+  id: string;
+  type: string;
+  isPreview: boolean;
+  lectureCompleted: boolean;
+  assessmentPassed: boolean;
+};
+
+export function sequentialItemFromPlayer(item: {
+  id: string;
+  type: string;
+  isPreview: boolean;
+  completed: boolean;
+}): SequentialItem {
+  const isQuiz = item.type === "QUIZ" || item.type === "PRACTICE_TEST";
+  return {
+    id: item.id,
+    type: item.type,
+    isPreview: item.isPreview,
+    lectureCompleted: isQuiz ? false : item.completed,
+    assessmentPassed: isQuiz && item.completed,
+  };
+}
+
+/**
+ * Sequential unlock: an item is locked when some earlier required item is still
+ * incomplete. Preview items stay playable regardless; completing them still
+ * opens the gate for what follows.
+ */
+export function sequentialLockedIds(items: SequentialItem[]): Set<string> {
+  const lockedIds = new Set<string>();
+  let gateOpen = true;
+  for (const item of items) {
+    if (!gateOpen && !item.isPreview) {
+      lockedIds.add(item.id);
+    }
+    if (!isItemComplete(item)) {
+      gateOpen = false;
+    }
+  }
+  return lockedIds;
+}
+
+/**
+ * The item Continue / auto-advance should open after the current one.
+ *
+ * Sequential unlock keeps the next required item locked until the current one is
+ * complete. Searching for an already-unlocked neighbour therefore skips the
+ * lesson completion is about to open — or jumps to a later preview. This asks
+ * sequentialLockedIds what would be unlocked after completing the current item,
+ * then returns the first such item after it. Later gated items stay locked.
+ */
+export function continueTargetId(
+  items: SequentialItem[],
+  currentItemId: string,
+): string | null {
+  const currentIndex = items.findIndex((item) => item.id === currentItemId);
+  if (currentIndex < 0) return null;
+
+  const afterCompletion = items.map((item, index) =>
+    index === currentIndex
+      ? { ...item, lectureCompleted: true, assessmentPassed: true }
+      : item,
+  );
+  const locked = sequentialLockedIds(afterCompletion);
+  return afterCompletion.slice(currentIndex + 1).find((item) => !locked.has(item.id))?.id ?? null;
 }
 
 /**
@@ -214,21 +293,191 @@ export function creditWatchedSeconds(input: {
   return input.durationSeconds > 0 ? Math.min(total, Math.floor(input.durationSeconds)) : total;
 }
 
+type SequenceRow = {
+  id: string;
+  type: string;
+  isPreview: boolean;
+  assessmentId: string | null;
+};
+
+/**
+ * Ordered curriculum ids for sequential unlock — no article bodies, quiz
+ * options, or attempt payloads.
+ */
+async function loadCourseSequence(courseId: string): Promise<SequenceRow[]> {
+  const sections = await db.section.findMany({
+    where: { courseId },
+    orderBy: { position: "asc" },
+    select: {
+      items: {
+        orderBy: { position: "asc" },
+        select: {
+          id: true,
+          type: true,
+          isPreview: true,
+          assessment: { select: { id: true } },
+        },
+      },
+    },
+  });
+
+  return sections.flatMap((section) =>
+    section.items.map((item) => ({
+      id: item.id,
+      type: item.type,
+      isPreview: item.isPreview,
+      assessmentId: item.assessment?.id ?? null,
+    })),
+  );
+}
+
+async function loadSequentialState(
+  userId: string | null,
+  sequence: SequenceRow[],
+): Promise<{ items: SequentialItem[]; lockedIds: Set<string> }> {
+  const empty: SequentialItem[] = sequence.map((row) => ({
+    id: row.id,
+    type: row.type,
+    isPreview: row.isPreview,
+    lectureCompleted: false,
+    assessmentPassed: false,
+  }));
+
+  if (!userId || sequence.length === 0) {
+    return { items: empty, lockedIds: sequentialLockedIds(empty) };
+  }
+
+  const itemIds = sequence.map((row) => row.id);
+  const assessmentIds = sequence
+    .map((row) => row.assessmentId)
+    .filter((id): id is string => Boolean(id));
+
+  const [progressRows, attemptRows] = await Promise.all([
+    db.itemProgress.findMany({
+      where: { userId, curriculumItemId: { in: itemIds } },
+      select: { curriculumItemId: true, completedAt: true },
+    }),
+    assessmentIds.length > 0
+      ? db.quizAttempt.findMany({
+          where: { userId, assessmentId: { in: assessmentIds } },
+          select: { assessmentId: true, passed: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const completedLectures = new Set(
+    progressRows.filter((row) => row.completedAt != null).map((row) => row.curriculumItemId),
+  );
+  const passedIds = passedAssessmentIds(attemptRows);
+
+  const items: SequentialItem[] = sequence.map((row) => ({
+    id: row.id,
+    type: row.type,
+    isPreview: row.isPreview,
+    lectureCompleted: completedLectures.has(row.id),
+    assessmentPassed: row.assessmentId ? passedIds.has(row.assessmentId) : false,
+  }));
+
+  return { items, lockedIds: sequentialLockedIds(items) };
+}
+
+/**
+ * Mint a missing certificate only when the stored rollup already says 100%.
+ * Live percent is still derived later for the player; this must not build a
+ * player payload to decide whether to heal.
+ */
+async function maybeHealCertificate(userId: string, courseId: string): Promise<string | null> {
+  const [rollup, certificate] = await Promise.all([
+    db.courseProgress.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+      select: { percent: true },
+    }),
+    db.certificate.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+      select: { serial: true },
+    }),
+  ]);
+
+  if (certificate?.serial) return certificate.serial;
+  if ((rollup?.percent ?? 0) < 100) return null;
+
+  await recomputeCourseProgress(userId, courseId);
+  const issued = await db.certificate.findUnique({
+    where: { userId_courseId: { userId, courseId } },
+    select: { serial: true },
+  });
+  return issued?.serial ?? null;
+}
+
+async function loadCurrentItemBody(itemId: string) {
+  return db.curriculumItem.findUnique({
+    where: { id: itemId },
+    select: {
+      lecture: {
+        select: {
+          id: true,
+          contentType: true,
+          articleBody: true,
+          durationSeconds: true,
+          asset: { select: { id: true, providerAssetId: true, status: true } },
+        },
+      },
+      assessment: {
+        select: {
+          id: true,
+          passThresholdPct: true,
+          allowRetakes: true,
+          questions: {
+            orderBy: { position: "asc" },
+            select: {
+              id: true,
+              prompt: true,
+              type: true,
+              position: true,
+              options: {
+                orderBy: { position: "asc" },
+                // isCorrect, option.explanation, and question.explanation stay
+                // off this payload — grading is server-side, and a pre-submit
+                // note names the answer as surely as the flag would.
+                select: { id: true, text: true, position: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 export async function getPlayerCourse(
   slug: string,
   userId: string | null,
+  currentItemId?: string,
 ): Promise<PlayerCourse | null> {
-  const course = await db.course.findFirst({
+  const courseHeader = await db.course.findFirst({
     // Deliberately not filtered by status. INVARIANT 1: entitlement lives on the
     // enrollment row, and unpublishing is an authoring decision, not a refund —
     // a learner who paid keeps access after the instructor takes the course down.
     // Non-enrolled visitors are gated on status below.
     where: { slug },
+    select: { id: true, title: true, slug: true, status: true },
+  });
+  if (!courseHeader) return null;
+
+  const enrolled = userId ? await isEnrolled(userId, courseHeader.id) : false;
+
+  // The preview path (signed-out or non-enrolled) still only reaches published
+  // courses. A DRAFT course has no enrollments, so enrollment alone is a safe gate.
+  if (!enrolled && courseHeader.status !== "PUBLISHED") return null;
+
+  let certificateSerial: string | null = null;
+  if (userId && enrolled) {
+    certificateSerial = await maybeHealCertificate(userId, courseHeader.id);
+  }
+
+  const course = await db.course.findFirst({
+    where: { id: courseHeader.id },
     select: {
-      id: true,
-      title: true,
-      slug: true,
-      status: true,
       sections: {
         orderBy: { position: "asc" },
         select: {
@@ -247,7 +496,6 @@ export async function getPlayerCourse(
                 select: {
                   id: true,
                   contentType: true,
-                  articleBody: true,
                   durationSeconds: true,
                   asset: {
                     select: { id: true, providerAssetId: true, status: true },
@@ -259,21 +507,6 @@ export async function getPlayerCourse(
                   id: true,
                   passThresholdPct: true,
                   allowRetakes: true,
-                  questions: {
-                    orderBy: { position: "asc" },
-                    select: {
-                      id: true,
-                      prompt: true,
-                      type: true,
-                      explanation: true,
-                      position: true,
-                      options: {
-                        orderBy: { position: "asc" },
-                        // isCorrect is NEVER sent to the client — grading is server-side.
-                        select: { id: true, text: true, position: true },
-                      },
-                    },
-                  },
                 },
               },
             },
@@ -282,19 +515,13 @@ export async function getPlayerCourse(
       },
     },
   });
-
   if (!course) return null;
 
-  const enrolled = userId ? await isEnrolled(userId, course.id) : false;
-
-  // The preview path (signed-out or non-enrolled) still only reaches published
-  // courses. A DRAFT course has no enrollments, so enrollment alone is a safe gate.
-  if (!enrolled && course.status !== "PUBLISHED") return null;
-
   const allItemIds = course.sections.flatMap((s) => s.items.map((i) => i.id));
+  const loadCurrent = Boolean(currentItemId && allItemIds.includes(currentItemId));
 
-  const [progressRows, attemptRows, courseProgress, certificate] = await Promise.all([
-    userId
+  const [progressRows, attemptRows, currentBody] = await Promise.all([
+    userId && allItemIds.length > 0
       ? db.itemProgress.findMany({
           where: { userId, curriculumItemId: { in: allItemIds } },
           select: {
@@ -305,7 +532,7 @@ export async function getPlayerCourse(
           },
         })
       : Promise.resolve([]),
-    userId
+    userId && allItemIds.length > 0
       ? db.quizAttempt.findMany({
           where: {
             userId,
@@ -322,18 +549,7 @@ export async function getPlayerCourse(
           },
         })
       : Promise.resolve([]),
-    userId
-      ? db.courseProgress.findUnique({
-          where: { userId_courseId: { userId, courseId: course.id } },
-          select: { percent: true, completedAt: true },
-        })
-      : Promise.resolve(null),
-    userId
-      ? db.certificate.findUnique({
-          where: { userId_courseId: { userId, courseId: course.id } },
-          select: { serial: true },
-        })
-      : Promise.resolve(null),
+    loadCurrent ? loadCurrentItemBody(currentItemId!) : Promise.resolve(null),
   ]);
 
   const progressByItem = new Map(progressRows.map((row) => [row.curriculumItemId, row]));
@@ -347,7 +563,6 @@ export async function getPlayerCourse(
   // "ever passed" set instead, so it matches the rollup (see isItemComplete).
   const passedIds = passedAssessmentIds(attemptRows);
 
-  // Build a provisional list so we can compute sequential locks.
   type Provisional = {
     id: string;
     type: string;
@@ -370,17 +585,7 @@ export async function getPlayerCourse(
     }
   }
 
-  const lockedIds = new Set<string>();
-  let gateOpen = true;
-  for (const item of provisional) {
-    if (!gateOpen && !item.isPreview) {
-      lockedIds.add(item.id);
-    }
-    // Completing this item opens the next; failing / incomplete keeps the gate shut.
-    if (!isItemComplete(item)) {
-      gateOpen = false;
-    }
-  }
+  const lockedIds = sequentialLockedIds(provisional);
 
   const sections = course.sections.map((section) => ({
     id: section.id,
@@ -388,14 +593,16 @@ export async function getPlayerCourse(
     position: section.position,
     items: section.items.map((item): PlayerItem => {
       const progress = progressByItem.get(item.id) ?? null;
-      const latest = item.assessment
-        ? (latestAttemptByAssessment.get(item.assessment.id) ?? null)
-        : null;
       const completed = isItemComplete({
         type: item.type,
         lectureCompleted: progress?.completedAt != null,
         assessmentPassed: item.assessment ? passedIds.has(item.assessment.id) : false,
       });
+      const isCurrent = item.id === currentItemId;
+      const body = isCurrent ? currentBody : null;
+      const latest = isCurrent && item.assessment
+        ? (latestAttemptByAssessment.get(item.assessment.id) ?? null)
+        : null;
 
       return {
         id: item.id,
@@ -405,13 +612,23 @@ export async function getPlayerCourse(
         isPreview: item.isPreview,
         locked: lockedIds.has(item.id),
         completed,
-        lecture: item.lecture,
-        assessment: item.assessment
+        lecture: body?.lecture
+          ? body.lecture
+          : item.lecture
+            ? { ...item.lecture, articleBody: null }
+            : null,
+        assessment: body?.assessment
           ? {
-              id: item.assessment.id,
-              passThresholdPct: item.assessment.passThresholdPct,
-              allowRetakes: item.assessment.allowRetakes,
-              questions: item.assessment.questions,
+              id: body.assessment.id,
+              passThresholdPct: body.assessment.passThresholdPct,
+              allowRetakes: body.assessment.allowRetakes,
+              questions: body.assessment.questions.map((question) => ({
+                id: question.id,
+                prompt: question.prompt,
+                type: question.type,
+                position: question.position,
+                options: question.options,
+              })),
               latestAttempt: latest
                 ? {
                     id: latest.id,
@@ -421,7 +638,15 @@ export async function getPlayerCourse(
                   }
                 : null,
             }
-          : null,
+          : item.assessment
+            ? {
+                id: item.assessment.id,
+                passThresholdPct: item.assessment.passThresholdPct,
+                allowRetakes: item.assessment.allowRetakes,
+                questions: [],
+                latestAttempt: null,
+              }
+            : null,
         progress: progress
           ? {
               lastPositionSeconds: progress.lastPositionSeconds,
@@ -433,14 +658,24 @@ export async function getPlayerCourse(
     }),
   }));
 
+  const playerItems = sections.flatMap((section) => section.items);
+  const percent = completionPercent(
+    playerItems.filter((item) => item.completed).length,
+    playerItems.length,
+  );
+  const completedAt = resolveCompletedAt(percent, [
+    ...progressRows.map((row) => row.completedAt),
+    ...attemptRows.filter((attempt) => attempt.passed === true).map((attempt) => attempt.submittedAt),
+  ]);
+
   return {
-    id: course.id,
-    title: course.title,
-    slug: course.slug,
+    id: courseHeader.id,
+    title: courseHeader.title,
+    slug: courseHeader.slug,
     enrolled,
-    percent: courseProgress?.percent ?? 0,
-    completedAt: courseProgress?.completedAt ?? null,
-    certificateSerial: certificate?.serial ?? null,
+    percent,
+    completedAt,
+    certificateSerial,
     sections,
     orderedItemIds: provisional.map((item) => item.id),
   };
@@ -461,6 +696,90 @@ export async function canAccessPlayerItem(
 
   const decision = await canPlayItem(userId, itemId);
   return decision.allowed;
+}
+
+/**
+ * The access gate for signed bytes (HLS, VTT). Same rule as the player page:
+ * unpublished drafts hidden from non-enrolled visitors, plus sequential unlock
+ * plus enrollment/preview. Do not call canPlayItem alone for media.
+ */
+export async function canAccessItemMedia(
+  userId: string | null,
+  itemId: string,
+): Promise<boolean> {
+  const item = await db.curriculumItem.findUnique({
+    where: { id: itemId },
+    select: {
+      id: true,
+      isPreview: true,
+      section: { select: { course: { select: { id: true, status: true } } } },
+    },
+  });
+  if (!item) return false;
+
+  const course = item.section.course;
+  const enrolled = userId ? await isEnrolled(userId, course.id) : false;
+
+  if (!enrolled && course.status !== "PUBLISHED") return false;
+
+  // Same entitlement as canPlayItem, using the row we already loaded.
+  if (!item.isPreview && !enrolled) return false;
+
+  // Preview items are never sequentially locked.
+  if (item.isPreview) return true;
+
+  const sequence = await loadCourseSequence(course.id);
+  const { lockedIds } = await loadSequentialState(userId, sequence);
+  return !lockedIds.has(itemId);
+}
+
+/**
+ * Sequential lock ids for an enrolled learner — landing-page curriculum links
+ * need this without a player payload.
+ */
+export async function getPlayerLockedItemIds(
+  userId: string,
+  courseId: string,
+): Promise<Set<string>> {
+  const sequence = await loadCourseSequence(courseId);
+  const { lockedIds } = await loadSequentialState(userId, sequence);
+  return lockedIds;
+}
+
+/**
+ * Continue / auto-advance target after completing `currentItemId`.
+ */
+export async function getContinueTargetItemId(
+  userId: string,
+  courseSlug: string,
+  currentItemId: string,
+): Promise<string | null> {
+  const course = await db.course.findFirst({
+    where: { slug: courseSlug },
+    select: { id: true },
+  });
+  if (!course) return null;
+  const sequence = await loadCourseSequence(course.id);
+  const { items } = await loadSequentialState(userId, sequence);
+  return continueTargetId(items, currentItemId);
+}
+
+/**
+ * Progress writes follow the same sequential gate as the player. Enrollment
+ * alone is not enough — otherwise a crafted POST could complete a locked
+ * lecture, pass its quiz, or bank watch time, and percent would skip ahead.
+ */
+async function requireUnlockedItem(
+  userId: string,
+  curriculumItemId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!(await canAccessItemMedia(userId, curriculumItemId))) {
+    return {
+      ok: false as const,
+      message: "This lesson is locked until you complete the previous ones.",
+    };
+  }
+  return { ok: true as const };
 }
 
 export async function recomputeCourseProgress(userId: string, courseId: string) {
@@ -532,7 +851,7 @@ export async function recomputeCourseProgress(userId: string, courseId: string) 
     if (done) completed += 1;
   }
 
-  const percent = Math.round((completed / total) * 1000) / 10;
+  const percent = completionPercent(completed, total);
 
   // Only the timestamps that actually count toward completion. A passing attempt
   // dates the quiz from when it was passed; a later failed retake contributes
@@ -556,6 +875,30 @@ export async function recomputeCourseProgress(userId: string, courseId: string) 
   }
 
   return { percent, completedAt };
+}
+
+/** Bound concurrency when an instructor save fans out recomputes. */
+const ENROLLMENT_RECOMPUTE_CHUNK = 50;
+
+/**
+ * Refreshes CourseProgress for every active enrollment after the curriculum's
+ * item set changes. Callers must wait until the authoring write has committed —
+ * putting this inside that transaction would hold the write lock across N
+ * learner recomputes.
+ *
+ * Certificates are not touched here: recomputeCourseProgress issues one at 100%
+ * and never deletes one when percent falls.
+ */
+export async function recomputeProgressForCourseEnrollments(courseId: string): Promise<void> {
+  const enrollments = await db.enrollment.findMany({
+    where: { courseId, revokedAt: null },
+    select: { userId: true },
+  });
+
+  for (let index = 0; index < enrollments.length; index += ENROLLMENT_RECOMPUTE_CHUNK) {
+    const chunk = enrollments.slice(index, index + ENROLLMENT_RECOMPUTE_CHUNK);
+    await Promise.all(chunk.map((row) => recomputeCourseProgress(row.userId, courseId)));
+  }
 }
 
 async function courseIdForItem(curriculumItemId: string): Promise<string | null> {
@@ -584,6 +927,9 @@ export async function markLectureComplete(userId: string, curriculumItemId: stri
     // requires being enrolled — otherwise we'd invent progress for tourists.
     return { ok: false as const, message: "Enrol to track progress." };
   }
+
+  const unlocked = await requireUnlockedItem(userId, curriculumItemId);
+  if (!unlocked.ok) return unlocked;
 
   await db.itemProgress.upsert({
     where: { userId_curriculumItemId: { userId, curriculumItemId } },
@@ -624,6 +970,9 @@ export async function updateWatchPosition(
 
   const enrolled = await isEnrolled(userId, item.section.courseId);
   if (!enrolled) return { ok: false as const, message: "Enrol to track progress." };
+
+  const unlocked = await requireUnlockedItem(userId, curriculumItemId);
+  if (!unlocked.ok) return unlocked;
 
   const existing = await db.itemProgress.findUnique({
     where: { userId_curriculumItemId: { userId, curriculumItemId } },
@@ -723,6 +1072,9 @@ export async function submitQuizAttempt(
   if (!(await isEnrolled(userId, courseId))) {
     return { ok: false as const, message: "Enrol to take this quiz." };
   }
+
+  const unlocked = await requireUnlockedItem(userId, assessment.curriculumItemId);
+  if (!unlocked.ok) return unlocked;
 
   if (!assessment.allowRetakes) {
     const priorPass = await db.quizAttempt.findFirst({

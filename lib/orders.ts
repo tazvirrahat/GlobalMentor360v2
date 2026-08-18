@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
 
 /**
  * The learner's own purchase record.
@@ -150,15 +151,25 @@ function toLearnerOrder(order: OrderRow): LearnerOrder {
   };
 }
 
-export async function listLearnerOrders(userId: string): Promise<LearnerOrder[]> {
+export async function listLearnerOrders(userId: string, page?: string | number): Promise<Paged<LearnerOrder>> {
+  const where = { userId };
+  const total = await db.order.count({ where });
+  const current = clampPage(page ?? 1, total, ORDER_PAGE_SIZE);
+  const { skip, take } = skipTake(current, ORDER_PAGE_SIZE);
   const orders = await db.order.findMany({
-    where: { userId },
+    where,
     orderBy: { createdAt: "desc" },
-    take: ORDER_PAGE_SIZE,
+    skip,
+    take,
     select: ORDER_SELECT,
   });
 
-  return orders.map(toLearnerOrder);
+  return {
+    items: orders.map(toLearnerOrder),
+    total,
+    page: current,
+    pageCount: pageCount(total, ORDER_PAGE_SIZE),
+  };
 }
 
 /**

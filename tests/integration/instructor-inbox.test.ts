@@ -25,7 +25,7 @@ vi.mock("@/lib/session", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 const { replyFromInbox } = await import("@/app/studio/qa/actions");
-const { getInstructorInbox, askQuestion, postReply } = await import("@/lib/qa");
+const { getInboxCourseFilters, getInstructorInbox, askQuestion, postReply } = await import("@/lib/qa");
 const { db } = await import("@/lib/db");
 const { grantEnrollment } = await import("@/lib/enrollment");
 
@@ -105,6 +105,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.analyticsEvent.deleteMany({
+    where: { userId: { in: [ownerId, rivalId, learnerId] } },
+  });
   await db.enrollment.deleteMany({ where: { courseId: { in: [ownedCourseId, rivalCourseId] } } });
   await db.course.deleteMany({ where: { id: { in: [ownedCourseId, rivalCourseId] } } });
   await db.user.deleteMany({ where: { id: { in: [ownerId, rivalId, learnerId] } } });
@@ -127,6 +130,16 @@ describe("getInstructorInbox", () => {
     expect(inbox.threads).toHaveLength(0);
   });
 
+  it("offers only owned courses in the filter dropdown", async () => {
+    const filters = await getInboxCourseFilters(ownerId);
+    const ids = filters.courses.map((course) => course.id);
+
+    expect(ids).toContain(ownedCourseId);
+    expect(ids).not.toContain(rivalCourseId);
+    expect(filters.total).toBe(filters.courses.length);
+    expect(filters.unansweredTotal).toBeGreaterThanOrEqual(1);
+  });
+
   it("counts a learner-only reply as still unanswered", async () => {
     const other = await makeUser("inbox-other-learner");
     await grantEnrollment(other, ownedCourseId, "GRANT");
@@ -139,6 +152,7 @@ describe("getInstructorInbox", () => {
 
     await db.threadReply.deleteMany({ where: { userId: other } });
     await db.enrollment.deleteMany({ where: { userId: other } });
+    await db.analyticsEvent.deleteMany({ where: { userId: other } });
     await db.user.delete({ where: { id: other } });
   });
 });

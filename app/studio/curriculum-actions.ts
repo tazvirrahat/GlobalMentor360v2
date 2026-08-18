@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { DEFAULT_PASS_THRESHOLD_PCT } from "@/lib/assessments";
+import { recomputeProgressForCourseEnrollments } from "@/lib/progress";
 import { requireRole } from "@/lib/session";
+import { releaseOrphanedLectureAsset } from "@/lib/video";
 
 export type CurriculumState =
   | { status: "idle" }
@@ -59,6 +61,11 @@ export async function deleteSection(_prev: CurriculumState, formData: FormData):
   const section = await ownedSection(sectionId, user.id);
   if (!section) return { status: "error", message: "Section not found." };
 
+  const lectureAssets = await db.lecture.findMany({
+    where: { curriculumItem: { sectionId } },
+    select: { asset: { select: { id: true, providerAssetId: true } } },
+  });
+
   await db.$transaction(async (tx) => {
     await tx.section.delete({ where: { id: sectionId } });
     // Close the gap so positions stay contiguous; @@unique([courseId, position])
@@ -71,6 +78,15 @@ export async function deleteSection(_prev: CurriculumState, formData: FormData):
     await resequence(tx, "section", remaining);
   });
 
+  const seen = new Set<string>();
+  for (const row of lectureAssets) {
+    const asset = row.asset;
+    if (!asset || seen.has(asset.id)) continue;
+    seen.add(asset.id);
+    await releaseOrphanedLectureAsset(asset);
+  }
+
+  await recomputeProgressForCourseEnrollments(section.courseId);
   revalidatePath(`/studio/courses/${section.courseId}/curriculum`);
   return { status: "done", message: "Section deleted." };
 }
@@ -127,6 +143,7 @@ export async function addItem(_prev: CurriculumState, formData: FormData): Promi
       },
     });
 
+    await recomputeProgressForCourseEnrollments(section.courseId);
     revalidatePath(`/studio/courses/${section.courseId}/curriculum`);
     return { status: "done", message: "Quiz added — open it to write questions." };
   }
@@ -143,6 +160,7 @@ export async function addItem(_prev: CurriculumState, formData: FormData): Promi
     },
   });
 
+  await recomputeProgressForCourseEnrollments(section.courseId);
   revalidatePath(`/studio/courses/${section.courseId}/curriculum`);
   return { status: "done", message: "Lecture added." };
 }
@@ -213,7 +231,12 @@ export async function deleteItem(_prev: CurriculumState, formData: FormData): Pr
 
   const item = await db.curriculumItem.findFirst({
     where: { id: itemId, section: { course: { instructorId: user.id } } },
-    select: { id: true, sectionId: true, section: { select: { courseId: true } } },
+    select: {
+      id: true,
+      sectionId: true,
+      section: { select: { courseId: true } },
+      lecture: { select: { asset: { select: { id: true, providerAssetId: true } } } },
+    },
   });
   if (!item) return { status: "error", message: "Item not found." };
 
@@ -227,6 +250,11 @@ export async function deleteItem(_prev: CurriculumState, formData: FormData): Pr
     await resequence(tx, "item", remaining);
   });
 
+  if (item.lecture?.asset) {
+    await releaseOrphanedLectureAsset(item.lecture.asset);
+  }
+
+  await recomputeProgressForCourseEnrollments(item.section.courseId);
   revalidatePath(`/studio/courses/${item.section.courseId}/curriculum`);
   return { status: "done", message: "Item deleted." };
 }

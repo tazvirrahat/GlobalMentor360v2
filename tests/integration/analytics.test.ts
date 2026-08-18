@@ -47,7 +47,16 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.analyticsEvent.deleteMany({ where: { userId: { in: [userId, instructorId] } } });
+  await db.analyticsEvent.deleteMany({
+    where: {
+      OR: [
+        { userId: { in: [userId, instructorId] } },
+        // Anonymous `course_viewed` is only written by this file. No FK, so
+        // these would otherwise accumulate as `userId IS NULL` leftovers.
+        { userId: null, name: "course_viewed" },
+      ],
+    },
+  });
   await db.enrollment.deleteMany({ where: { courseId } });
   await db.course.deleteMany({ where: { id: courseId } });
   await db.user.deleteMany({ where: { id: { in: [userId, instructorId] } } });

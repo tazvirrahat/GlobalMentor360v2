@@ -33,8 +33,13 @@ interface BaseRail {
 
 export interface BeginManualInput {
   userId: string;
-  courseId: string;
+  /** Single-course checkout. Ignored when `items` is provided. */
+  courseId?: string;
+  /** Multi-item checkout. Each unitPrice is already read from Price (invariant 6). */
+  items?: { courseId: string; unitPrice: number; discountApplied?: number }[];
   amount: number;
+  discount?: number;
+  couponId?: string | null;
   /** Rail-specific proof the learner typed in. */
   proof: Record<string, string | null>;
 }
@@ -61,12 +66,15 @@ export interface AutomaticRail extends BaseRail {
   /**
    * Verifies a provider callback and reports whether the money actually landed.
    * Must verify a signature or re-query the provider — never trust the browser.
-   * Returning `paid: true` is what triggers grantEnrollment.
+   *
+   * `paid: true` means the session is (or already was) a successful charge.
+   * `retry: true` means fulfill did not run and the row is not in a terminal
+   * state — the HTTP handler must not ACK, so the provider retries.
    */
   confirm(payload: {
     rawBody: string;
     headers: Record<string, string>;
-  }): Promise<{ paid: boolean; providerRef: string } | null>;
+  }): Promise<{ paid: boolean; providerRef: string; retry?: boolean } | null>;
 }
 
 export type PaymentRail = ManualRail | AutomaticRail;

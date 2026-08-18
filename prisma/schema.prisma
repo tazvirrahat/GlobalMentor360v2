@@ -90,6 +90,7 @@ model User {
   auditLogs     AuditLog[]
   payments        Payment[] @relation("PaymentUser")
   paymentsVerified Payment[] @relation("PaymentVerifier")
+  createdMediaAssets MediaAsset[] @relation("MediaAssetCreator")
 
   @@index([status])
   @@map("users")
@@ -207,6 +208,10 @@ model Skill {
 }
 
 model Course {
+  // search_vector is a GENERATED ALWAYS tsvector (plus GIN/trigram indexes) from
+  // prisma/migrations/20260817000000_catalog_search. Prisma cannot express
+  // generated columns here. `prisma db push` is unsafe against a migrated
+  // database — it will drop search_vector. Use `prisma migrate deploy`.
   id                String       @id @default(uuid(7))
   title             String
   slug              String       @unique
@@ -247,6 +252,7 @@ model Course {
   announcements   Announcement[]
   cartItems       CartItem[]
   orderItems      OrderItem[]
+  coupons         Coupon[]
 
   @@index([status, publishedAt])
   @@index([primaryCategoryId])
@@ -429,15 +435,21 @@ model MediaAsset {
   durationSeconds Int?
   thumbnailUrl    String?
   failureReason   String?
+  // Set at startVideoUpload. Nullable so pre-bind UPLOADING rows still load;
+  // finalizeVideoUpload requires both to match the actor and item.
+  createdByUserId  String?
+  startedForItemId String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
+  createdBy    User?        @relation("MediaAssetCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   lectures     Lecture[]
   captions     Caption[]
   transcripts  Transcript[]
   promoForCourse Course?    @relation("CoursePromoVideo")
 
   @@index([status])
+  @@index([createdByUserId])
   @@map("media_assets")
 }
 
@@ -624,7 +636,9 @@ model Enrollment {
   revokedAt  DateTime?
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  // Restrict: deleting a course must not wipe entitlement. Never-purchased
+  // drafts have no rows here, so they still delete.
+  course Course @relation(fields: [courseId], references: [id], onDelete: Restrict)
 
   @@unique([userId, courseId])
   @@index([courseId])
@@ -702,7 +716,7 @@ model Certificate {
   issuedAt DateTime @default(now())
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Restrict)
 
   @@unique([userId, courseId])
   @@map("certificates")
@@ -722,6 +736,8 @@ model Review {
   id        String           @id @default(uuid(7))
   userId    String
   courseId  String
+  // Range is a CHECK constraint (ck_reviews_rating_range) — Prisma cannot
+  // express CHECK here. See prisma/migrations/20260817000003_schema_hardening.
   rating    Int
   body      String?          @db.Text
   status    ModerationStatus @default(VISIBLE)
@@ -729,7 +745,7 @@ model Review {
   updatedAt DateTime         @updatedAt
 
   user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course   Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course   Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
   response ReviewResponse?
   votes    ReviewVote[]
 
@@ -936,6 +952,7 @@ model Order {
   payments    Payment[]
 
   @@index([userId, createdAt])
+  @@index([status])
   @@map("orders")
 }
 
@@ -951,6 +968,7 @@ model OrderItem {
   refunds Refund[]
 
   @@unique([orderId, courseId])
+  @@index([courseId])
   @@map("order_items")
 }
 
@@ -971,9 +989,11 @@ model Coupon {
   validUntil     DateTime?
   isActive       Boolean    @default(true)
 
-  redemptions CouponRedemption[]
+  course        Course?             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  redemptions   CouponRedemption[]
 
   @@index([isActive, validUntil])
+  @@index([courseId])
   @@map("coupons")
 }
 
@@ -1024,7 +1044,12 @@ model Payment {
   stripePaymentIntentId String? @unique
   stripeChargeId        String?
 
-  // bKash rail — learner-submitted proof
+  // bKash rail — learner-submitted proof.
+  // Partial unique index on bkashTransactionId WHERE method = BKASH AND status
+  // IN (PENDING_VERIFICATION, COMPLETED) lives in
+  // prisma/migrations/20260817000002_bkash_transaction_id_unique. Prisma cannot
+  // express it here. FAILED/REFUNDED rows drop out so a rejected proof can be
+  // resubmitted.
   bkashTransactionId String?
   bkashPhoneNumber   String?
   bkashPaymentDate   DateTime?
@@ -1038,7 +1063,9 @@ model Payment {
   createdAt DateTime  @default(now())
   paidAt    DateTime?
 
-  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // No application path deletes orders (test cleanup only). CASCADE would
+  // erase the payment trail if a delete were added later.
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
   user       User  @relation("PaymentUser", fields: [userId], references: [id])
   verifiedBy User? @relation("PaymentVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
 
@@ -1101,6 +1128,11 @@ model FeatureFlag {
   @@map("feature_flags")
 }
 
+/// Append-only product event stream. No FK to User on purpose: anonymous
+/// events are allowed (`userId` null), and GDPR erasure is an explicit
+/// `deleteMany` (see `forgetUserEvents`) rather than a cascade. Tests that
+/// call `grantEnrollment` / `recordEvent` must delete these rows in
+/// `afterAll` before deleting the user, or they remain as orphans.
 model AnalyticsEvent {
   id        String   @id @default(uuid(7))
   userId    String?

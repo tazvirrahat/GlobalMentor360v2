@@ -21,6 +21,10 @@
 process.env.STRIPE_SECRET_KEY = "sk_test_integration_suite_key";
 process.env.STRIPE_WEBHOOK_SECRET = "whsec_integration_suite_secret";
 
+// Never call SES from this suite. An empty EMAIL_FROM makes sesConfigured()
+// false, so sendEmail uses the console fallback instead of AWS.
+process.env.EMAIL_FROM = "";
+
 if (!process.env.DATABASE_URL) {
   throw new Error(
     "The integration suite runs against a real Postgres. Set DATABASE_URL " +
@@ -28,3 +32,23 @@ if (!process.env.DATABASE_URL) {
       "for the unit suite, which needs no database.",
   );
 }
+
+/*
+ * Leftover hygiene (local QA DB only — never truncate seed).
+ *
+ * `analytics_events` has no FK, so a crashed run that deleted users first
+ * leaves orphan rows. Tests that grant enrollment or call `recordEvent` must
+ * `analyticsEvent.deleteMany` in `afterAll`. Do not `TRUNCATE analytics_events`:
+ * seed and manual QA (learner@example.com lecture/quiz events, admin grants)
+ * live in the same table.
+ *
+ * Coupon prefixes this suite owns: APPR, CAP, CART, GRD, INV + the run id.
+ * Seed coupon is SAVE10. UI QA coupons look like QAINS* and hang off leftover
+ * `qa-*-draft-*` courses — do not DELETE those unless you are sure they are
+ * test-only. Inspect with:
+ *
+ *   SELECT count(*) FROM analytics_events e
+ *     LEFT JOIN users u ON u.id = e."userId"
+ *     WHERE e."userId" IS NOT NULL AND u.id IS NULL;
+ *   SELECT code FROM coupons WHERE code <> 'SAVE10' ORDER BY code;
+ */

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 // From lib/qa-rules, not lib/qa: this is a Client Component, and lib/qa reaches
 // lib/db (see the note in lib/qa-rules.ts).
 import { QUESTION_BODY_MAX, QUESTION_TITLE_MAX } from "@/lib/qa-rules";
+import { FieldError } from "@/components/site/field-error";
 import { askQuestionAction, type QaState } from "./qa-actions";
 
 const initial: QaState = { status: "idle" };
@@ -63,11 +64,7 @@ export function AskQuestionForm({
           placeholder="What are you stuck on?"
           aria-invalid={fieldError("title") ? true : undefined}
         />
-        {fieldError("title") ? (
-          <p role="alert" className="text-sm font-medium text-destructive">
-            {fieldError("title")}
-          </p>
-        ) : null}
+        {fieldError("title") ? <FieldError message={fieldError("title")!} /> : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -81,17 +78,11 @@ export function AskQuestionForm({
           placeholder="Describe what you tried and what happened."
           aria-invalid={fieldError("body") ? true : undefined}
         />
-        {fieldError("body") ? (
-          <p role="alert" className="text-sm font-medium text-destructive">
-            {fieldError("body")}
-          </p>
-        ) : null}
+        {fieldError("body") ? <FieldError message={fieldError("body")!} /> : null}
       </div>
 
       {state.status === "error" && !state.fieldErrors ? (
-        <p role="alert" className="text-sm font-medium text-destructive">
-          {state.message}
-        </p>
+        <FieldError message={state.message} />
       ) : null}
 
       {state.status === "posted" ? (

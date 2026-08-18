@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { safeReturnPath } from "@/lib/urls";
-import type { Role } from "@/generated/prisma/enums";
+import type { Role, UserStatus } from "@/generated/prisma/enums";
 
 export { safeReturnPath };
 
@@ -19,14 +19,25 @@ export async function getSession() {
   return auth.api.getSession({ headers: await headers() });
 }
 
+/** Only ACTIVE accounts may hold an app session. SUSPENDED and DELETED are signed out. */
+export function isActiveUserStatus(status: UserStatus): boolean {
+  return status === "ACTIVE";
+}
+
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const session = await getSession();
   if (!session?.user) return null;
 
+  const row = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, email: true, name: true, status: true },
+  });
+  if (!row || !isActiveUserStatus(row.status)) return null;
+
   return {
-    id: session.user.id,
-    email: session.user.email,
-    name: session.user.name,
+    id: row.id,
+    email: row.email,
+    name: row.name,
   };
 }
 

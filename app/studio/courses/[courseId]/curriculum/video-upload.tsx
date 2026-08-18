@@ -183,7 +183,7 @@ export function LectureVideoPanel({
 
       {phase.name === "uploading" ? (
         <span className="flex min-w-40 flex-1 items-center gap-2">
-          <Progress value={phase.percent} className="max-w-48" />
+          <Progress value={phase.percent} className="max-w-48" aria-label="Upload progress" />
           <span className="text-xs tabular-nums text-muted-foreground">{phase.percent}%</span>
         </span>
       ) : phase.name === "finalizing" ? (
@@ -214,7 +214,10 @@ export function LectureVideoPanel({
             <Upload aria-hidden />
             {asset ? "Replace video" : "Add video"}
           </Button>
-          {asset && (asset.status === "UPLOADING" || asset.status === "PROCESSING") ? (
+          {asset &&
+          (asset.status === "UPLOADING" ||
+            asset.status === "PROCESSING" ||
+            asset.status === "FAILED") ? (
             <CheckStatusForm itemId={itemId} />
           ) : null}
         </>

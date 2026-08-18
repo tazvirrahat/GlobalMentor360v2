@@ -10,7 +10,14 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as presignS3Request } from "@aws-sdk/s3-request-presigner";
 import { CreateJobCommand, MediaConvertClient, type Output } from "@aws-sdk/client-mediaconvert";
+import {
+  DeleteMessageCommand,
+  ReceiveMessageCommand,
+  SQSClient,
+} from "@aws-sdk/client-sqs";
 import { getSignedUrl as signCloudFrontUrl } from "@aws-sdk/cloudfront-signer";
+import { applyMediaConvertJobEvent } from "./apply-job-event";
+import { mapMediaConvertJobEvent } from "./mediaconvert-event";
 import {
   VideoProviderError,
   type CreateUploadResult,
@@ -24,8 +31,9 @@ import {
 /**
  * AWS pipeline: browser PUTs the original to S3 via a presigned URL, a
  * MediaConvert job transcodes it to HLS in the same bucket, CloudFront serves
- * the renditions with signed URLs. Job state changes arrive as EventBridge
- * events forwarded through an API destination to /api/video/webhook.
+ * the renditions with signed URLs. Job state changes are parked on SQS by
+ * EventBridge (local-dev drain) and, when a public origin exists, can also
+ * POST to /api/video/webhook.
  *
  * Key layout (the assetId is a uuid we mint — it IS the providerAssetId):
  *   uploads/{assetId}/original      raw upload
@@ -37,6 +45,8 @@ import {
 const UPLOAD_URL_TTL_SECONDS = 60 * 60;
 const PLAYBACK_TTL_SECONDS = 60 * 60 * 4;
 const WEBHOOK_SECRET_HEADER = "x-webhook-secret";
+const SQS_DRAIN_MAX_BATCHES = 3;
+const SQS_DRAIN_MAX_MESSAGES = 10;
 
 function originalKey(assetId: string): string {
   return `uploads/${assetId}/original`;
@@ -110,6 +120,7 @@ function readCloudFrontConfig(): { domain: string; keyPairId: string; privateKey
 // Env vars don't change at runtime, so one client per process is enough.
 let s3Singleton: S3Client | null = null;
 let mediaConvertSingleton: MediaConvertClient | null = null;
+let sqsSingleton: SQSClient | null = null;
 
 function s3(config: AwsBaseConfig): S3Client {
   s3Singleton ??= new S3Client({
@@ -126,6 +137,14 @@ function mediaConvert(config: ReturnType<typeof readMediaConvertConfig>): MediaC
     credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
   });
   return mediaConvertSingleton;
+}
+
+function sqs(config: AwsBaseConfig): SQSClient {
+  sqsSingleton ??= new SQSClient({
+    region: config.region,
+    credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
+  });
+  return sqsSingleton;
 }
 
 // ---------------------------------------------------------------------------
@@ -247,35 +266,6 @@ function hlsRendition(nameModifier: string, height: number, maxBitrate: number):
   };
 }
 
-// ---------------------------------------------------------------------------
-// Webhook payload (EventBridge "MediaConvert Job State Change" via an API
-// destination). Shape per AWS docs; everything is optional because we only
-// trust it after the shared-secret check and null-check each field.
-// ---------------------------------------------------------------------------
-
-interface MediaConvertEventDetail {
-  status?: string;
-  errorMessage?: string;
-  userMetadata?: Record<string, string>;
-  outputGroupDetails?: {
-    outputDetails?: { durationInMs?: number }[];
-  }[];
-}
-
-interface MediaConvertEvent {
-  "detail-type"?: string;
-  detail?: MediaConvertEventDetail;
-}
-
-const STATUS_BY_JOB_STATE: Record<string, VideoAssetStatus> = {
-  SUBMITTED: "PROCESSING",
-  PROGRESSING: "PROCESSING",
-  STATUS_UPDATE: "PROCESSING",
-  INPUT_INFORMATION: "PROCESSING",
-  COMPLETE: "READY",
-  ERROR: "FAILED",
-};
-
 function constantTimeEquals(a: string, b: string): boolean {
   // Hash both sides so timingSafeEqual gets equal-length buffers regardless of input.
   const digestA = createHash("sha256").update(a).digest();
@@ -317,6 +307,10 @@ export const awsProvider: VideoProvider = {
 
   async startProcessing(providerAssetId): Promise<void> {
     const config = readMediaConvertConfig();
+
+    if (!(await objectExists(config, originalKey(providerAssetId)))) {
+      throw new VideoProviderError("upload not found — did the file finish uploading?");
+    }
 
     try {
       await mediaConvert(config).send(
@@ -431,6 +425,7 @@ export const awsProvider: VideoProvider = {
     const config = readBaseConfig();
     await deletePrefix(config, `uploads/${providerAssetId}/`);
     await deletePrefix(config, hlsPrefix(providerAssetId));
+    await deletePrefix(config, `captions/${providerAssetId}/`);
   },
 
   verifyWebhook(rawBody, headers): WebhookEvent | null {
@@ -440,31 +435,124 @@ export const awsProvider: VideoProvider = {
     const provided = headers[WEBHOOK_SECRET_HEADER] ?? headers["X-Webhook-Secret"];
     if (!provided || !constantTimeEquals(provided, secret)) return null;
 
-    let event: MediaConvertEvent;
-    try {
-      event = JSON.parse(rawBody) as MediaConvertEvent;
-    } catch {
-      return null;
-    }
-
-    const detail = event.detail;
-    const assetId = detail?.userMetadata?.assetId;
-    const jobState = detail?.status;
-    if (!assetId || !jobState) return null;
-
-    const status = STATUS_BY_JOB_STATE[jobState] ?? "PROCESSING";
-
-    const durationInMs = detail?.outputGroupDetails?.[0]?.outputDetails?.[0]?.durationInMs;
-
-    return {
-      providerAssetId: assetId,
-      status,
-      failureReason:
-        status === "FAILED" ? (detail?.errorMessage ?? `MediaConvert job state ${jobState}`) : null,
-      durationSeconds:
-        status === "READY" && typeof durationInMs === "number" && durationInMs > 0
-          ? Math.round(durationInMs / 1000)
-          : null,
-    };
+    return mapMediaConvertJobEvent(rawBody);
   },
 };
+
+/**
+ * Short-poll the MediaConvert job-state queue and apply COMPLETE/ERROR the
+ * same way /api/video/webhook does. Local-dev path: AWS cannot POST to
+ * localhost, so studio refresh (and curriculum listing) drain instead.
+ * Never long-polls — at most SQS_DRAIN_MAX_BATCHES receives of 10.
+ */
+export async function drainMediaConvertEventQueue(): Promise<number> {
+  const queueUrl = process.env.AWS_VIDEO_EVENT_QUEUE_URL?.trim();
+  if (!queueUrl) return 0;
+
+  const config = readBaseConfig();
+  const client = sqs(config);
+  let applied = 0;
+
+  for (let batch = 0; batch < SQS_DRAIN_MAX_BATCHES; batch++) {
+    let received;
+    try {
+      received = await client.send(
+        new ReceiveMessageCommand({
+          QueueUrl: queueUrl,
+          MaxNumberOfMessages: SQS_DRAIN_MAX_MESSAGES,
+          WaitTimeSeconds: 0,
+          VisibilityTimeout: 30,
+        }),
+      );
+    } catch (error) {
+      throw new VideoProviderError(
+        `SQS ReceiveMessage failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    const messages = received.Messages ?? [];
+    if (messages.length === 0) break;
+
+    for (const message of messages) {
+      const event = mapMediaConvertJobEvent(message.Body ?? null);
+      let appliedThis = false;
+
+      if (event) {
+        try {
+          await applyMediaConvertJobEvent(event);
+          appliedThis = true;
+          applied += 1;
+        } catch {
+          // Leave invisible until VisibilityTimeout so a later drain retries.
+          continue;
+        }
+      }
+
+      if (message.ReceiptHandle && (appliedThis || !event)) {
+        try {
+          await client.send(
+            new DeleteMessageCommand({
+              QueueUrl: queueUrl,
+              ReceiptHandle: message.ReceiptHandle,
+            }),
+          );
+        } catch (error) {
+          throw new VideoProviderError(
+            `SQS DeleteMessage failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+    }
+
+    if (messages.length < SQS_DRAIN_MAX_MESSAGES) break;
+  }
+
+  return applied;
+}
+
+/** Best-effort drain for page loads — never fails the studio render. */
+export async function tryDrainMediaConvertEventQueue(): Promise<void> {
+  try {
+    await drainMediaConvertEventQueue();
+  } catch {
+    // Queue URL / IAM may be unset in some environments; S3 refresh still works.
+  }
+}
+
+/** Whether the HLS master manifest is already in S3. Used to promote FAILED → READY. */
+export async function hlsMasterManifestExists(providerAssetId: string): Promise<boolean> {
+  const config = readBaseConfig();
+  return objectExists(config, masterManifestKey(providerAssetId));
+}
+
+export function captionObjectKey(providerAssetId: string, language: string): string {
+  return `captions/${providerAssetId}/${language}.vtt`;
+}
+
+/**
+ * Uploaded VTT files live next to the HLS prefix, not inside it, so a dormant
+ * CloudFront signing policy on /hls/* cannot lock learners out of captions.
+ * The player fetches them through the app (entitlement checked there).
+ */
+export async function putCaptionObject(
+  providerAssetId: string,
+  language: string,
+  body: string,
+): Promise<string> {
+  const config = readBaseConfig();
+  const key = captionObjectKey(providerAssetId, language);
+  await s3(config).send(
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+      Body: body,
+      ContentType: "text/vtt; charset=utf-8",
+    }),
+  );
+  return key;
+}
+
+export async function readCaptionObject(key: string): Promise<string | null> {
+  const config = readBaseConfig();
+  return readObjectText(config, key);
+}

@@ -80,8 +80,12 @@ export function CompactRating({
     >
       <Star className={cn("size-4 fill-current", starClassName)} aria-hidden />
       {average.toFixed(1)}
+      <span className="sr-only"> out of 5 stars</span>
       <span className={cn("font-normal", countClassName)}>
         ({showRatingsWord ? ratings : count})
+        {showRatingsWord ? null : (
+          <span className="sr-only"> {count === 1 ? "rating" : "ratings"}</span>
+        )}
       </span>
     </span>
   );

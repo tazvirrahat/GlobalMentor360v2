@@ -22,7 +22,7 @@ describe("isValidRating", () => {
   });
 
   it("rejects the values that would silently skew an average", () => {
-    // reviews.rating is a plain Int — nothing below this guard would refuse them.
+    // The table CHECK is the second line of defence; this is what the form hits.
     expect(isValidRating(0)).toBe(false);
     expect(isValidRating(6)).toBe(false);
     expect(isValidRating(99)).toBe(false);

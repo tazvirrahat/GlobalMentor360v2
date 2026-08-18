@@ -5,8 +5,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { canPlayItem } from "@/lib/entitlement";
 import {
+  canAccessItemMedia,
+  getContinueTargetItemId,
   markLectureComplete,
   submitQuizAttempt,
   updateWatchPosition,
@@ -15,19 +16,29 @@ import {
 import { getCurrentUser } from "@/lib/session";
 import { video } from "@/lib/video";
 
-export async function completeLectureAction(formData: FormData) {
+export type CompleteLectureState = { status: "idle" } | { status: "error"; message: string };
+
+export async function completeLectureAction(
+  _prev: CompleteLectureState,
+  formData: FormData,
+): Promise<CompleteLectureState> {
   const user = await getCurrentUser();
-  if (!user) return;
+  if (!user) return { status: "error", message: "Sign in first." };
 
   const itemId = String(formData.get("itemId") ?? "");
   const slug = String(formData.get("slug") ?? "");
   const result = await markLectureComplete(user.id, itemId);
-  if (!result.ok) return;
+  if (!result.ok) return { status: "error", message: result.message };
 
   revalidatePath(`/learn/${slug}`);
   revalidatePath("/dashboard");
 
-  // Land on the learn index so it picks the next unlocked item.
+  // Continue target is derived after the write, not from the form. A hidden
+  // nextItemId can be swapped for a later preview that was already unlocked.
+  const nextId = await getContinueTargetItemId(user.id, slug, itemId);
+  if (nextId) {
+    redirect(`/learn/${slug}/${nextId}` as Route);
+  }
   redirect(`/learn/${slug}` as Route);
 }
 
@@ -54,15 +65,21 @@ export async function reportWatchProgress(input: {
 
 export async function getSignedPlayback(itemId: string) {
   const user = await getCurrentUser();
-  const decision = await canPlayItem(user?.id ?? null, itemId);
-  if (!decision.allowed) {
+  if (!(await canAccessItemMedia(user?.id ?? null, itemId))) {
     return { ok: false as const, message: "You don't have access to this lecture." };
   }
 
   const lecture = await db.lecture.findFirst({
     where: { curriculumItemId: itemId },
     select: {
-      asset: { select: { providerAssetId: true, status: true } },
+      asset: {
+        select: {
+          id: true,
+          providerAssetId: true,
+          status: true,
+          captions: { select: { id: true, language: true }, orderBy: { language: "asc" } },
+        },
+      },
     },
   });
 
@@ -76,6 +93,11 @@ export async function getSignedPlayback(itemId: string) {
       ok: true as const,
       hlsUrl: playback.hlsUrl,
       expiresAt: playback.expiresAt.toISOString(),
+      captions: lecture.asset.captions.map((caption) => ({
+        id: caption.id,
+        language: caption.language,
+        src: `/api/captions/${caption.id}`,
+      })),
     };
   } catch (error) {
     // A VideoProviderError names the env vars an operator needs to set. That is
