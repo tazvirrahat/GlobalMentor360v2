@@ -21,9 +21,9 @@ export type CourseRowData = {
 
 /**
  * A course in a list (catalog, home): cover mark, title, one line of subtitle,
- * instructor, the facts, and the price on the right. The whole row is one link
- * (the title's link stretches over it), and the row draws the focus outline so
- * the indicator surrounds what you would click.
+ * instructor, the facts, and the price on the right. The whole row is one link:
+ * the title's link stretches over the row with ::after, and that pseudo-element
+ * draws the focus outline, so the indicator surrounds what you would click.
  */
 export function CourseRow({
   course,
@@ -36,14 +36,14 @@ export function CourseRow({
   const lessons = `${course.lectureCount} ${course.lectureCount === 1 ? "lesson" : "lessons"}`;
 
   return (
-    <article className="relative flex gap-4 rounded-md px-2 py-4 -outline-offset-2 hover:bg-wash/70 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-ink has-[a:focus-visible]:outline-solid sm:gap-5 sm:py-5">
+    <article className="relative flex gap-4 rounded-md px-2 py-4 hover:bg-wash/70 sm:gap-5 sm:py-5">
       <CoverMark title={course.title} slug={course.slug} />
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:gap-6">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Heading className="text-base leading-snug font-semibold text-ink">
             <Link
               href={`/courses/${course.slug}` as Route}
-              className="outline-none after:absolute after:inset-0 after:content-['']"
+              className="outline-none after:absolute after:inset-0 after:rounded-md after:content-[''] focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ink focus-visible:after:outline-solid"
             >
               {course.title}
             </Link>
