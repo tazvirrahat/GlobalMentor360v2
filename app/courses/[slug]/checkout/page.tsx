@@ -204,7 +204,7 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
           ) : null}
 
           {!pending && stripeAvailable && bkashAvailable ? (
-            <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
+            <div className="flex items-center gap-3 text-sm text-graphite">
               <Separator className="flex-1" />
               or
               <Separator className="flex-1" />

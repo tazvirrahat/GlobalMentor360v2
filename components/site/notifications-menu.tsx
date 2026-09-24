@@ -21,7 +21,8 @@ export function NotificationsMenu({ unreadCount }: { unreadCount: number }) {
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-accent-foreground">
+          <span aria-hidden
+              className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-xs font-semibold tabular-nums text-white">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         ) : null}

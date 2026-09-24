@@ -51,9 +51,7 @@ export function BkashProofForm({
       {hiddenFields}
 
       <div className="rounded-lg border bg-muted/40 p-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          How to pay
-        </p>
+        <p className="text-sm font-semibold text-ink">How to pay</p>
         <ol className="mt-3 flex flex-col gap-3 text-sm">
           <li className="flex gap-3">
             <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 font-heading text-xs font-semibold text-primary">

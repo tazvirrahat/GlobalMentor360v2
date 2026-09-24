@@ -50,7 +50,7 @@ export function ReviewForm({ paymentId }: { paymentId: string }) {
       </form>
       <p
         id={`reject-notes-hint-${paymentId}`}
-        className="shrink-0 text-[11px] text-muted-foreground sm:whitespace-nowrap"
+        className="shrink-0 text-xs text-graphite sm:whitespace-nowrap"
       >
         Staff only — not shown on the learner receipt.
       </p>
