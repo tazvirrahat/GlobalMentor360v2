@@ -18,6 +18,28 @@ function authErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/**
+ * The name on the account, which certificates print. Better Auth's updateUser
+ * keeps its session cache in step with the row.
+ */
+export async function updateNameAction(_prev: AccountState, formData: FormData): Promise<AccountState> {
+  const user = await getCurrentUser();
+  if (!user) return { status: "error", message: "You need to sign in first." };
+
+  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ");
+  if (name.length < 1) return { status: "error", message: "Enter your name." };
+  if (name.length > 100) return { status: "error", message: "Keep your name under 100 characters." };
+
+  try {
+    await auth.api.updateUser({ body: { name }, headers: await headers() });
+  } catch (error) {
+    return { status: "error", message: authErrorMessage(error, "Could not save your name.") };
+  }
+
+  revalidatePath("/", "layout");
+  return { status: "done", message: "Name saved." };
+}
+
 export async function changePasswordAction(
   _prev: AccountState,
   formData: FormData,

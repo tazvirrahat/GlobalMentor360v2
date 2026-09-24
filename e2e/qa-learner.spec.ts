@@ -467,8 +467,10 @@ test.describe("learner QA — player, account, social", () => {
     await page.getByLabel("New password", { exact: true }).fill("another-dev-password-999");
     await page.getByLabel("Confirm new password").fill("another-dev-password-999");
     await page.getByRole("button", { name: /update password/i }).click();
-    await expect(page.getByRole("status")).toBeVisible();
-    await expect(page.getByRole("status")).not.toHaveText(/updated|saved|changed/i);
+    // Each account section has its own status line; read the password one.
+    const passwordStatus = page.locator("#password").getByRole("status");
+    await expect(passwordStatus).not.toBeEmpty();
+    await expect(passwordStatus).not.toHaveText(/updated|saved|changed/i);
 
     await page.goto("/notifications");
     await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();

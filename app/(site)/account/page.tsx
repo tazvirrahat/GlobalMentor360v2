@@ -1,305 +1,192 @@
-import type { Route } from "next";
 import { headers } from "next/headers";
-import Link from "next/link";
-import { Bell, BookOpen, Monitor, Receipt } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { EmptyState } from "@/components/site/empty-state";
+import type { ReactNode } from "react";
+import { ConfirmSubmit } from "@/components/site/confirm-submit";
 import { SignOutButton } from "@/components/site/sign-out-button";
-import type { Role } from "@/generated/prisma/enums";
+import { Badge } from "@/components/ui/badge";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatDateMedium, formatDateTime } from "@/lib/format";
-import { getUserRoles, requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { describeUserAgent } from "@/lib/user-agent";
-import { ChangeEmailForm, ChangePasswordForm, RevokeOthersForm } from "./account-forms";
+import { ChangeEmailForm, ChangeNameForm, ChangePasswordForm, RevokeOthersForm } from "./account-forms";
 import { revokeSessionAction } from "./actions";
 
-export const metadata = { title: "Account settings" };
+export const metadata = { title: "Account" };
 export const dynamic = "force-dynamic";
 
-const SESSION_PAGE_SIZE = 5;
 const SESSION_FETCH_CAP = 50;
+const SESSION_PREVIEW = 5;
 
-const ROLE_LABEL: Record<Role, string> = {
-  LEARNER: "Learner",
-  INSTRUCTOR: "Instructor",
-  ADMIN: "Admin",
-  SUPPORT: "Support",
-  MODERATOR: "Moderator",
-};
+const SECTIONS = [
+  { id: "profile", label: "Profile" },
+  { id: "email", label: "Email" },
+  { id: "password", label: "Password" },
+  { id: "devices", label: "Devices" },
+] as const;
 
-type SessionRowData = {
-  id: string;
-  token: string;
-  ipAddress: string | null;
-  userAgent: string | null;
-  updatedAt: Date;
-};
-
-function nameInitials(name: string) {
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  return parts.map((part) => part[0] ?? "").join("").toUpperCase() || "?";
-}
-
-function NoOtherDevices() {
+function Section({
+  id,
+  title,
+  lede,
+  children,
+}: {
+  id: (typeof SECTIONS)[number]["id"];
+  title: string;
+  lede?: string;
+  children: ReactNode;
+}) {
   return (
-    <EmptyState
-      headingLevel={3}
-      className="py-8"
-      icon={<Monitor className="size-6" aria-hidden />}
-      title="No other devices"
-      message="You're only signed in here. Other browsers and phones will show up if you sign in on them."
-    />
+    <section
+      id={id}
+      aria-labelledby={`${id}-heading`}
+      className="flex scroll-mt-24 flex-col gap-4 rounded-lg border border-rule bg-surface p-5 sm:p-6"
+    >
+      <div className="flex flex-col gap-1">
+        <h2 id={`${id}-heading`} className="text-xl font-semibold">
+          {title}
+        </h2>
+        {lede ? <p className="text-sm text-graphite">{lede}</p> : null}
+      </div>
+      {children}
+    </section>
   );
 }
 
-function SessionRow({
-  row,
-  current,
-}: {
-  row: SessionRowData;
-  current: boolean;
-}) {
+type DeviceRowData = { id: string; token: string; ipAddress: string | null; userAgent: string | null; updatedAt: Date };
+
+function DeviceRow({ row, current }: { row: DeviceRowData; current: boolean }) {
   const device = describeUserAgent(row.userAgent);
   return (
-    <li className="flex min-h-12 flex-wrap items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50">
-      <div className="min-w-0 text-sm">
-        <p className="truncate font-medium" title={row.userAgent ?? undefined}>
+    <li className="flex flex-wrap items-center justify-between gap-3 py-3">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <p className="flex flex-wrap items-center gap-2 font-medium text-ink">
           {current ? "This device" : device}
+          {current ? <Badge variant="outline">Current</Badge> : null}
         </p>
-        <p className="text-xs text-muted-foreground">
-          {current && device !== "Unknown device" ? (
-            <>
-              <span>{device}</span>
-              <span aria-hidden> · </span>
-            </>
-          ) : null}
-          <span
-            className="inline-block max-w-[11rem] truncate align-bottom tabular-nums sm:max-w-[18rem]"
-            title={row.ipAddress ?? undefined}
-          >
-            {row.ipAddress ?? "IP unknown"}
+        <p className="flex flex-wrap gap-x-3 text-sm text-graphite">
+          {current && device !== "Unknown device" ? <span>{device}</span> : null}
+          <span className="break-all">{row.ipAddress ?? "IP address unknown"}</span>
+          <span>
+            Last active <time dateTime={row.updatedAt.toISOString()}>{formatDateTime(row.updatedAt)}</time>
           </span>
-          <span aria-hidden> · </span>
-          last active{" "}
-          <time className="tabular-nums" dateTime={row.updatedAt.toISOString()}>
-            {formatDateTime(row.updatedAt)}
-          </time>
         </p>
       </div>
       {current ? (
-        <Badge variant="secondary">Current</Badge>
+        <SignOutButton variant="ghost" />
       ) : (
         <form action={revokeSessionAction}>
           <input type="hidden" name="token" value={row.token} />
-          <Button type="submit" variant="outline" size="sm" className="cursor-pointer">
-            Revoke
-          </Button>
+          <ConfirmSubmit label="Sign out" question="Sign out this device?" confirmLabel="Sign out device" />
         </form>
       )}
     </li>
   );
 }
 
+/**
+ * Account (spec §6): profile, email, password and signed-in devices, each
+ * saving on its own with an inline confirmation. Links to My learning and
+ * Orders live in the account menu, not here.
+ */
 export default async function AccountPage() {
   const user = await requireUser("/account");
   const session = await auth.api.getSession({ headers: await headers() });
   const currentToken = session?.session.token;
 
   const sessionWhere = { userId: user.id, expiresAt: { gt: new Date() } };
-  const [sessions, sessionTotal, roles, profile] = await Promise.all([
+  const [sessions, sessionTotal, profile] = await Promise.all([
     db.session.findMany({
       where: sessionWhere,
       orderBy: { updatedAt: "desc" },
       take: SESSION_FETCH_CAP,
-      select: {
-        id: true,
-        token: true,
-        ipAddress: true,
-        userAgent: true,
-        createdAt: true,
-        updatedAt: true,
-        expiresAt: true,
-      },
+      select: { id: true, token: true, ipAddress: true, userAgent: true, updatedAt: true },
     }),
     db.session.count({ where: sessionWhere }),
-    getUserRoles(user.id),
-    db.user.findUnique({
-      where: { id: user.id },
-      select: { createdAt: true },
-    }),
+    db.user.findUnique({ where: { id: user.id }, select: { createdAt: true } }),
   ]);
 
   const currentRow = sessions.find((row) => row.token === currentToken);
-  const ordered = currentRow
-    ? [currentRow, ...sessions.filter((row) => row.id !== currentRow.id)]
-    : sessions;
-  const preview = ordered.slice(0, SESSION_PAGE_SIZE);
-  const rest = ordered.slice(SESSION_PAGE_SIZE);
-  const memberSince = profile?.createdAt;
+  const ordered = currentRow ? [currentRow, ...sessions.filter((row) => row.id !== currentRow.id)] : sessions;
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-1">
-        <div className="flex items-start justify-between gap-4">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Account</h1>
-          <SignOutButton variant="ghost" />
-        </div>
-        <p className="text-muted-foreground">
-          Manage your profile, password, and signed-in devices.
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-semibold sm:text-4xl">Account</h1>
+        <p className="text-lg text-graphite">
+          {user.email}
+          {profile ? (
+            <>
+              {", member since "}
+              <time dateTime={profile.createdAt.toISOString()}>{formatDateMedium(profile.createdAt)}</time>
+            </>
+          ) : null}
         </p>
-      </header>
+      </div>
 
-      <section
-        aria-label="Your identity"
-        className="flex flex-col gap-4 rounded-lg border bg-card p-5 shadow-sm sm:p-6"
-      >
-        <div className="flex items-start gap-4">
-          <span
-            className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 font-heading text-sm font-semibold text-primary"
-            aria-hidden
-          >
-            {nameInitials(user.name)}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="font-heading text-lg font-semibold tracking-tight">{user.name}</p>
-            <p className="truncate text-sm text-muted-foreground">{user.email}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {roles.map((role) => (
-                <Badge key={role} variant="secondary">
-                  {ROLE_LABEL[role]}
-                </Badge>
-              ))}
-              {memberSince ? (
-                <span className="text-sm tabular-nums text-muted-foreground">
-                  Member since{" "}
-                  <time dateTime={memberSince.toISOString()}>{formatDateMedium(memberSince)}</time>
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button asChild variant="outline">
-            <Link href={"/dashboard" as Route} className="cursor-pointer">
-              <BookOpen className="size-4" aria-hidden />
-              My learning
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href={"/orders" as Route} className="cursor-pointer">
-              <Receipt className="size-4" aria-hidden />
-              Orders
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href={"/notifications" as Route} className="cursor-pointer">
-              <Bell className="size-4" aria-hidden />
-              Notifications
-            </Link>
-          </Button>
-        </div>
-      </section>
+      <div className="grid gap-8 md:grid-cols-[11rem_minmax(0,1fr)]">
+        <nav aria-label="Account sections" className="md:sticky md:top-24 md:self-start">
+          <ul className="flex flex-wrap gap-1 md:flex-col">
+            {SECTIONS.map((section) => (
+              <li key={section.id}>
+                <a
+                  href={`#${section.id}`}
+                  className="inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium text-graphite hover:bg-wash hover:text-ink focus-ring"
+                >
+                  {section.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-      <section aria-labelledby="account-profile">
-        <Card>
-          <CardHeader>
-            <h2 id="account-profile" className="font-heading text-xl font-semibold tracking-tight">
-              Profile
-            </h2>
-            <p className="text-sm text-muted-foreground">Your name and how we reach you.</p>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-6">
-            <div className="flex max-w-md flex-col gap-1.5">
-              <p className="text-sm font-medium">Name</p>
-              <p>{user.name}</p>
-              <p className="text-sm text-muted-foreground">Managed at sign-up.</p>
-            </div>
-            <div className="max-w-md border-t pt-6">
-              <h3 className="mb-4 font-heading text-base font-semibold tracking-tight">Email</h3>
-              <ChangeEmailForm currentEmail={user.email} />
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+        <div className="flex min-w-0 flex-col gap-6">
+          <Section id="profile" title="Profile">
+            <ChangeNameForm currentName={user.name} />
+          </Section>
 
-      <section aria-labelledby="account-password">
-        <Card>
-          <CardHeader>
-            <h2 id="account-password" className="font-heading text-xl font-semibold tracking-tight">
-              Password
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              At least 12 characters. Updating it signs you out of other devices.
-            </p>
-          </CardHeader>
-          <CardContent className="max-w-md">
+          <Section id="email" title="Email" lede="We send a link to confirm the change before it takes effect.">
+            <ChangeEmailForm currentEmail={user.email} />
+          </Section>
+
+          <Section id="password" title="Password" lede="Changing it signs you out on your other devices.">
             <ChangePasswordForm />
-          </CardContent>
-        </Card>
-      </section>
+          </Section>
 
-      <section aria-labelledby="account-sessions">
-        <Card>
-          <CardHeader>
-            <h2 id="account-sessions" className="font-heading text-xl font-semibold tracking-tight">
-              Sessions
-            </h2>
-            <p className="text-sm tabular-nums text-muted-foreground">
-              {sessionTotal === 1 ? "1 signed-in device." : `${sessionTotal} signed-in devices.`}
-              {sessionTotal > 1
-                ? " Revoke a device you no longer use, or sign out of all of them below."
-                : " Other browsers and phones will show up here if you sign in on them."}
-            </p>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {ordered.length === 0 ? (
-              <NoOtherDevices />
-            ) : (
-              <>
-                <div className="overflow-hidden rounded-lg border">
-                  <ul>
-                    {preview.map((row) => (
-                      <SessionRow key={row.id} row={row} current={row.token === currentToken} />
-                    ))}
-                  </ul>
-                  {rest.length > 0 ? (
-                    <details className="border-t">
-                      <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium text-primary underline-offset-4 hover:underline focus-ring">
-                        Show all {ordered.length} sessions
-                      </summary>
-                      <ul className="border-t">
-                        {rest.map((row) => (
-                          <SessionRow key={row.id} row={row} current={row.token === currentToken} />
-                        ))}
-                      </ul>
-                    </details>
-                  ) : null}
-                </div>
-                {sessionTotal <= 1 ? <NoOtherDevices /> : null}
-              </>
-            )}
+          <Section
+            id="devices"
+            title="Devices"
+            lede={
+              sessionTotal === 1
+                ? "You are signed in on this device only."
+                : `You are signed in on ${sessionTotal} devices.`
+            }
+          >
+            <ul className="flex flex-col divide-y divide-rule border-y border-rule">
+              {ordered.slice(0, SESSION_PREVIEW).map((row) => (
+                <DeviceRow key={row.id} row={row} current={row.token === currentToken} />
+              ))}
+            </ul>
+            {ordered.length > SESSION_PREVIEW ? (
+              <details className="group">
+                <summary className="inline-flex min-h-10 cursor-pointer list-none items-center rounded-sm text-sm font-medium text-ink underline decoration-control underline-offset-4 hover:decoration-ink focus-ring [&::-webkit-details-marker]:hidden">
+                  Show all {ordered.length} devices
+                </summary>
+                <ul className="mt-2 flex flex-col divide-y divide-rule border-y border-rule">
+                  {ordered.slice(SESSION_PREVIEW).map((row) => (
+                    <DeviceRow key={row.id} row={row} current={false} />
+                  ))}
+                </ul>
+              </details>
+            ) : null}
             {sessionTotal > sessions.length ? (
-              <p className="text-sm tabular-nums text-muted-foreground">
-                Showing the {sessions.length} most recently active of {sessionTotal} sessions.
+              <p className="text-sm text-graphite">
+                Showing the {sessions.length} most recently active of {sessionTotal} devices.
               </p>
             ) : null}
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-              <h3 className="font-heading text-sm font-semibold tracking-tight text-destructive">
-                Sign out other devices
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Keeps this browser signed in. Everything else will need to sign in again.
-              </p>
-              <div className="mt-3">
-                <RevokeOthersForm />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+            {sessionTotal > 1 ? <RevokeOthersForm /> : null}
+          </Section>
+        </div>
+      </div>
     </main>
   );
 }
