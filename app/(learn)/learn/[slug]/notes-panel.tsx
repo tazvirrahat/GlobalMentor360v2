@@ -1,7 +1,7 @@
 import { Bookmark, BookmarkCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LectureNote } from "@/lib/notes";
-import { ConfirmSubmit } from "./confirm-button";
+import { ConfirmSubmit } from "@/components/site/confirm-submit";
 import { NoteForm, NoteTime } from "./note-form";
 import { deleteNoteAction, toggleBookmarkAction } from "./note-actions";
 

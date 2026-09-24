@@ -10,13 +10,21 @@ import { cn } from "@/lib/utils";
  * they typed instead of retyping it). Paste is never blocked, and autocomplete
  * comes from the caller ("current-password" or "new-password").
  */
-export function PasswordInput({ className, id, ...props }: Omit<ComponentProps<typeof Input>, "type">) {
+export function PasswordInput({
+  className,
+  wrapperClassName,
+  id,
+  ...props
+}: Omit<ComponentProps<typeof Input>, "type"> & {
+  /** Width and layout go here, so the toggle stays inside the field. */
+  wrapperClassName?: string;
+}) {
   const [visible, setVisible] = useState(false);
   const generated = useId();
   const inputId = id ?? generated;
 
   return (
-    <div className="relative">
+    <div className={cn("relative", wrapperClassName)}>
       <Input id={inputId} type={visible ? "text" : "password"} className={cn("pr-12", className)} {...props} />
       <button
         type="button"
