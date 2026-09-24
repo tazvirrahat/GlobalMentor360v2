@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
-import { SiteChrome } from "@/components/site/site-chrome";
 
-/** Public pages and the learner's own pages: top bar and slim footer. */
-export default function SiteLayout({ children }: { children: ReactNode }) {
-  return <SiteChrome>{children}</SiteChrome>;
+/**
+ * Focus mode: no site header or footer. The player page draws its own top bar
+ * and curriculum rail (components/learn/learn-shell.tsx), because a layout
+ * cannot see which lesson is open.
+ */
+export default function LearnLayout({ children }: { children: ReactNode }) {
+  return <div className="flex min-h-dvh min-w-0 flex-1 flex-col bg-paper">{children}</div>;
 }

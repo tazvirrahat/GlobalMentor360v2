@@ -41,14 +41,14 @@ test.describe("learner critical path", () => {
 
     // Index redirects into /learn/[slug]/[itemId] — wait for that, not the index.
     await page.waitForURL(/\/learn\/typescript-foundations\/[^/]+/, { timeout: 30_000 });
-    await expect(page.getByText(/your progress/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("progressbar", { name: /course progress/i })).toBeVisible({ timeout: 15_000 });
   });
 
   test("preview lecture is playable from the landing page while signed out", async ({ page }) => {
     await page.goto("/courses/sql-for-analysts");
     await page.getByRole("link", { name: /preview: why sql still matters/i }).click();
     await expect(page).toHaveURL(/\/learn\/sql-for-analysts\//);
-    await expect(page.getByText(/preview/i)).toBeVisible();
+    await expect(page.getByText(/^preview$/i)).toBeVisible();
   });
 
   test("learner can add a course to the cart and open account settings", async ({ page }) => {
