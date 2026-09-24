@@ -181,7 +181,7 @@ test.describe("learner QA — session and library", () => {
     const diag = attachDiagnostics(page);
     await signIn(page, SEED.learner, "/dashboard");
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "My learning" })).toBeVisible();
     const typescriptOnDashboard = page.getByRole("link", { name: /typescript foundations/i });
     if ((await typescriptOnDashboard.count()) === 0) {
       await page.getByRole("tab", { name: /completed/i }).click();
@@ -478,7 +478,7 @@ test.describe("learner QA — player, account, social", () => {
 
     await page.context().clearCookies();
     await signIn(page, SEED.learner, "/dashboard");
-    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "My learning" })).toBeVisible();
 
     await diag.assertClean();
   });

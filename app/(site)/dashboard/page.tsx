@@ -1,16 +1,17 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { Archive, Award, BookOpen, PlayCircle, Receipt } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Hourglass } from "lucide-react";
+import { CertificateChip } from "@/components/course/certificate";
+import { ContinueCard } from "@/components/course/continue-card";
+import { CoverMark } from "@/components/course/cover-mark";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SignOutButton } from "@/components/site/sign-out-button";
-import { EmptyState } from "@/components/site/empty-state";
-import { courseLevelLabel } from "@/lib/labels";
+import { getContinueLearning } from "@/lib/continue-learning";
+import { defaultLearningTab, listPendingPayments } from "@/lib/dashboard";
 import { getMyLearning, type MyLearningEntry } from "@/lib/my-learning";
-import { getUserRoles, requireUser } from "@/lib/session";
-import { CertificateChip } from "@/components/course/certificate";
+import { requireUser } from "@/lib/session";
 
 export const metadata = {
   title: "My learning",
@@ -19,190 +20,153 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-/** Visible cap before a disclosure — Coursera-style density, not a wall of cards. */
-const DASHBOARD_PREVIEW = 8;
-
-function EnrolledCourseRow({ entry }: { entry: MyLearningEntry }) {
+function CourseEntry({ entry }: { entry: MyLearningEntry }) {
   const done = entry.percent >= 100;
-  // typedRoutes cannot validate runtime-built strings; both routes exist
-  // (player and public certificates are separate segments), so the casts are contained.
-  const learnHref = `/learn/${entry.slug}` as Route;
-  const meta = [
-    entry.instructorName,
-    entry.categoryName,
-    courseLevelLabel(entry.level),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
+  const percent = Math.floor(entry.percent);
   return (
-    <li className="px-3 py-2.5 transition-colors duration-150 hover:bg-muted/50 sm:px-4">
-      <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <Link
-              href={learnHref}
-              className="min-w-0 truncate font-medium hover:text-primary"
-              title={entry.title}
-            >
-              {entry.title}
-            </Link>
-            {done ? (
-              <Badge variant="success" className="shrink-0">
-                <Award aria-hidden />
-                Completed
-              </Badge>
-            ) : null}
-          </div>
-          <p className="truncate text-xs text-muted-foreground" title={meta}>
-            {meta}
-          </p>
-          <div className="mt-1.5 flex items-center gap-2">
-            <Progress
-              value={entry.percent}
-              className="h-1.5"
-              aria-label={`Course progress ${entry.percent}%`}
-            />
-            <span className="w-10 shrink-0 text-right text-xs font-medium tabular-nums text-muted-foreground">
-              {entry.percent}%
-            </span>
+    <li className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:gap-5">
+      <div className="flex min-w-0 flex-1 gap-4">
+        <CoverMark title={entry.title} slug={entry.slug} size={48} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <Link
+            href={`/learn/${entry.slug}` as Route}
+            className="w-fit rounded-sm text-base leading-snug font-semibold text-ink hover:underline focus-ring"
+          >
+            {entry.title}
+          </Link>
+          <p className="text-sm text-graphite">{entry.instructorName}</p>
+          <div className="flex items-center gap-3">
+            <Progress value={entry.percent} aria-label={`Course progress ${entry.percent}%`} className="h-1.5 max-w-60" />
+            <span className="shrink-0 text-sm text-graphite">{done ? "Completed" : `${percent}% complete`}</span>
           </div>
         </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          {done && entry.certificateSerial ? (
-            <CertificateChip serial={entry.certificateSerial} />
-          ) : null}
-          <Button asChild size="sm">
-            <Link href={learnHref} className="cursor-pointer">
-              <PlayCircle aria-hidden />
-              {done ? "Review" : "Continue"}
-            </Link>
-          </Button>
-        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        {done && entry.certificateSerial ? <CertificateChip serial={entry.certificateSerial} /> : null}
+        <Button asChild variant={done ? "secondary" : "default"}>
+          <Link href={`/learn/${entry.slug}` as Route} aria-label={`${done ? "Review" : "Continue"} ${entry.title}`}>
+            {done ? "Review" : "Continue"}
+          </Link>
+        </Button>
       </div>
     </li>
   );
 }
 
 function CourseList({ entries }: { entries: MyLearningEntry[] }) {
-  const preview = entries.slice(0, DASHBOARD_PREVIEW);
-  const rest = entries.slice(DASHBOARD_PREVIEW);
-
   return (
-    <div className="overflow-hidden rounded-lg border bg-card shadow-xs">
-      <ul className="divide-y">{preview.map((entry) => (
-        <EnrolledCourseRow key={entry.courseId} entry={entry} />
-      ))}</ul>
-      {rest.length > 0 ? (
-        <details className="border-t">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-primary underline-offset-4 hover:underline focus-ring">
-            Show all {entries.length} courses
-          </summary>
-          <ul className="divide-y border-t">
-            {rest.map((entry) => (
-              <EnrolledCourseRow key={entry.courseId} entry={entry} />
-            ))}
-          </ul>
-        </details>
-      ) : null}
+    <ul className="flex flex-col divide-y divide-rule border-y border-rule">
+      {entries.map((entry) => (
+        <CourseEntry key={entry.courseId} entry={entry} />
+      ))}
+    </ul>
+  );
+}
+
+function Empty({ title, message }: { title: string; message: string }) {
+  return (
+    <div className="flex flex-col items-start gap-3 rounded-lg border border-rule bg-surface p-6">
+      <h3 className="text-lg font-semibold">{title}</h3>
+      <p className="text-graphite">{message}</p>
+      <Button asChild>
+        <Link href="/courses">Browse courses</Link>
+      </Button>
     </div>
   );
 }
 
-function LearningEmptyState({ title, message }: { title: string; message: string }) {
-  return (
-    <EmptyState icon={<BookOpen className="size-6" aria-hidden />} title={title} message={message}>
-      <Button asChild>
-        <Link href="/courses" className="cursor-pointer">
-          Browse courses
-        </Link>
-      </Button>
-    </EmptyState>
-  );
-}
-
+/**
+ * My learning (spec §6): where you left off, anything waiting on payment, then
+ * your courses in tabs that open on the first non-empty one. Account, orders
+ * and sign-out live in the account menu, not here.
+ */
 export default async function DashboardPage() {
   const user = await requireUser("/dashboard");
-  const roles = await getUserRoles(user.id);
-  const { inProgress, completed, archived } = await getMyLearning(user.id);
+  const [{ inProgress, completed, archived }, continueLearning, pending] = await Promise.all([
+    getMyLearning(user.id),
+    getContinueLearning(user.id),
+    listPendingPayments(user.id),
+  ]);
+  const firstName = user.name.trim().split(/\s+/)[0] || user.name;
+  const tab = defaultLearningTab({
+    inProgress: inProgress.length,
+    completed: completed.length,
+    archived: archived.length,
+  });
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-            Welcome back, <span className="text-primary">{user.name}</span>
-          </h1>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-sm text-muted-foreground">{user.email}</span>
-            {roles.map((role) => (
-              <Badge key={role} variant="secondary" className="capitalize">
-                {role.toLowerCase()}
-              </Badge>
-            ))}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* The only route into the purchase record. A page nothing links to is
-              reachable only by typing its URL — the gap that left the quiz
-              builder orphaned past a green build. */}
-          <Button asChild variant="outline">
-            <Link href={"/account" as Route} className="cursor-pointer">
-              Account
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/orders" className="cursor-pointer">
-              <Receipt className="size-4" aria-hidden /> Purchases
-            </Link>
-          </Button>
-          <SignOutButton />
-        </div>
-      </header>
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-semibold sm:text-4xl">My learning</h1>
+        <p className="text-lg text-graphite">Welcome back, {firstName}.</p>
+      </div>
 
-      <section className="mt-10">
-        <h2 className="sr-only">My learning</h2>
-        <Tabs defaultValue="in-progress">
-          <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start">
-            <TabsTrigger value="in-progress">In progress ({inProgress.length})</TabsTrigger>
-            <TabsTrigger value="completed">Completed ({completed.length})</TabsTrigger>
+      {pending.map((payment) => (
+        <Alert key={payment.orderId} variant="caution">
+          <Hourglass className="size-4" />
+          <AlertTitle>Payment being checked</AlertTitle>
+          <AlertDescription>
+            <p>
+              Your bKash payment for {new Intl.ListFormat("en").format(payment.courseTitles)} is waiting for
+              verification. The course opens as soon as it is confirmed.
+            </p>
+            <Link
+              href={`/orders/${payment.orderId}` as Route}
+              className="inline-flex min-h-6 items-center rounded-sm font-medium text-ink underline underline-offset-4 focus-ring"
+            >
+              View order
+            </Link>
+          </AlertDescription>
+        </Alert>
+      ))}
+
+      {continueLearning ? <ContinueCard data={continueLearning} heading="Pick up where you left off" /> : null}
+
+      <section aria-labelledby="courses-heading" className="flex flex-col gap-4">
+        <h2 id="courses-heading" className="text-2xl font-semibold">
+          Your courses
+        </h2>
+        <Tabs defaultValue={tab}>
+          <TabsList variant="line" className="h-auto w-full justify-start gap-2 border-b border-rule">
+            <TabsTrigger value="in-progress" className="min-h-11 flex-none px-3">
+              In progress ({inProgress.length})
+            </TabsTrigger>
+            <TabsTrigger value="completed" className="min-h-11 flex-none px-3">
+              Completed ({completed.length})
+            </TabsTrigger>
             {archived.length > 0 ? (
-              <TabsTrigger value="archived">
-                <Archive aria-hidden />
+              <TabsTrigger value="archived" className="min-h-11 flex-none px-3">
                 Archived ({archived.length})
               </TabsTrigger>
             ) : null}
           </TabsList>
 
-          <TabsContent value="in-progress" className="mt-4">
+          <TabsContent value="in-progress" className="mt-2">
             {inProgress.length === 0 ? (
-              <LearningEmptyState
+              <Empty
                 title={completed.length === 0 ? "No courses yet" : "Nothing in progress"}
                 message={
                   completed.length === 0
-                    ? "You haven't enrolled in any courses yet. Pick one and start learning today."
-                    : "Nothing in progress — everything you enrolled in is done. Time for a new challenge?"
+                    ? "Courses you enrol in appear here, with your progress."
+                    : "You have finished everything you started. Find your next course."
                 }
               />
             ) : (
               <CourseList entries={inProgress} />
             )}
           </TabsContent>
-
-          <TabsContent value="completed" className="mt-4">
+          <TabsContent value="completed" className="mt-2">
             {completed.length === 0 ? (
-              <LearningEmptyState
-                title="No completed courses yet"
-                message="No completed courses yet — finish a course to earn your certificate."
+              <Empty
+                title="No finished courses yet"
+                message="Finish every lesson and quiz in a course to get its certificate."
               />
             ) : (
               <CourseList entries={completed} />
             )}
           </TabsContent>
-
           {archived.length > 0 ? (
-            <TabsContent value="archived" className="mt-4">
+            <TabsContent value="archived" className="mt-2">
               <CourseList entries={archived} />
             </TabsContent>
           ) : null}
