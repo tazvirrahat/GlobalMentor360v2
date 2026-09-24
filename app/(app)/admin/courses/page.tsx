@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/site/empty-state";
 import { FlashAlert } from "@/components/site/flash-alert";
 import { PageNav } from "@/components/site/page-nav";
-import { CourseStatusBadge } from "@/components/site/status-badges";
+import { StatusBadge } from "@/components/course/status-badge";
 import { ADMIN_PAGE_SIZE, listAdminCourses } from "@/lib/admin";
 import { showingRange } from "@/lib/pagination";
 import { courseSellabilityWarning } from "@/lib/payments";
@@ -109,7 +109,7 @@ export default async function AdminCoursesPage({
                         </p>
                       ) : null}
                     </div>
-                    <CourseStatusBadge status={course.status} />
+                    <StatusBadge kind="course" status={course.status} />
                     {published ? (
                       <Link
                         href={`/courses/${course.slug}`}

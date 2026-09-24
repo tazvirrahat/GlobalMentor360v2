@@ -8,7 +8,7 @@ import { showingRange } from "@/lib/pagination";
 import { requireUser } from "@/lib/session";
 import { EmptyState } from "@/components/site/empty-state";
 import { PageNav } from "@/components/site/page-nav";
-import { OrderStatusBadge } from "@/components/site/status-badges";
+import { StatusBadge } from "@/components/course/status-badge";
 import { Price } from "@/components/course/price";
 
 export const metadata: Metadata = { title: "Purchases" };
@@ -70,7 +70,7 @@ export default async function OrdersPage({
                 <p className="text-right text-sm font-semibold tabular-nums sm:w-28">
                   <Price amount={order.total} currency={order.currency} />
                 </p>
-                <OrderStatusBadge status={order.status} />
+                <StatusBadge kind="order" status={order.status} />
                 <Button asChild variant="outline" size="sm" className="w-fit shrink-0">
                   <Link href={`/orders/${order.id}` as Route} className="cursor-pointer">
                     <Receipt className="size-4" aria-hidden /> View receipt

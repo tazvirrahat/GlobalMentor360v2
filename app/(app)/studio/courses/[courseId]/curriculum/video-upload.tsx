@@ -2,8 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CircleCheck, Clapperboard, Loader2, RefreshCw, TriangleAlert, Upload } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Clapperboard, Loader2, RefreshCw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -12,6 +11,7 @@ import {
   startVideoUpload,
   type VideoActionState,
 } from "../../../video-actions";
+import { StatusBadge } from "@/components/course/status-badge";
 
 const initial: VideoActionState = { status: "idle" };
 
@@ -68,30 +68,6 @@ function formatDuration(totalSeconds: number): string {
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
-function StatusBadge({ status }: { status: LectureVideoInfo["asset"] extends infer A ? (A extends { status: infer S } | null ? S : never) : never }) {
-  switch (status) {
-    case "READY":
-      return (
-        <Badge variant="success">
-          <CircleCheck aria-hidden /> Ready
-        </Badge>
-      );
-    case "FAILED":
-      return (
-        <Badge variant="destructive">
-          <TriangleAlert aria-hidden /> Failed
-        </Badge>
-      );
-    case "PROCESSING":
-      return (
-        <Badge variant="warning">
-          <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden /> Processing
-        </Badge>
-      );
-    case "UPLOADING":
-      return <Badge variant="outline">Uploading</Badge>;
-  }
-}
 
 function CheckStatusForm({ itemId }: { itemId: string }) {
   const [state, action, pending] = useActionState(refreshVideoStatus, initial);
@@ -179,7 +155,7 @@ export function LectureVideoPanel({
           : null}
       </span>
 
-      {asset ? <StatusBadge status={asset.status} /> : null}
+      {asset ? <StatusBadge kind="video" status={asset.status} /> : null}
 
       {phase.name === "uploading" ? (
         <span className="flex min-w-40 flex-1 items-center gap-2">
