@@ -8,15 +8,20 @@ import { Button } from "@/components/ui/button";
  * badge is now a count-only read and the list lives on /notifications.
  */
 export function NotificationsMenu({ unreadCount }: { unreadCount: number }) {
+  const label =
+    unreadCount > 0
+      ? `Notifications, ${unreadCount} unread`
+      : "Notifications";
+
   return (
-    <Button asChild variant="ghost" size="icon" className="size-11" aria-label="Notifications">
+    <Button asChild variant="ghost" size="icon-lg" aria-label={label}>
       <Link
         href={"/notifications" as Route}
-        className="relative flex size-11 items-center justify-center"
+        className="relative flex size-11 cursor-pointer items-center justify-center"
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-accent-foreground">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         ) : null}

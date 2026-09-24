@@ -8,7 +8,7 @@ export default async function StudioLayout({ children }: { children: ReactNode }
   await requireRole("INSTRUCTOR", "ADMIN");
 
   return (
-    <div>
+    <div className="min-h-[50vh] bg-background">
       <StudioNav />
       {children}
     </div>

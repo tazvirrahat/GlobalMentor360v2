@@ -1,11 +1,14 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
-import { CircleCheck, MessageCircleQuestion } from "lucide-react";
+import { CircleCheck, Inbox, MessageCircleQuestion } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { getInboxCourseFilters, getInstructorInbox } from "@/lib/qa";
+import { EmptyState } from "@/components/site/empty-state";
+import { getInboxCourseFilters, getInstructorInbox, INBOX_PAGE_SIZE } from "@/lib/qa";
 import { formatDate } from "@/lib/format";
+import { showingRange } from "@/lib/pagination";
 import { requireRole } from "@/lib/session";
+import { cn } from "@/lib/utils";
 import { InboxReplyForm } from "./inbox-reply-form";
 import { PageNav } from "@/components/site/page-nav";
 
@@ -76,22 +79,45 @@ export default async function StudioQaPage({ searchParams }: Params) {
   ]);
 
   const { courses, total: courseTotal, unansweredTotal } = courseFilters;
+  const filtered = Boolean(courseId || unansweredOnly || query.since);
+  const range = showingRange(inbox.page, INBOX_PAGE_SIZE, inbox.total);
+
+  const pager = (
+    <>
+      {inbox.threads.length > 0 ? (
+        <p className="text-sm tabular-nums text-muted-foreground">
+          Showing {range.from}–{range.to} of {inbox.total}
+        </p>
+      ) : null}
+      <PageNav
+        pathname="/studio/qa"
+        params={{ courseId, unanswered: query.unanswered, since: query.since }}
+        page={inbox.page}
+        pageCount={inbox.pageCount}
+      />
+    </>
+  );
 
   return (
-    <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-12 sm:px-6">
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Questions</h1>
+    <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <header>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">Questions</h1>
         <p className="mt-1 text-muted-foreground">
           {unansweredTotal === 0
             ? "Everything has an answer from you."
             : `${unansweredTotal} ${unansweredTotal === 1 ? "question is" : "questions are"} waiting on you.`}
         </p>
-      </div>
+      </header>
 
-      <div className="flex flex-col gap-3 rounded-2xl border p-4">
+      <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold">Show</span>
-          <Button asChild size="sm" variant={unansweredOnly ? "default" : "outline"}>
+          <span className="text-sm font-medium text-muted-foreground">Show</span>
+          <Button
+            asChild
+            size="sm"
+            variant={unansweredOnly ? "default" : "outline"}
+            className="rounded-full"
+          >
             <Link href={buildHref(filters, { unanswered: unansweredOnly ? "" : "1" })}>
               Needs my answer
             </Link>
@@ -100,14 +126,14 @@ export default async function StudioQaPage({ searchParams }: Params) {
 
         <form action="/studio/qa" method="get" className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="courseId" className="text-sm font-semibold">
+            <label htmlFor="courseId" className="cursor-pointer text-sm font-medium text-muted-foreground">
               Course
             </label>
             <select
               id="courseId"
               name="courseId"
               defaultValue={courseId ?? ""}
-              className="h-9 max-w-md min-w-[14rem] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className="h-10 max-w-md min-w-[14rem] cursor-pointer rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               <option value="">All courses</option>
               {courses.map((course) => (
@@ -132,13 +158,14 @@ export default async function StudioQaPage({ searchParams }: Params) {
         </form>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold">Asked</span>
+          <span className="text-sm font-medium text-muted-foreground">Asked</span>
           {SINCE_OPTIONS.map((option) => (
             <Button
               key={option.value}
               asChild
               size="sm"
               variant={(query.since ?? "") === option.value ? "default" : "outline"}
+              className="rounded-full"
             >
               <Link href={buildHref(filters, { since: option.value })}>{option.label}</Link>
             </Button>
@@ -147,58 +174,82 @@ export default async function StudioQaPage({ searchParams }: Params) {
       </div>
 
       {inbox.threads.length === 0 ? (
-        <p className="text-muted-foreground">Nothing matches that filter.</p>
+        filtered ? (
+          <EmptyState
+            icon={<Inbox className="size-6" />}
+            title="No questions match"
+            message="No questions match those filters."
+          >
+            <Button asChild>
+              <Link href="/studio/qa" className="cursor-pointer">
+                Clear filters
+              </Link>
+            </Button>
+          </EmptyState>
+        ) : (
+          <EmptyState
+            icon={<Inbox className="size-6" />}
+            title="Inbox is empty"
+            message="When learners ask questions on your courses, they show up here."
+          />
+        )
       ) : (
-        <ol className="flex flex-col gap-4">
-          {inbox.threads.map((thread) => (
-            <li key={thread.id}>
-              <Card className="rounded-2xl">
-                <CardContent className="flex flex-col gap-2 p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <h2 className="flex items-center gap-2 font-bold">
-                      {thread.answered ? (
-                        <CircleCheck className="size-4 shrink-0 text-brand" aria-label="Answered" />
-                      ) : (
-                        <MessageCircleQuestion
-                          className="size-4 shrink-0 text-destructive"
-                          aria-label="Needs an answer"
-                        />
-                      )}
-                      {thread.title}
-                    </h2>
+        <div className="flex flex-col gap-2">
+          {pager}
+          <ol className="overflow-hidden rounded-lg border bg-card shadow-sm">
+            {inbox.threads.map((thread) => (
+              <li
+                key={thread.id}
+                className={cn(
+                  "border-b last:border-b-0",
+                  thread.answered ? "" : "border-l-4 border-l-warning",
+                )}
+              >
+                <details className="group">
+                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-3 py-2 hover:bg-muted/50 [&::-webkit-details-marker]:hidden">
+                    {thread.answered ? (
+                      <CircleCheck className="size-4 shrink-0 text-success" aria-label="Answered" />
+                    ) : (
+                      <MessageCircleQuestion
+                        className="size-4 shrink-0 text-warning"
+                        aria-label="Needs an answer"
+                      />
+                    )}
+                    <span className="min-w-0 flex-1 truncate font-medium">{thread.title}</span>
+                    {thread.answered ? (
+                      <Badge variant="success">Answered</Badge>
+                    ) : (
+                      <Badge variant="warning">Needs answer</Badge>
+                    )}
                     <span className="text-xs text-muted-foreground">
                       {thread.courseTitle}
                       {thread.lectureTitle ? ` · ${thread.lectureTitle}` : " · course-wide"}
                     </span>
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {formatDate(thread.createdAt)} · {thread.replyCount}{" "}
+                      {thread.replyCount === 1 ? "reply" : "replies"}
+                    </span>
+                  </summary>
+                  <div className="flex flex-col gap-2 border-t px-3 py-3">
+                    <p className="whitespace-pre-line text-sm text-muted-foreground">{thread.body}</p>
+                    <p className="text-xs tabular-nums text-muted-foreground">
+                      {thread.askedBy} ·{" "}
+                      <Link
+                        href={`/learn/${thread.courseSlug}` as Route}
+                        className="cursor-pointer underline hover:text-foreground"
+                      >
+                        open in course
+                      </Link>
+                    </p>
+                    <InboxReplyForm threadId={thread.id} title={thread.title} />
                   </div>
-
-                  <p className="whitespace-pre-line text-sm text-muted-foreground">{thread.body}</p>
-
-                  <p className="text-xs text-muted-foreground">
-                    {thread.askedBy} · {formatDate(thread.createdAt)} ·{" "}
-                    {thread.replyCount} {thread.replyCount === 1 ? "reply" : "replies"} ·{" "}
-                    <Link
-                      href={`/learn/${thread.courseSlug}` as Route}
-                      className="underline hover:text-foreground"
-                    >
-                      open in course
-                    </Link>
-                  </p>
-
-                  <InboxReplyForm threadId={thread.id} title={thread.title} />
-                </CardContent>
-              </Card>
-            </li>
-          ))}
-        </ol>
+                </details>
+              </li>
+            ))}
+          </ol>
+          {pager}
+        </div>
       )}
-
-      <PageNav
-        pathname="/studio/qa"
-        params={{ courseId, unanswered: query.unanswered, since: query.since }}
-        page={inbox.page}
-        pageCount={inbox.pageCount}
-      />
     </main>
   );
 }

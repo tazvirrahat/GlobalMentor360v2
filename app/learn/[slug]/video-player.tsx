@@ -172,10 +172,11 @@ export function VideoPlayer({
   }
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-2xl bg-brand-ink">
+    <div className="relative min-w-0 overflow-hidden rounded-lg bg-brand-ink">
       {loading ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center text-white/80">
-          <Loader2 className="size-6 animate-spin" aria-hidden />
+          <Loader2 className="size-6 animate-spin motion-reduce:animate-none" aria-hidden />
+          <span className="sr-only">Loading video</span>
         </div>
       ) : null}
       {error ? (
@@ -205,16 +206,16 @@ export function VideoPlayer({
               />
             ))}
           </video>
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-xs text-white/80">
-            <label className="flex items-center gap-2">
+          <div className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-t border-white/10 px-4 py-2 text-sm text-white/85">
+            <label className="flex cursor-pointer items-center gap-2">
               Speed
               <select
-                className="rounded-md bg-white/10 px-2 py-1 text-white"
+                className="h-9 cursor-pointer rounded-md border border-white/20 bg-white/10 px-2 text-white focus-visible:ring-[3px] focus-visible:ring-white/40 focus-visible:outline-none"
                 value={speed}
                 onChange={(event) => setSpeed(Number(event.target.value))}
               >
                 {SPEEDS.map((value) => (
-                  <option key={value} value={value}>
+                  <option key={value} value={value} className="text-foreground">
                     {value}×
                   </option>
                 ))}

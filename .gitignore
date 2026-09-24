@@ -57,3 +57,8 @@ finish-move.ps1
 
 # claude worktrees
 .claude/
+
+.cursor
+
+# Design review screenshots (large binaries, regenerate with scripts/design-shots*.mjs)
+design-review/

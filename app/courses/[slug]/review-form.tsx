@@ -49,18 +49,18 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
   const notice = existing ? MODERATION_NOTICE[existing.status] : undefined;
 
   return (
-    <form action={action} className="flex flex-col gap-4 rounded-xl border p-5">
+    <form action={action} className="flex flex-col gap-4 rounded-lg border bg-card p-5 shadow-sm">
       <input type="hidden" name="courseId" value={courseId} />
 
       <div className="flex flex-col gap-1.5">
-        <h3 className="font-bold">{existing ? "Edit your review" : "Write a review"}</h3>
+        <h3 className="font-heading font-semibold tracking-tight">{existing ? "Edit your review" : "Write a review"}</h3>
         <p className="text-sm text-muted-foreground">
           Only learners enrolled in this course can review it.
         </p>
       </div>
 
       {notice ? (
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+        <p className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
           {notice}
         </p>
       ) : null}
@@ -71,9 +71,9 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
             JavaScript, and arrow keys move between them for free. */}
         <div className="flex items-center gap-1" onMouseLeave={() => setHovered(0)}>
           {STARS.map((star) => (
-            <label
+              <label
               key={star}
-              className="cursor-pointer p-0.5"
+              className="flex size-11 cursor-pointer items-center justify-center"
               onMouseEnter={() => setHovered(star)}
             >
               <input
@@ -96,7 +96,7 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
                 aria-hidden
                 className={cn(
                   "size-7 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring",
-                  star <= lit ? "fill-current text-amber-600" : "text-muted-foreground/40",
+                  star <= lit ? "fill-current text-star" : "text-muted-foreground/40",
                 )}
               />
               <span className="sr-only">
@@ -132,12 +132,12 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
       ) : null}
 
       {state.status === "saved" ? (
-        <p role="status" className="text-sm font-medium text-brand">
+        <p role="status" className="text-sm font-medium text-primary">
           {notice ? "Saved. Your review is still not shown below." : "Thanks — your review is live."}
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending} className="w-fit shadow-brand">
+      <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "Saving…" : existing ? "Update review" : "Post review"}
       </Button>
     </form>

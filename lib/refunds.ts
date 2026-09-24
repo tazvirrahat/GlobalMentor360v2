@@ -17,7 +17,7 @@ import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
  * does not return that slot. The learner cannot reuse the code after a refund.
  */
 
-export const REFUND_PAGE_SIZE = 40;
+export const REFUND_PAGE_SIZE = 20;
 
 export async function listRefundableOrders(page?: string | number) {
   const where = { status: "PAID" as const };

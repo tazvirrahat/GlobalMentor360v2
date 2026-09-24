@@ -17,12 +17,14 @@ export function AnnouncementsPanel({
   if (announcements.length === 0) return null;
 
   return (
-    <section aria-labelledby="announcements-heading" className="rounded-2xl border p-5">
+    <section aria-labelledby="announcements-heading" className="rounded-lg border bg-card p-5 shadow-xs">
       <h2
         id="announcements-heading"
-        className="flex items-center gap-2 text-lg font-bold tracking-tight"
+        className="flex items-center gap-2 font-heading text-lg font-semibold tracking-tight"
       >
-        <Megaphone className="size-5 text-brand" aria-hidden />
+        <span className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Megaphone className="size-4" aria-hidden />
+        </span>
         Announcements
       </h2>
 
@@ -30,11 +32,11 @@ export function AnnouncementsPanel({
         {announcements.map((announcement) => (
           <li key={announcement.id} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="font-semibold">{announcement.subject}</h3>
+              <h3 className="font-heading font-semibold tracking-tight">{announcement.subject}</h3>
               {announcement.sentAt ? (
                 <time
                   dateTime={announcement.sentAt.toISOString()}
-                  className="text-xs text-muted-foreground"
+                  className="text-xs tabular-nums text-muted-foreground"
                 >
                   {formatDate(announcement.sentAt)}
                 </time>

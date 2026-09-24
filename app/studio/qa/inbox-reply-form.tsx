@@ -4,6 +4,7 @@ import { useActionState, useId } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldError } from "@/components/site/field-error";
 import { REPLY_BODY_MAX } from "@/lib/qa-rules";
 import { replyFromInbox, type InboxReplyState } from "./actions";
 
@@ -19,7 +20,7 @@ export function InboxReplyForm({ threadId, title }: { threadId: string; title: s
   const [state, action, pending] = useActionState(replyFromInbox, initial);
 
   return (
-    <form action={action} className="mt-3 flex flex-col gap-2">
+    <form action={action} className="mt-1 flex flex-col gap-2">
       <input type="hidden" name="threadId" value={threadId} />
 
       <Label htmlFor={`reply-${uid}`} className="sr-only">
@@ -35,15 +36,9 @@ export function InboxReplyForm({ threadId, title }: { threadId: string; title: s
         placeholder="Answer this question…"
       />
 
-      {state.status !== "idle" ? (
-        <p
-          role="status"
-          className={
-            state.status === "error"
-              ? "text-sm font-medium text-destructive"
-              : "text-sm font-medium text-brand"
-          }
-        >
+      {state.status === "error" ? <FieldError message={state.message} /> : null}
+      {state.status === "done" ? (
+        <p role="status" className="text-sm font-medium text-primary">
           {state.message}
         </p>
       ) : null}

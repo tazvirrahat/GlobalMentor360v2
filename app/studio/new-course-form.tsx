@@ -76,7 +76,7 @@ export function NewCourseForm({
 
       {state.status === "error" ? <FieldError message={state.message} /> : null}
 
-      <Button type="submit" disabled={pending} className="shadow-brand">
+      <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Create draft"}
       </Button>
     </form>

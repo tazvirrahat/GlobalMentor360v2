@@ -19,11 +19,11 @@ export default async function SignInPage({
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 px-4 py-16 sm:px-6">
       <div className="text-center">
-        <h1 className="text-3xl font-extrabold tracking-tight">Welcome back</h1>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">Welcome back</h1>
         <p className="mt-2 text-muted-foreground">Sign in to continue learning.</p>
       </div>
 
-      <Card className="rounded-2xl">
+      <Card>
         <CardContent className="p-6">
           <SignInForm next={safeReturnPath(next)} />
         </CardContent>
@@ -31,7 +31,7 @@ export default async function SignInPage({
 
       <p className="text-center text-sm text-muted-foreground">
         New here?{" "}
-        <Link href="/sign-up" className="font-semibold text-brand hover:underline">
+        <Link href="/sign-up" className="font-semibold text-primary hover:underline">
           Create an account
         </Link>
       </p>

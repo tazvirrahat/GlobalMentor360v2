@@ -29,12 +29,12 @@ export function AskQuestionForm({
     state.status === "error" ? state.fieldErrors?.[name]?.[0] : undefined;
 
   return (
-    <form action={action} className="flex flex-col gap-4 rounded-xl border p-5">
+    <form action={action} className="flex flex-col gap-4 rounded-lg border bg-card p-5 shadow-xs">
       <input type="hidden" name="courseId" value={courseId} />
       <input type="hidden" name="curriculumItemId" value={curriculumItemId} />
 
       <div className="flex flex-col gap-1.5">
-        <h3 className="font-bold">Ask a question</h3>
+        <h3 className="font-heading font-semibold tracking-tight">Ask a question</h3>
         <p className="text-sm text-muted-foreground">
           Your question is visible to everyone taking this course.
         </p>
@@ -43,12 +43,18 @@ export function AskQuestionForm({
       <fieldset className="flex flex-col gap-1.5">
         <legend className="text-sm font-medium">What is it about?</legend>
         <div className="flex flex-wrap gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="radio" name="scope" value="LECTURE" defaultChecked />
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="scope"
+              value="LECTURE"
+              defaultChecked
+              className="size-4 cursor-pointer accent-primary"
+            />
             This lecture ({lectureTitle})
           </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="radio" name="scope" value="COURSE" />
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+            <input type="radio" name="scope" value="COURSE" className="size-4 cursor-pointer accent-primary" />
             The whole course
           </label>
         </div>
@@ -86,12 +92,12 @@ export function AskQuestionForm({
       ) : null}
 
       {state.status === "posted" ? (
-        <p role="status" className="text-sm font-medium text-brand">
+        <p role="status" className="text-sm font-medium text-primary">
           Posted — your question is in the list below.
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending} className="w-fit shadow-brand">
+      <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "Posting…" : "Post question"}
       </Button>
     </form>

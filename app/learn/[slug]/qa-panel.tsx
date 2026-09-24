@@ -1,16 +1,18 @@
 import { Badge } from "@/components/ui/badge";
+import { PageNav } from "@/components/site/page-nav";
 import { formatDateMedium } from "@/lib/format";
-import { getCourseQaPanel, earlierRepliesCopy, type QaThread } from "@/lib/qa";
+import { showingRange } from "@/lib/pagination";
+import { getCourseQaPanel, earlierRepliesCopy, THREAD_PAGE_SIZE, type QaThread } from "@/lib/qa";
 import { getCurrentUser } from "@/lib/session";
 import { AskQuestionForm } from "./ask-question-form";
 import { ReplyForm } from "./reply-form";
 
 function Thread({ thread }: { thread: QaThread }) {
   return (
-    <li className="flex flex-col gap-3 rounded-xl border p-4">
+    <li className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-xs">
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold">{thread.title}</h3>
+          <h3 className="font-heading font-semibold tracking-tight">{thread.title}</h3>
           {thread.scope === "COURSE" ? <Badge variant="secondary">Whole course</Badge> : null}
         </div>
         <p className="text-xs text-muted-foreground">
@@ -39,7 +41,9 @@ function Thread({ thread }: { thread: QaThread }) {
                 {/* Attribution of one answer, not the P1 "answered by
                     instructor" thread badge, which sorts and filters the list. */}
                 {reply.isInstructor ? (
-                  <span className="ml-2 font-semibold text-brand">Instructor</span>
+                  <Badge variant="secondary" className="ml-2">
+                    Instructor
+                  </Badge>
                 ) : null}{" "}
                 ·{" "}
                 <time dateTime={reply.createdAt.toISOString()}>
@@ -76,19 +80,27 @@ export async function QaPanel({
   courseId,
   curriculumItemId,
   lectureTitle,
+  slug,
+  page: rawPage,
+  params,
 }: {
   courseId: string;
   curriculumItemId: string;
   lectureTitle: string;
+  slug: string;
+  page?: string;
+  params?: Record<string, string | undefined>;
 }) {
   const user = await getCurrentUser();
-  const { threads, hiddenByPageSize } = user
-    ? await getCourseQaPanel(courseId, curriculumItemId, user.id)
-    : { threads: [], hiddenByPageSize: 0 };
+  const panel = user
+    ? await getCourseQaPanel(courseId, curriculumItemId, user.id, rawPage)
+    : { threads: [], total: 0, page: 1, pageCount: 1 };
+  const { threads, total, page, pageCount } = panel;
+  const range = showingRange(page, THREAD_PAGE_SIZE, total);
 
   return (
     <section aria-labelledby="qa-heading" className="flex flex-col gap-4">
-      <h2 id="qa-heading" className="text-lg font-extrabold tracking-tight">
+      <h2 id="qa-heading" className="font-heading text-lg font-semibold tracking-tight">
         Questions &amp; answers
       </h2>
 
@@ -110,11 +122,18 @@ export async function QaPanel({
         </ul>
       )}
 
-      {hiddenByPageSize > 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Showing the {threads.length} most recent of {threads.length + hiddenByPageSize} questions.
+      {total > 0 ? (
+        <p className="text-sm tabular-nums text-muted-foreground">
+          Showing {range.from}–{range.to} of {total}
         </p>
       ) : null}
+      <PageNav
+        pathname={`/learn/${slug}/${curriculumItemId}`}
+        params={params}
+        page={page}
+        pageCount={pageCount}
+        pageParam="qaPage"
+      />
     </section>
   );
 }

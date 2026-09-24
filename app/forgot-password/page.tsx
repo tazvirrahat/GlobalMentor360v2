@@ -7,7 +7,7 @@ export default function ForgotPasswordPage() {
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 px-4 py-16 sm:px-6">
       <div className="text-center">
-        <h1 className="text-3xl font-extrabold tracking-tight">Reset your password</h1>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">Reset your password</h1>
         <p className="mt-2 text-muted-foreground">
           Enter your email and we&rsquo;ll send you a reset link.
         </p>
@@ -17,7 +17,7 @@ export default function ForgotPasswordPage() {
 
       <p className="text-center text-sm text-muted-foreground">
         Remembered it?{" "}
-        <Link href="/sign-in" className="font-semibold text-brand hover:underline">
+        <Link href="/sign-in" className="font-semibold text-primary hover:underline">
           Sign in
         </Link>
       </p>

@@ -52,10 +52,47 @@ export function pageHref(
   pathname: string,
   params: Record<string, string | undefined>,
   page: number,
+  pageKey = "page",
 ): { pathname: string; query: Record<string, string> } {
-  const next = { ...params, page: page <= 1 ? undefined : String(page) };
+  const next = { ...params, [pageKey]: page <= 1 ? undefined : String(page) };
   const query = Object.fromEntries(
     Object.entries(next).filter((pair): pair is [string, string] => Boolean(pair[1])),
   );
   return { pathname, query };
+}
+
+export type PageNavItem =
+  | { kind: "page"; page: number }
+  | { kind: "ellipsis"; key: string };
+
+/**
+ * Numbered pager window: all pages when there are ≤7; otherwise first,
+ * current±1, last, with ellipses in the gaps. Hidden entirely when
+ * pageCount ≤ 1 (the component short-circuits before calling this).
+ */
+export function pageNavItems(page: number, pageCount: number): PageNavItem[] {
+  if (pageCount <= 1) return [];
+  if (pageCount <= 7) {
+    return Array.from({ length: pageCount }, (_, index) => ({
+      kind: "page" as const,
+      page: index + 1,
+    }));
+  }
+
+  const wanted = new Set<number>([1, pageCount]);
+  for (let n = page - 1; n <= page + 1; n++) {
+    if (n >= 1 && n <= pageCount) wanted.add(n);
+  }
+
+  const sorted = [...wanted].sort((a, b) => a - b);
+  const items: PageNavItem[] = [];
+  let previous = 0;
+  for (const n of sorted) {
+    if (previous > 0 && n - previous > 1) {
+      items.push({ kind: "ellipsis", key: `${previous}-${n}` });
+    }
+    items.push({ kind: "page", page: n });
+    previous = n;
+  }
+  return items;
 }

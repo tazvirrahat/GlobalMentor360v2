@@ -3,12 +3,23 @@
 import { useActionState } from "react";
 import type { Route } from "next";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Trash2, TriangleAlert } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Clapperboard,
+  Eye,
+  EyeOff,
+  GripVertical,
+  ListChecks,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/site/field-error";
 import {
   addItem,
   addSection,
@@ -54,9 +65,9 @@ export function AddSectionForm({ courseId }: { courseId: string }) {
         {pending ? "Adding…" : "Add section"}
       </Button>
       {state.status === "error" ? (
-        <p role="alert" className="w-full text-sm font-medium text-destructive">
-          {state.message}
-        </p>
+        <div className="w-full">
+          <FieldError message={state.message} />
+        </div>
       ) : null}
     </form>
   );
@@ -66,7 +77,7 @@ function AddItemForm({ sectionId }: { sectionId: string }) {
   const [state, action, pending] = useActionState(addItem, initial);
 
   return (
-    <form action={action} className="flex flex-wrap items-end gap-3">
+    <form action={action} className="flex flex-wrap items-end gap-3 border-t pt-4">
       <input type="hidden" name="sectionId" value={sectionId} />
       <div className="flex min-w-0 w-full flex-1 flex-col gap-1.5 sm:min-w-52 sm:w-auto">
         <Label htmlFor={`item-${sectionId}`}>New item title</Label>
@@ -85,9 +96,9 @@ function AddItemForm({ sectionId }: { sectionId: string }) {
         {pending ? "Adding…" : "Add quiz"}
       </Button>
       {state.status === "error" ? (
-        <p role="alert" className="w-full text-sm font-medium text-destructive">
-          {state.message}
-        </p>
+        <div className="w-full">
+          <FieldError message={state.message} />
+        </div>
       ) : null}
     </form>
   );
@@ -99,7 +110,10 @@ function ItemControls({ item, isFirst, isLast }: { item: Item; isFirst: boolean;
   const [, remove, removing] = useActionState(deleteItem, initial);
 
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex items-center gap-0.5">
+      <span className="flex items-center text-muted-foreground" aria-hidden>
+        <GripVertical className="size-4" />
+      </span>
       <form action={move}>
         <input type="hidden" name="itemId" value={item.id} />
         <input type="hidden" name="direction" value="up" />
@@ -182,24 +196,29 @@ export function SectionList({ courseId, sections }: { courseId: string; sections
     return <p className="text-muted-foreground">No sections yet — add the first one below.</p>;
 
   return (
-    <ol className="flex flex-col gap-6">
+    <ol className="flex flex-col gap-4">
       {sections.map((section) => (
         <li key={section.id}>
-          <Card className="rounded-2xl">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <h3 className="font-bold">{section.title}</h3>
+          <Card className="gap-4 py-5">
+            <CardHeader className="flex flex-row items-center justify-between gap-3 border-b pb-4">
+              <h3 className="font-heading text-lg font-semibold tracking-tight">{section.title}</h3>
               <DeleteSectionForm sectionId={section.id} />
             </CardHeader>
 
-            <CardContent className="flex flex-col gap-4">
+            <CardContent className="flex flex-col gap-0">
               {section.items.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No lectures in this section.</p>
+                <p className="py-3 text-sm text-muted-foreground">No lectures in this section.</p>
               ) : (
-                <ol className="flex flex-col divide-y">
+                <ol>
                   {section.items.map((item, index) => (
-                    <li key={item.id} className="flex flex-col gap-2 py-3">
-                      <div className="flex items-center justify-between gap-2">
+                    <li key={item.id} className="border-b border-border py-3 last:border-b-0">
+                      <div className="flex items-start justify-between gap-2">
                         <span className="flex min-w-0 items-center gap-2 text-sm">
+                          {item.type === "QUIZ" ? (
+                            <ListChecks className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                          ) : (
+                            <Clapperboard className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                          )}
                           {/*
                             The title is the way into the item editor. Without a
                             link here the editor route is reachable only by typing
@@ -210,7 +229,8 @@ export function SectionList({ courseId, sections }: { courseId: string; sections
                             href={
                               `/studio/courses/${courseId}/curriculum/${item.id}` as Route
                             }
-                            className="truncate font-medium hover:text-brand hover:underline"
+                            title={item.title}
+                            className="truncate cursor-pointer font-medium hover:text-primary hover:underline"
                           >
                             {item.title}
                           </Link>
@@ -218,9 +238,7 @@ export function SectionList({ courseId, sections }: { courseId: string; sections
                             {item.type === "QUIZ" ? "Quiz" : "Lecture"}
                           </Badge>
                           {item.isPreview ? (
-                            <Badge variant="outline" className="text-brand">
-                              Preview
-                            </Badge>
+                            <Badge variant="outline">Preview</Badge>
                           ) : null}
                         </span>
                         <ItemControls
@@ -232,7 +250,7 @@ export function SectionList({ courseId, sections }: { courseId: string; sections
                       {item.type === "QUIZ" && item.assessment?._count.questions === 0 ? (
                         <p
                           role="status"
-                          className="flex items-center gap-1.5 text-sm font-medium text-destructive"
+                          className="mt-2 flex items-center gap-1.5 text-sm font-medium text-destructive"
                         >
                           <TriangleAlert className="size-4 shrink-0" aria-hidden />
                           No questions yet — an empty quiz auto-passes every learner. Add
@@ -240,7 +258,9 @@ export function SectionList({ courseId, sections }: { courseId: string; sections
                         </p>
                       ) : null}
                       {item.type === "LECTURE" ? (
-                        <LectureVideoPanel itemId={item.id} lecture={item.lecture} />
+                        <div className="mt-2">
+                          <LectureVideoPanel itemId={item.id} lecture={item.lecture} />
+                        </div>
                       ) : null}
                     </li>
                   ))}

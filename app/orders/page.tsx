@@ -2,10 +2,11 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { formatDate, formatPrice } from "@/lib/format";
-import { listLearnerOrders } from "@/lib/orders";
+import { listLearnerOrders, ORDER_PAGE_SIZE } from "@/lib/orders";
+import { showingRange } from "@/lib/pagination";
 import { requireUser } from "@/lib/session";
+import { EmptyState } from "@/components/site/empty-state";
 import { PageNav } from "@/components/site/page-nav";
 import { OrderStatusBadge } from "@/components/site/status-badges";
 
@@ -19,55 +20,76 @@ export default async function OrdersPage({
 }) {
   const user = await requireUser("/orders");
   const { page: rawPage } = await searchParams;
-  const { items: orders, page, pageCount } = await listLearnerOrders(user.id, rawPage);
+  const { items: orders, page, pageCount, total } = await listLearnerOrders(user.id, rawPage);
+  const range = showingRange(page, ORDER_PAGE_SIZE, total);
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">
+    <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6 lg:px-8">
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Purchases</h1>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">Purchases</h1>
         <p className="mt-1 text-muted-foreground">
           Every order you have placed, and what happened to it.
         </p>
+        {total > 0 ? (
+          <p className="mt-2 text-sm tabular-nums text-muted-foreground">
+            Showing {range.from}–{range.to} of {total} · {ORDER_PAGE_SIZE} per page
+          </p>
+        ) : null}
       </div>
 
       {orders.length === 0 ? (
-        <div className="flex flex-col items-start gap-3 rounded-2xl border p-6">
-          <p className="text-muted-foreground">You haven&rsquo;t bought anything yet.</p>
-          <Button asChild variant="outline">
-            <Link href="/courses">Browse courses</Link>
+        <EmptyState
+          icon={<Receipt className="size-6" aria-hidden />}
+          title="No purchases yet"
+          message="You haven't bought anything yet."
+        >
+          <Button asChild>
+            <Link href="/courses" className="cursor-pointer">
+              Browse courses
+            </Link>
           </Button>
-        </div>
+        </EmptyState>
       ) : (
-        <ol className="flex flex-col gap-4">
-          {orders.map((order) => (
-            <li key={order.id}>
-              <Card className="rounded-2xl">
-                <CardContent className="flex flex-col gap-3 p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-bold">
-                        {order.items.map((item) => item.courseTitle).join(", ") || "Order"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(order.createdAt)} ·{" "}
-                        {formatPrice(order.total, order.currency)}
-                      </p>
-                    </div>
-                    <OrderStatusBadge status={order.status} />
-                  </div>
-
-                  <Button asChild variant="outline" size="sm" className="w-fit">
-                    <Link href={`/orders/${order.id}` as Route}>
-                      <Receipt className="size-4" aria-hidden /> View receipt
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </li>
-          ))}
+        <ol className="overflow-hidden rounded-lg border bg-card shadow-xs">
+          {orders.map((order) => {
+            const title = order.items.map((item) => item.courseTitle).join(", ") || "Order";
+            return (
+              <li
+                key={order.id}
+                className="flex min-h-12 flex-col gap-2 border-b px-4 py-3 last:border-b-0 hover:bg-muted/50 sm:flex-row sm:items-center sm:gap-4"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium" title={title}>
+                    {title}
+                  </p>
+                  <p className="text-xs tabular-nums text-muted-foreground">
+                    {formatDate(order.createdAt)}
+                  </p>
+                </div>
+                <p className="text-right text-sm font-semibold tabular-nums sm:w-28">
+                  {formatPrice(order.total, order.currency)}
+                </p>
+                <OrderStatusBadge status={order.status} />
+                <Button asChild variant="outline" size="sm" className="w-fit shrink-0">
+                  <Link href={`/orders/${order.id}` as Route} className="cursor-pointer">
+                    <Receipt className="size-4" aria-hidden /> View receipt
+                  </Link>
+                </Button>
+              </li>
+            );
+          })}
         </ol>
       )}
-      <PageNav pathname="/orders" page={page} pageCount={pageCount} />
+      {pageCount > 1 ? (
+        <div className="rounded-lg border bg-card px-4 py-4 shadow-sm [&_nav]:mt-3">
+          <p className="text-center text-sm font-medium tabular-nums">
+            Page {page} of {pageCount} · {ORDER_PAGE_SIZE} per page
+          </p>
+          <PageNav pathname="/orders" page={page} pageCount={pageCount} />
+        </div>
+      ) : (
+        <PageNav pathname="/orders" page={page} pageCount={pageCount} />
+      )}
     </main>
   );
 }

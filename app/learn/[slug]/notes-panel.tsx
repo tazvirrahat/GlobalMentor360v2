@@ -18,7 +18,7 @@ export function BookmarkButton({
     <form action={toggleBookmarkAction}>
       <input type="hidden" name="itemId" value={itemId} />
       <input type="hidden" name="slug" value={slug} />
-      <Button type="submit" variant="outline" size="sm">
+      <Button type="submit" variant="outline">
         {bookmarked ? <BookmarkCheck className="size-4" aria-hidden /> : <Bookmark className="size-4" aria-hidden />}
         {bookmarked ? "Bookmarked" : "Bookmark"}
       </Button>
@@ -40,8 +40,8 @@ export function NotesPanel({
   hiddenByPageSize?: number;
 }) {
   return (
-    <section className="rounded-2xl border p-5">
-      <h2 className="text-lg font-bold">Notes</h2>
+    <section className="rounded-lg border bg-card p-5 shadow-xs">
+      <h2 className="font-heading text-lg font-semibold tracking-tight">Notes</h2>
       <form action={addNoteAction} className="mt-3 flex flex-col gap-2">
         <input type="hidden" name="lectureId" value={lectureId} />
         <input type="hidden" name="itemId" value={itemId} />
@@ -54,18 +54,16 @@ export function NotesPanel({
           maxLength={4000}
           aria-label="Note"
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Input
             name="timestampSeconds"
             type="number"
             min={0}
             defaultValue={0}
-            className="w-28"
+            className="w-28 tabular-nums"
             aria-label="Timestamp in seconds"
           />
-          <Button type="submit" size="sm" className="shadow-brand">
-            Save note
-          </Button>
+          <Button type="submit">Save note</Button>
         </div>
       </form>
       {notes.length > 0 ? (
@@ -76,20 +74,20 @@ export function NotesPanel({
             </li>
           ) : null}
           {notes.map((note) => (
-            <li key={note.id} className="rounded-xl bg-muted/50 p-3 text-sm">
+            <li key={note.id} className="rounded-lg bg-muted/50 p-3 text-sm">
               <div className="flex items-start justify-between gap-2">
                 <p className="whitespace-pre-line">{note.body}</p>
                 <form action={deleteNoteAction}>
                   <input type="hidden" name="noteId" value={note.id} />
                   <input type="hidden" name="itemId" value={itemId} />
                   <input type="hidden" name="slug" value={slug} />
-                  <Button type="submit" variant="ghost" size="icon-xs" aria-label="Delete note">
-                    <Trash2 className="size-3.5" />
+                  <Button type="submit" variant="ghost" size="icon" aria-label="Delete note">
+                    <Trash2 className="size-4" />
                   </Button>
                 </form>
               </div>
               {note.timestampSeconds > 0 ? (
-                <p className="mt-1 text-xs text-muted-foreground">{note.timestampSeconds}s</p>
+                <p className="mt-1 text-xs tabular-nums text-muted-foreground">{note.timestampSeconds}s</p>
               ) : null}
             </li>
           ))}

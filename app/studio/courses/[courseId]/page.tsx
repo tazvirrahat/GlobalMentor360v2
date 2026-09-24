@@ -29,16 +29,16 @@ export default async function CourseSettingsPage({ params }: Params) {
   const sellabilityWarning = courseSellabilityWarning(course.prices);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <Link
         href="/studio"
-        className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex w-fit cursor-pointer items-center gap-1 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
       >
         <ArrowLeft className="size-4" aria-hidden /> Studio
       </Link>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-extrabold tracking-tight">{course.title}</h1>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">{course.title}</h1>
         <CourseStatusBadge status={course.status} />
       </div>
 
@@ -57,14 +57,14 @@ export default async function CourseSettingsPage({ params }: Params) {
       ) : null}
 
       <Button asChild variant="outline" className="mt-4">
-        <Link href={`/studio/courses/${course.id}/curriculum`}>
+        <Link href={`/studio/courses/${course.id}/curriculum`} className="cursor-pointer">
           Edit curriculum <ChevronRight className="size-4" aria-hidden />
         </Link>
       </Button>
 
-      <div className="mt-10 grid gap-8 lg:grid-cols-[360px_1fr]">
+      <div className="mt-8 grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <section>
-          <Card className="rounded-2xl">
+          <Card>
             <CardHeader>
               <CardTitle>Readiness</CardTitle>
             </CardHeader>
@@ -73,7 +73,7 @@ export default async function CourseSettingsPage({ params }: Params) {
                 {checks.map((check) => (
                   <li key={check.label} className="flex items-start gap-2">
                     {check.ok ? (
-                      <CircleCheck className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
+                      <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
                     ) : (
                       <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
                     )}
@@ -92,7 +92,7 @@ export default async function CourseSettingsPage({ params }: Params) {
         </section>
 
         <section>
-          <Card className="rounded-2xl">
+          <Card>
             <CardHeader>
               <CardTitle>Settings</CardTitle>
             </CardHeader>

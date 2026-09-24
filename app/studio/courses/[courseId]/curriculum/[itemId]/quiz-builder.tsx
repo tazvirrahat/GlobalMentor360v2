@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldError } from "@/components/site/field-error";
 import { MAX_OPTIONS, TRUE_FALSE_LABELS } from "@/lib/assessment-rules";
 import {
   deleteQuestion,
@@ -97,13 +98,9 @@ function rowsFor(question: Question | null): OptionRow[] {
 
 function StatusLine({ state }: { state: AssessmentState }) {
   if (state.status === "idle") return null;
+  if (state.status === "error") return <FieldError message={state.message} />;
   return (
-    <p
-      role="status"
-      className={
-        state.status === "error" ? "text-sm font-medium text-destructive" : "text-sm font-medium"
-      }
-    >
+    <p role="status" className="text-sm font-medium">
       {state.message}
     </p>
   );
@@ -170,11 +167,16 @@ function SettingsForm({
         </div>
       </div>
 
-      <fieldset className="flex flex-col gap-2 rounded-xl border p-4">
-        <legend className="px-1 text-sm font-semibold">Behaviour</legend>
+      <fieldset className="flex flex-col gap-2 rounded-lg border border-border p-4">
+        <legend className="px-1 text-sm font-medium">Behaviour</legend>
 
         <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <input type="checkbox" name="allowRetakes" defaultChecked={assessment.allowRetakes} />
+          <input
+            type="checkbox"
+            name="allowRetakes"
+            defaultChecked={assessment.allowRetakes}
+            className="size-4 cursor-pointer accent-primary"
+          />
           Allow retakes after a pass
         </label>
 
@@ -183,6 +185,7 @@ function SettingsForm({
             type="checkbox"
             name="shuffleQuestions"
             defaultChecked={assessment.shuffleQuestions}
+            className="size-4 cursor-pointer accent-primary"
           />
           Shuffle questions
         </label>
@@ -195,7 +198,7 @@ function SettingsForm({
 
       <StatusLine state={state} />
 
-      <Button type="submit" disabled={pending} className="w-fit shadow-brand">
+      <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "Saving…" : "Save settings"}
       </Button>
     </form>
@@ -277,7 +280,7 @@ function QuestionEditorForm({
   const multi = type === "MULTI_SELECT";
 
   return (
-    <form action={action} className="flex flex-col gap-4 rounded-xl border p-4">
+    <form action={action} className="flex flex-col gap-4 rounded-lg border border-border p-4">
       <input type="hidden" name="itemId" value={itemId} />
       <input type="hidden" name="questionId" value={question?.id ?? ""} />
 
@@ -345,6 +348,7 @@ function QuestionEditorForm({
                   checked={row.correct}
                   onChange={(event) => setCorrect(row.key, event.target.checked)}
                   aria-label={`Mark answer ${index + 1} correct`}
+                  className="size-4 cursor-pointer accent-primary"
                 />
 
                 {trueFalse ? (
@@ -435,7 +439,7 @@ function QuestionEditorForm({
       <StatusLine state={state} />
 
       <div className="flex gap-2">
-        <Button type="submit" disabled={pending} className="shadow-brand">
+        <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : question ? "Save question" : "Add question"}
         </Button>
         <Button type="button" variant="ghost" onClick={onClose}>
@@ -542,7 +546,7 @@ function QuestionCard({
   const label = isQuestionType(question.type) ? TYPE_LABELS[question.type] : question.type;
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border p-4">
+    <div className="flex flex-col gap-2 rounded-lg border border-border p-4">
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold">
           {index + 1}. {question.prompt}
@@ -566,7 +570,7 @@ function QuestionCard({
         {question.options.map((option) => (
           <li key={option.id} className="flex items-start gap-2">
             {option.isCorrect ? (
-              <CircleCheck className="mt-0.5 size-4 shrink-0 text-brand" aria-label="Correct" />
+              <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-label="Correct" />
             ) : (
               <span className="mt-0.5 size-4 shrink-0" />
             )}
@@ -606,7 +610,7 @@ export function QuizBuilder({
 
   return (
     <div className="flex flex-col gap-8">
-      <Card className="rounded-2xl">
+      <Card>
         <CardHeader>
           <CardTitle>Quiz settings</CardTitle>
         </CardHeader>
@@ -615,8 +619,8 @@ export function QuizBuilder({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl">
-        <CardHeader className="flex flex-row items-center justify-between">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle>Questions ({assessment.questions.length})</CardTitle>
           {adding ? null : (
             <Button type="button" size="sm" onClick={() => setAdding(true)}>

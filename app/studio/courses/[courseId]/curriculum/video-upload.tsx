@@ -72,7 +72,7 @@ function StatusBadge({ status }: { status: LectureVideoInfo["asset"] extends inf
   switch (status) {
     case "READY":
       return (
-        <Badge className="bg-brand text-white">
+        <Badge variant="success">
           <CircleCheck aria-hidden /> Ready
         </Badge>
       );
@@ -84,8 +84,8 @@ function StatusBadge({ status }: { status: LectureVideoInfo["asset"] extends inf
       );
     case "PROCESSING":
       return (
-        <Badge variant="secondary">
-          <Loader2 className="animate-spin" aria-hidden /> Processing
+        <Badge variant="warning">
+          <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden /> Processing
         </Badge>
       );
     case "UPLOADING":
@@ -100,7 +100,7 @@ function CheckStatusForm({ itemId }: { itemId: string }) {
     <form action={action} className="flex items-center gap-2">
       <input type="hidden" name="itemId" value={itemId} />
       <Button type="submit" variant="ghost" size="sm" disabled={pending}>
-        <RefreshCw className={pending ? "animate-spin" : undefined} aria-hidden />
+        <RefreshCw className={pending ? "animate-spin motion-reduce:animate-none" : undefined} aria-hidden />
         {pending ? "Checking…" : "Check status"}
       </Button>
       {state.status !== "idle" ? (
@@ -170,7 +170,7 @@ export function LectureVideoPanel({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-0.5 text-sm">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-muted/40 p-3 text-sm">
       <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Clapperboard className="size-3.5" aria-hidden />
         {lecture.contentType === "VIDEO" ? "Video" : "Article"}
@@ -188,7 +188,7 @@ export function LectureVideoPanel({
         </span>
       ) : phase.name === "finalizing" ? (
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" aria-hidden /> Starting transcode…
+          <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> Starting transcode…
         </span>
       ) : (
         <>
