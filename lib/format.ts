@@ -9,9 +9,32 @@
 
 const DATE_LOCALE = "en-GB";
 
+function priceFormat(amount: number, currency: string) {
+  // Amounts are integer minor units. Written the way a course marketplace
+  // writes them: the narrow symbol (৳, $), and no ".00" on whole amounts.
+  const whole = amount % 100 === 0;
+  return new Intl.NumberFormat("en", {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function formatPrice(amount: number, currency: string): string {
-  // Amounts are stored as integer minor units.
-  return new Intl.NumberFormat("en", { style: "currency", currency }).format(amount / 100);
+  return priceFormat(amount, currency).format(amount / 100);
+}
+
+/**
+ * The same string in pieces, so the Price component can keep tabular digits
+ * while the thousands separator stays proportional: Schibsted Grotesk's tnum
+ * widens the comma to a figure width ("5 , 990").
+ */
+export function formatPriceParts(amount: number, currency: string): { text: string; separator: boolean }[] {
+  return priceFormat(amount, currency)
+    .formatToParts(amount / 100)
+    .map((part) => ({ text: part.value, separator: part.type === "group" }));
 }
 
 /** Catalog duration: "2h 15m" / "45m" / "3h". Not mm:ss — that stays local to the uploader. */

@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { FieldError } from "@/components/site/field-error";
 import { bkashAmountDue, type CheckoutQuote } from "@/lib/checkout";
-import { formatPrice } from "@/lib/format";
 import { BKASH_CURRENCY } from "@/lib/payments";
 import { cn } from "@/lib/utils";
+import { Price } from "@/components/course/price";
 
 type OkQuote = Extract<CheckoutQuote, { ok: true }>;
 
@@ -43,25 +43,25 @@ export function BkashQuoteCard({
                 {line.title}
               </span>
               <span className="shrink-0 tabular-nums text-muted-foreground">
-                {formatPrice(line.unitPrice, BKASH_CURRENCY)}
+                <Price amount={line.unitPrice} currency={BKASH_CURRENCY} />
               </span>
             </li>
           ))}
         </ul>
         <Separator className="mt-3" />
         <p className="text-sm text-muted-foreground">
-          Subtotal: {formatPrice(quote.subtotal, BKASH_CURRENCY)}
+          Subtotal: <Price amount={quote.subtotal} currency={BKASH_CURRENCY} />
         </p>
         {quote.discount > 0 ? (
           <p className="text-sm text-muted-foreground">
             Discount{quote.coupon ? ` (${quote.coupon.code})` : ""}: −
-            {formatPrice(quote.discount, BKASH_CURRENCY)}
+            <Price amount={quote.discount} currency={BKASH_CURRENCY} />
           </p>
         ) : null}
         <p className="text-sm text-muted-foreground">
           Amount to send:{" "}
           <strong className="font-heading text-lg font-semibold tabular-nums text-primary">
-            {formatPrice(bkashAmountDue(quote), BKASH_CURRENCY)}
+            <Price amount={bkashAmountDue(quote)} currency={BKASH_CURRENCY} />
           </strong>
         </p>
       </CardHeader>

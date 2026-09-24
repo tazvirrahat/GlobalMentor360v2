@@ -2,11 +2,12 @@ import { Banknote } from "lucide-react";
 import { PageNav } from "@/components/site/page-nav";
 import { EmptyState } from "@/components/site/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { formatDate, formatDateTime, formatPrice } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { parsePage, showingRange } from "@/lib/pagination";
 import { listPendingManualPayments, MANUAL_PAYMENT_QUEUE_PAGE_SIZE } from "@/lib/payments";
 import { requireRole } from "@/lib/session";
 import { ReviewForm } from "./review-form";
+import { Price } from "@/components/course/price";
 
 export const metadata = { title: "Payments | Admin" };
 
@@ -113,7 +114,7 @@ export default async function AdminPaymentsPage({
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-1.5 text-right font-semibold tabular-nums">
-                        {formatPrice(payment.amount, payment.currency)}
+                        <Price amount={payment.amount} currency={payment.currency} />
                       </td>
                       <td
                         className="max-w-[8rem] truncate px-3 py-1.5 font-mono text-xs"

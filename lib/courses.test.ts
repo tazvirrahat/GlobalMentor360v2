@@ -6,16 +6,16 @@ const bdt = { amount: 599000, currency: "BDT" };
 
 describe("formatPrice", () => {
   it("formats USD minor units as dollars", () => {
-    expect(formatPrice(4900, "USD")).toMatch(/\$49\.00/);
+    expect(formatPrice(4900, "USD")).toBe("$49");
   });
 
   it("formats BDT minor units as taka", () => {
-    // 599000 poisha = ৳5,990.00 — exact symbol varies by ICU data, so check the digits.
-    expect(formatPrice(599000, "BDT")).toMatch(/5,?990/);
+    // 599000 poisha: the narrow ৳ symbol, no "BDT", no ".00" (spec §4).
+    expect(formatPrice(599000, "BDT")).toBe("৳5,990");
   });
 
   it("formats a free price as zero", () => {
-    expect(formatPrice(0, "USD")).toMatch(/\$0\.00/);
+    expect(formatPrice(0, "USD")).toBe("$0");
   });
 });
 

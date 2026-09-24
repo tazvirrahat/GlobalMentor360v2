@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { formatDate, formatPrice } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { getLearnerOrder } from "@/lib/orders";
 import { requireUser } from "@/lib/session";
 import { OrderStatusBadge } from "@/components/site/status-badges";
+import { Price } from "@/components/course/price";
 
 export const metadata: Metadata = { title: "Receipt" };
 export const dynamic = "force-dynamic";
@@ -62,7 +63,7 @@ export default async function ReceiptPage({ params }: Params) {
                 {item.courseTitle}
               </Link>
               <span className="shrink-0 text-right tabular-nums">
-                {formatPrice(item.unitPrice, order.currency)}
+                <Price amount={item.unitPrice} currency={order.currency} />
               </span>
             </li>
           ))}
@@ -73,23 +74,23 @@ export default async function ReceiptPage({ params }: Params) {
         <dl className="flex flex-col gap-1.5 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Subtotal</dt>
-            <dd className="text-right tabular-nums">{formatPrice(order.subtotal, order.currency)}</dd>
+            <dd className="text-right tabular-nums"><Price amount={order.subtotal} currency={order.currency} /></dd>
           </div>
           {order.discount > 0 ? (
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Discount</dt>
-              <dd className="text-right tabular-nums">−{formatPrice(order.discount, order.currency)}</dd>
+              <dd className="text-right tabular-nums">−<Price amount={order.discount} currency={order.currency} /></dd>
             </div>
           ) : null}
           {order.tax > 0 ? (
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Tax</dt>
-              <dd className="text-right tabular-nums">{formatPrice(order.tax, order.currency)}</dd>
+              <dd className="text-right tabular-nums"><Price amount={order.tax} currency={order.currency} /></dd>
             </div>
           ) : null}
           <div className="flex justify-between gap-4 text-base font-semibold">
             <dt>Total</dt>
-            <dd className="text-right tabular-nums">{formatPrice(order.total, order.currency)}</dd>
+            <dd className="text-right tabular-nums"><Price amount={order.total} currency={order.currency} /></dd>
           </div>
         </dl>
 
