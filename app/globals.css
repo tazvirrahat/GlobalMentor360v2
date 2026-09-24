@@ -4,69 +4,90 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * GlobalMentor360 design system.
+ * GlobalMentor360 design system — light-first academy.
+ * Binding rules: design-system/MASTER.md
  *
- * Single-org academy identity: deep maroon primary, dark plum hero surfaces,
- * warm pink accents. Light-first with dark full-bleed sections.
+ * Education teal (skill LMS / e-learning rows) darkened until white text
+ * meets 4.5:1. Warm amber for high-emphasis CTAs. Brand aliases
+ * (`--brand`, `--brand-pink*`) are deprecated; prefer `--primary` / `--accent`.
+ * `bg-hero-gradient` and `shadow-brand` remain until those call sites move off.
  */
 :root {
-  --background: #ffffff;
-  --foreground: #111827;
+  --background: #f7fafa;
+  --foreground: #12262a;
   --card: #ffffff;
-  --card-foreground: #111827;
+  --card-foreground: #12262a;
   --popover: #ffffff;
-  --popover-foreground: #111827;
-  --primary: #880020;
-  --primary-foreground: #fff5f7;
-  --secondary: #f8fafc;
-  --secondary-foreground: #111827;
-  --muted: #f4f4f5;
-  --muted-foreground: #6b7280;
-  --accent: #fdf2f5;
-  --accent-foreground: #880020;
-  --destructive: #dc2626;
+  --popover-foreground: #12262a;
+  --primary: #0e4f56;
+  --primary-foreground: #ffffff;
+  --primary-hover: #0a3d43;
+  --primary-active: #072e33;
+  --secondary: #eef3f4;
+  --secondary-foreground: #12262a;
+  --muted: #eef3f4;
+  --muted-foreground: #3d5560;
+  --accent: #c2410c;
+  --accent-foreground: #ffffff;
+  --accent-hover: #9a3412;
+  --accent-active: #7c2d12;
+  --destructive: #b91c1c;
   --destructive-foreground: #ffffff;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
-  --ring: #c45b73;
-  --radius: 0.75rem;
+  --border: #d5e0e2;
+  --input: #d5e0e2;
+  --ring: #0e4f56;
+  --success: #047857;
+  --success-foreground: #ffffff;
+  --warning: #b45309;
+  --warning-foreground: #ffffff;
+  --star: #b45309;
+  --radius: 0.5rem;
 
-  /* Brand extras */
-  --brand: #880020;
-  --brand-dark: #4e0010;
-  --brand-ink: #2a0716;
-  --brand-pink: #ec6584;
-  --brand-pink-soft: #f49daf;
-  --brand-pink-faint: #f9c9d3;
-  --surface-alt: #f8fafc;
+  /* Compat aliases — deprecated. Prefer --primary / --accent / --brand-ink. */
+  --brand: #0e4f56;
+  --brand-dark: #0a3d43;
+  --brand-ink: #0b1c1f;
+  --brand-pink: #c2410c;
+  --brand-pink-soft: #ea580c;
+  --brand-pink-faint: #ffedd5;
+  --surface-alt: #f1f5f5;
 
-  --chart-1: #880020;
-  --chart-2: #ec6584;
-  --chart-3: #f49daf;
-  --chart-4: #6b7280;
-  --chart-5: #111827;
+  --chart-1: #0e4f56;
+  --chart-2: #c2410c;
+  --chart-3: #047857;
+  --chart-4: #3d5560;
+  --chart-5: #12262a;
 }
 
 .dark {
-  --background: #17060d;
-  --foreground: #f7f2f4;
-  --card: #23101a;
-  --card-foreground: #f7f2f4;
-  --popover: #23101a;
-  --popover-foreground: #f7f2f4;
-  --primary: #ec6584;
-  --primary-foreground: #2a0716;
-  --secondary: #2c1521;
-  --secondary-foreground: #f7f2f4;
-  --muted: #2c1521;
-  --muted-foreground: #b3a1a9;
-  --accent: #3a1c2b;
-  --accent-foreground: #f9c9d3;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: #3a2430;
-  --input: #3a2430;
-  --ring: #ec6584;
+  --background: #0b1c1f;
+  --foreground: #e8f1f2;
+  --card: #12262a;
+  --card-foreground: #e8f1f2;
+  --popover: #12262a;
+  --popover-foreground: #e8f1f2;
+  --primary: #4ba3a0;
+  --primary-foreground: #062428;
+  --primary-hover: #5bb3b0;
+  --primary-active: #3d8f8c;
+  --secondary: #1a3034;
+  --secondary-foreground: #e8f1f2;
+  --muted: #1a3034;
+  --muted-foreground: #9bb0b4;
+  --accent: #fb923c;
+  --accent-foreground: #431407;
+  --accent-hover: #fdba74;
+  --accent-active: #f97316;
+  --destructive: #f87171;
+  --destructive-foreground: #1c1917;
+  --border: #2a4246;
+  --input: #2a4246;
+  --ring: #4ba3a0;
+  --success: #34d399;
+  --success-foreground: #022c22;
+  --warning: #fbbf24;
+  --warning-foreground: #422006;
+  --star: #fbbf24;
 }
 
 @theme inline {
@@ -78,17 +99,26 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-star: var(--star);
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
   --color-brand-ink: var(--brand-ink);
@@ -101,15 +131,22 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: 0.375rem;
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 12px);
-  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --radius-xl: 0.75rem;
+  /* --radius-2xl removed: one personality is 8px. Do not reintroduce 16px cards. */
+  --shadow-xs: 0 1px 2px rgb(18 38 42 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(18 38 42 / 0.06), 0 1px 1px rgb(18 38 42 / 0.04);
+  --shadow-md: 0 8px 24px rgb(18 38 42 / 0.08);
+  --font-sans: var(--font-source-sans), var(--font-noto-bengali), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-fraunces), var(--font-source-sans), var(--font-noto-bengali), ui-serif, Georgia, serif;
 }
 
 @layer base {
+  html {
+    scroll-padding-top: 5rem;
+  }
   * {
     border-color: var(--color-border);
   }
@@ -119,21 +156,36 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  /* Accordion open/close is a height animation (layout). Snap under reduced motion. */
+  [data-slot="accordion-content"] {
+    animation: none !important;
+    animation-duration: 0s !important;
+  }
 }
 
 @utility text-gradient-brand {
-  background-image: linear-gradient(to right, var(--brand-pink), var(--brand-pink-soft));
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
+  color: var(--primary);
+  background-image: none;
 }
 
 @utility bg-hero-gradient {
-  background-image: linear-gradient(to bottom right, var(--brand-ink) 0%, #3b0a22 50%, var(--brand-dark) 100%);
+  /* Dark teal stand-in so unrestyled pages with white text stay readable. */
+  background-image: linear-gradient(165deg, #0b3a40 0%, var(--primary) 52%, #0a3338 100%);
 }
 
 @utility shadow-brand {
-  box-shadow:
-    0px 10px 15px -3px rgb(136 0 32 / 0.25),
-    0px 4px 6px -4px rgb(136 0 32 / 0.25);
+  box-shadow: 0 10px 28px rgb(14 79 86 / 0.16);
 }

@@ -1,155 +1,121 @@
 import Link from "next/link";
-import {
-  Award,
-  ListChecks,
-  PlayCircle,
-  UserRound,
-} from "lucide-react";
+import { Award, BookOpen, PlayCircle, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CourseCard } from "@/components/site/course-card";
+import { Reveal, RevealItem, RevealStagger } from "@/components/site/reveal";
+import { StarRating } from "@/components/site/star-rating";
 import { listPublishedCourses, countPublishedCourses } from "@/lib/courses";
 import { availableRails } from "@/lib/payments";
+import { listHomeTestimonials } from "@/lib/reviews";
 
 export const dynamic = "force-dynamic";
 
-const FEATURES = [
-  {
-    icon: PlayCircle,
-    title: "Video-first learning",
-    body: "High-quality recorded lessons. Watch any time, on any device, at your own pace.",
-  },
-  {
-    icon: ListChecks,
-    title: "Quiz-gated lessons",
-    body: "Every lesson can end with a quiz. Pass to unlock the next — no skipping ahead.",
-  },
-  {
-    icon: Award,
-    title: "Verifiable certificates",
-    body: "Finish a course and earn a certificate with a public verification link.",
-  },
-  {
-    icon: UserRound,
-    title: "Learn from our experts",
-    body: "Courses are designed and taught by our own instructors — one academy, one standard.",
-  },
-];
-
-// Step 1 names only the payment methods actually offered: the card rail hides
-// itself without Stripe keys, and a landing page promising "card" while
-// checkout shows only bKash is the kind of copy/behaviour drift this replaced.
-function steps(cardAvailable: boolean) {
+function howItWorks(cardAvailable: boolean) {
   return [
     {
+      icon: BookOpen,
       title: "Enrol in a course",
-      body: `Pick a course that fits your goal and pay securely — ${
+      body: `Pick a path that fits your goal and pay securely — ${
         cardAvailable ? "bKash or card" : "with bKash"
       }.`,
     },
     {
-      title: "Watch video lessons",
-      body: "Structured sections and lectures, built to take you from zero to done.",
+      icon: PlayCircle,
+      title: "Learn with quizzes",
+      body: "Watch structured video lessons. Pass the quiz to unlock the next — no skipping ahead.",
     },
     {
-      title: "Pass the quizzes",
-      body: "Confirm your understanding to unlock the next lesson.",
-    },
-    {
-      title: "Get certified",
-      body: "Finish the course and earn a verifiable certificate.",
+      icon: Award,
+      title: "Earn a certificate",
+      body: "Finish the course and receive a certificate with a public verification link.",
     },
   ];
 }
 
 export default async function HomePage() {
-  const [catalog, publishedCount] = await Promise.all([
-    listPublishedCourses(),
+  const [catalog, publishedCount, testimonials] = await Promise.all([
+    listPublishedCourses({ sort: "popular" }),
     countPublishedCourses(),
+    listHomeTestimonials(3),
   ]);
   const featured = catalog.items.slice(0, 3);
   const cardAvailable = availableRails().some((rail) => rail.kind === "automatic");
-  const STEPS = steps(cardAvailable);
+  const steps = howItWorks(cardAvailable);
+
+  const stats =
+    publishedCount > 0
+      ? [
+          { value: String(publishedCount), label: "Published courses" },
+          { value: "Quiz-gated", label: "Lesson progress" },
+          { value: "Verified", label: "Certificates" },
+        ]
+      : [
+          { value: "Structured", label: "Video courses" },
+          { value: "Quiz-gated", label: "Lesson progress" },
+          { value: "Verified", label: "Certificates" },
+        ];
 
   return (
     <main>
-      {/* Hero */}
-      <section className="bg-hero-gradient text-white">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-24 text-center sm:px-6">
-          <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-6xl">
-            Learn real skills.
-            <br />
-            <span className="text-gradient-brand">Earn real certificates.</span>
-          </h1>
-          <p className="max-w-2xl text-lg text-white/80">
-            A structured online academy: video lessons, quiz-gated progress and verifiable
-            certificates. Buy a course once, keep it forever.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg" className="shadow-brand">
-              <Link href="/courses">Explore courses</Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
-            >
-              <Link href="/sign-up">Start free</Link>
-            </Button>
-          </div>
+      <section className="border-b bg-background">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-16 text-center sm:px-6 sm:py-20 lg:px-8 lg:py-24">
+          <Reveal lcpSafe className="flex flex-col items-center gap-4">
+            <p className="text-sm font-medium tracking-wide text-primary">
+              Online academy · Bangladesh
+            </p>
+            <h1 className="max-w-3xl font-heading text-3xl font-semibold leading-[1.15] tracking-tight sm:text-5xl">
+              Learn with structure. Finish with a certificate.
+            </h1>
+          </Reveal>
+          <Reveal className="flex max-w-2xl flex-col items-center gap-6">
+            <p className="text-lg leading-relaxed text-muted-foreground">
+              Video lessons, quiz-gated progress, and verifiable certificates from one academy.
+              Buy a course once, keep it for life. Pay with bKash in BDT.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Button asChild size="lg" variant="cta">
+                <Link href="/courses" className="cursor-pointer">
+                  Explore courses
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href="/sign-up" className="cursor-pointer">
+                  Create account
+                </Link>
+              </Button>
+            </div>
+          </Reveal>
 
-          <dl className="mt-10 grid w-full max-w-2xl grid-cols-3 gap-2 sm:gap-4">
-            {[
-              { value: `${publishedCount}+`, label: "Courses" },
-              { value: "Own pace", label: "Learn anywhere" },
-              { value: "Lifetime", label: "Course access" },
-            ].map((stat) => (
-              <div key={stat.label} className="min-w-0">
-                <dt className="sr-only">{stat.label}</dt>
-                <dd className="text-xl font-extrabold sm:text-3xl">{stat.value}</dd>
-                <dd className="text-xs text-white/70 sm:text-sm">{stat.label}</dd>
-              </div>
+          <RevealStagger className="mt-6 grid w-full max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+            {stats.map((stat) => (
+              <RevealItem key={stat.label}>
+                <div className="rounded-lg border bg-card px-4 py-5 shadow-xs">
+                  <p className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
+                    {stat.value}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
+                </div>
+              </RevealItem>
             ))}
-          </dl>
+          </RevealStagger>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-        <h2 className="text-center text-3xl font-extrabold tracking-tight">
-          Structured learning, measurable outcomes
-        </h2>
-        <p className="mx-auto mt-3 max-w-2xl text-center text-muted-foreground">
-          One platform, structured pathways — from first lesson to certificate.
-        </p>
-
-        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {FEATURES.map((feature) => (
-            <Card key={feature.title} className="rounded-2xl">
-              <CardContent className="flex flex-col gap-3 p-6">
-                <span className="flex size-11 items-center justify-center rounded-full bg-brand text-primary-foreground">
-                  <feature.icon className="size-5" aria-hidden />
-                </span>
-                <h3 className="font-bold">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.body}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      {/* Featured courses */}
       {featured.length > 0 ? (
         <section className="bg-surface-alt">
-          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-extrabold tracking-tight">Featured courses</h2>
+                <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+                  Featured courses
+                </h2>
                 <p className="mt-2 text-muted-foreground">Start with our most popular paths.</p>
               </div>
               <Button asChild variant="outline">
-                <Link href="/courses">View all</Link>
+                <Link href="/courses" className="cursor-pointer">
+                  View all
+                </Link>
               </Button>
             </div>
 
@@ -162,40 +128,85 @@ export default async function HomePage() {
         </section>
       ) : null}
 
-      {/* How it works */}
-      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-        <h2 className="text-center text-3xl font-extrabold tracking-tight">How it works</h2>
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <h2 className="text-center font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+          How it works
+        </h2>
         <p className="mx-auto mt-3 max-w-2xl text-center text-muted-foreground">
-          From enrolment to certificate, in four steps.
+          From enrolment to certificate, in three steps.
         </p>
 
-        <ol className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((step, index) => (
-            <li key={step.title} className="flex flex-col gap-2">
-              <span className="text-5xl font-extrabold text-brand-pink-faint" aria-hidden>
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <h3 className="font-bold">{step.title}</h3>
-              <p className="text-sm text-muted-foreground">{step.body}</p>
-            </li>
+        <RevealStagger className="mt-12 grid gap-6 sm:grid-cols-3">
+          {steps.map((step, index) => (
+            <RevealItem key={step.title}>
+              <article className="flex h-full flex-col gap-4 rounded-lg border bg-card p-6 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <step.icon className="size-5" aria-hidden />
+                  </span>
+                  <span className="font-heading text-sm font-semibold tabular-nums text-muted-foreground">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                </div>
+                <h3 className="font-heading text-lg font-semibold tracking-tight">{step.title}</h3>
+                <p className="text-base leading-relaxed text-muted-foreground">{step.body}</p>
+              </article>
+            </RevealItem>
           ))}
-        </ol>
+        </RevealStagger>
       </section>
 
-      {/* CTA */}
-      <section className="bg-hero-gradient text-white">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 px-4 py-16 text-center sm:px-6">
-          <h2 className="text-3xl font-extrabold tracking-tight">
-            Ready to start learning?
-          </h2>
-          <p className="max-w-xl text-white/80">
-            Join learners who chose structured training over guesswork.
-          </p>
-          <Button asChild size="lg" className="shadow-brand">
-            <Link href="/sign-up">Create your account</Link>
-          </Button>
-        </div>
-      </section>
+      {testimonials.length > 0 ? (
+        <section className="bg-surface-alt">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+            <h2 className="text-center font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+              What learners say
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-center text-muted-foreground">
+              Reviews from people who finished a course on this academy.
+            </p>
+            <ul className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {testimonials.map((item) => (
+                <li key={item.id}>
+                  <Card className="h-full">
+                    <CardContent className="flex h-full flex-col gap-4 p-6">
+                      <Quote className="size-5 text-primary" aria-hidden />
+                      <StarRating value={item.rating} />
+                      <p className="line-clamp-5 text-base leading-relaxed text-foreground">
+                        {item.body}
+                      </p>
+                      <p className="mt-auto text-sm">
+                        <span className="font-semibold">{item.authorName}</span>
+                        <span className="block truncate text-muted-foreground" title={item.courseTitle}>
+                          {item.courseTitle}
+                        </span>
+                      </p>
+                    </CardContent>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
+
+      <Reveal>
+        <section className="bg-primary text-primary-foreground">
+          <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 px-4 py-16 text-center sm:px-6 lg:px-8">
+            <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+              Ready to start learning?
+            </h2>
+            <p className="max-w-xl text-primary-foreground/85">
+              Join learners who chose structured training over guesswork.
+            </p>
+            <Button asChild size="lg" variant="cta">
+              <Link href="/courses" className="cursor-pointer">
+                Explore courses
+              </Link>
+            </Button>
+          </div>
+        </section>
+      </Reveal>
     </main>
   );
 }

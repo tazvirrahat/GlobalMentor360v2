@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { ModerationStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { canReview } from "@/lib/entitlement";
+import { clampPage, pageCount, skipTake } from "@/lib/pagination";
 
 /**
  * Course reviews and the rating aggregates every catalog surface renders.
@@ -274,43 +275,31 @@ export type CourseReviewPanel = {
   reviews: CourseReview[];
   /** The signed-in learner's own review, if they have written one. */
   ownReview: OwnReview | null;
-  /** Visible reviews beyond the page rendered, so the count can be honest. */
-  hiddenByPageSize: number;
+  page: number;
+  pageCount: number;
 };
 
 /**
- * The landing page renders one review at a time but is a public, SEO-critical
- * page, so the query count has to be constant. A course with 4000 reviews costs
+ * The landing page renders one review page at a time but is a public, SEO-critical
+ * page, so the query count has to stay constant. A course with 4000 reviews costs
  * exactly what a course with four costs.
  */
-const REVIEW_PAGE_SIZE = 20;
+export const REVIEW_PAGE_SIZE = 20;
 
 /**
- * Everything the landing page's review section needs, in three queries that do
- * not multiply with the number of reviews (two when signed out).
+ * Everything the landing page's review section needs, in a constant number of
+ * queries that do not multiply with the number of reviews (two when signed out).
  */
 export async function getCourseReviewPanel(
   courseId: string,
   userId: string | null,
+  page?: string | number,
 ): Promise<CourseReviewPanel> {
-  const [buckets, rows, own] = await Promise.all([
+  const [buckets, own] = await Promise.all([
     db.review.groupBy({
       by: ["rating"],
       where: { courseId, status: "VISIBLE" },
       _count: { _all: true },
-    }),
-    db.review.findMany({
-      where: { courseId, status: "VISIBLE" },
-      orderBy: { createdAt: "desc" },
-      take: REVIEW_PAGE_SIZE,
-      select: {
-        id: true,
-        rating: true,
-        body: true,
-        createdAt: true,
-        updatedAt: true,
-        user: { select: { name: true } },
-      },
     }),
     // Deliberately unfiltered on status: a learner whose review was hidden still
     // gets their own text back in the form, rather than a blank box that looks
@@ -327,6 +316,24 @@ export async function getCourseReviewPanel(
     buckets.map((bucket) => ({ rating: bucket.rating, count: bucket._count._all })),
   );
 
+  const current = clampPage(page, summary.count, REVIEW_PAGE_SIZE);
+  const { skip, take } = skipTake(current, REVIEW_PAGE_SIZE);
+
+  const rows = await db.review.findMany({
+    where: { courseId, status: "VISIBLE" },
+    orderBy: { createdAt: "desc" },
+    skip,
+    take,
+    select: {
+      id: true,
+      rating: true,
+      body: true,
+      createdAt: true,
+      updatedAt: true,
+      user: { select: { name: true } },
+    },
+  });
+
   return {
     summary,
     reviews: rows.map((row) => ({
@@ -338,6 +345,50 @@ export async function getCourseReviewPanel(
       authorName: row.user.name,
     })),
     ownReview: own,
-    hiddenByPageSize: Math.max(0, summary.count - rows.length),
+    page: current,
+    pageCount: pageCount(summary.count, REVIEW_PAGE_SIZE),
   };
+}
+
+export type HomeTestimonial = {
+  id: string;
+  rating: number;
+  body: string;
+  authorName: string;
+  courseTitle: string;
+};
+
+/** Recent visible reviews with a body, for the marketing home only. */
+export async function listHomeTestimonials(take = 3): Promise<HomeTestimonial[]> {
+  const rows = await db.review.findMany({
+    where: {
+      status: "VISIBLE",
+      body: { not: null },
+      course: { status: "PUBLISHED" },
+    },
+    orderBy: { createdAt: "desc" },
+    take: take * 4,
+    select: {
+      id: true,
+      rating: true,
+      body: true,
+      user: { select: { name: true } },
+      course: { select: { title: true } },
+    },
+  });
+
+  const out: HomeTestimonial[] = [];
+  for (const row of rows) {
+    const body = row.body?.trim();
+    if (!body) continue;
+    out.push({
+      id: row.id,
+      rating: row.rating,
+      body,
+      authorName: row.user.name,
+      courseTitle: row.course.title,
+    });
+    if (out.length >= take) break;
+  }
+  return out;
 }

@@ -35,7 +35,7 @@ export async function uniqueSlug(base: string): Promise<string> {
 }
 
 /** Studio course list. Same size as the other bounded admin/studio tables. */
-export const STUDIO_COURSE_PAGE_SIZE = 40;
+export const STUDIO_COURSE_PAGE_SIZE = 20;
 
 export async function listInstructorCourses(instructorId: string, page?: string | number) {
   // Ownership stays in the `where`. An ADMIN who also teaches sees their own

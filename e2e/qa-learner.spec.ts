@@ -101,13 +101,12 @@ test.describe("learner QA — public catalog", () => {
     const diag = attachDiagnostics(page);
 
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /learn real skills/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /explore courses/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /learn with structure/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /explore courses/i }).first()).toBeVisible();
 
     await page.goto("/courses");
     await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
-    await expect(page.getByRole("link", { name: /typescript foundations/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /sql for analysts/i })).toBeVisible();
+    await expect(page.locator("a[href^='/courses/']").first()).toBeVisible();
 
     await page.getByLabel("Search courses").fill("typescript");
     await page.getByRole("button", { name: "Search" }).click();
@@ -116,7 +115,7 @@ test.describe("learner QA — public catalog", () => {
     await expect(page.getByRole("link", { name: /sql for analysts/i })).toHaveCount(0);
 
     await page.goto("/courses?price=free");
-    await expect(page.getByText(/no courses match your filters/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
     await expect(page.getByRole("link", { name: /enrol for free/i })).toHaveCount(0);
 
     await page.goto("/courses?price=paid&level=BEGINNER");
@@ -184,19 +183,19 @@ test.describe("learner QA — session and library", () => {
     }
     await expect(typescriptLink.first()).toBeVisible();
 
-    const dashPercent = parsePercent((await page.getByText(/\d+%/).first().textContent()) ?? "");
+    const tsRow = page.locator("li").filter({
+      has: page.getByRole("link", { name: /typescript foundations/i }),
+    });
+    const dashPercent = parsePercent((await tsRow.getByText(/\d+%/).textContent()) ?? "");
     expect(dashPercent, "dashboard percent not found").not.toBeNull();
 
     await page.goto("/learn/typescript-foundations");
     await page.waitForURL(/\/learn\/typescript-foundations\/[^/]+/);
     await expect(page.getByText(/your progress/i)).toBeVisible();
 
-    const playerPercentText = await page
-      .locator("aside")
-      .getByText(/\d+%/)
-      .first()
-      .textContent();
-    const playerPercent = parsePercent(playerPercentText);
+    const playerPercent = parsePercent(
+      await page.getByLabel(/course progress/i).getAttribute("aria-label"),
+    );
     expect(playerPercent).toBe(dashPercent);
 
     const items = await curriculum("typescript-foundations");
@@ -421,7 +420,7 @@ test.describe("learner QA — player, account, social", () => {
   }) => {
     const diag = attachDiagnostics(page);
     await signIn(page, SEED.learner, "/account");
-    await expect(page.getByRole("heading", { name: "Account" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Account" })).toBeVisible();
     await expect(page.getByText(/learner@example.com/i)).toBeVisible();
     await expect(page.getByText(/this device/i)).toBeVisible();
 

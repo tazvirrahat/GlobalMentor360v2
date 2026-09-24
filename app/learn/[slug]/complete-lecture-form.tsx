@@ -27,7 +27,7 @@ export function CompleteLectureForm({
           {state.message}
         </p>
       ) : null}
-      <Button type="submit" disabled={pending} className="w-fit shadow-brand">
+      <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "Saving…" : hasNext ? "Mark complete and continue" : "Mark complete"}
         {hasNext ? <ChevronRight className="size-4" aria-hidden /> : null}
       </Button>

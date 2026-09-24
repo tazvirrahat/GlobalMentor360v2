@@ -12,7 +12,7 @@ import { readinessChecks } from "@/lib/studio";
  * unrecoverable without a database shell.
  */
 
-export const ADMIN_PAGE_SIZE = 40;
+export const ADMIN_PAGE_SIZE = 20;
 
 export async function listAdminUsers(query?: string, page?: string | number) {
   const where = query

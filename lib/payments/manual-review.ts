@@ -17,7 +17,7 @@ const LOST_RACE = "Another admin reviewed this payment first — nothing changed
 
 export type ManualPaymentReview = { ok: true; message: string } | { ok: false; message: string };
 
-export const MANUAL_PAYMENT_QUEUE_PAGE_SIZE = 40;
+export const MANUAL_PAYMENT_QUEUE_PAGE_SIZE = 20;
 
 const PENDING_QUEUE_SELECT = {
   id: true,

@@ -56,7 +56,7 @@ export function SignUpForm() {
     return (
       <>
         <Alert role="status">
-          <MailCheck className="size-4 text-brand" />
+          <MailCheck className="size-4 text-primary" />
           <AlertTitle>Check your email</AlertTitle>
           <AlertDescription>
             <p>
@@ -78,7 +78,7 @@ export function SignUpForm() {
 
         <p className="text-center text-sm text-muted-foreground">
           Already verified?{" "}
-          <Link href="/sign-in" className="font-semibold text-brand hover:underline">
+          <Link href="/sign-in" className="font-semibold text-primary hover:underline">
             Sign in
           </Link>
         </p>
@@ -89,11 +89,11 @@ export function SignUpForm() {
   return (
     <>
       <div className="text-center">
-        <h1 className="text-3xl font-extrabold tracking-tight">Create your account</h1>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">Create your account</h1>
         <p className="mt-2 text-muted-foreground">Start learning in minutes.</p>
       </div>
 
-      <Card className="rounded-2xl">
+      <Card>
         <CardContent className="p-6">
           <form method="post" action="/sign-up" onSubmit={onSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
@@ -138,7 +138,7 @@ export function SignUpForm() {
 
             {error ? <FieldError message={error} /> : null}
 
-            <Button type="submit" disabled={pending} className="shadow-brand">
+            <Button type="submit" disabled={pending}>
               {pending ? "Creating account…" : "Create account"}
             </Button>
           </form>
@@ -147,7 +147,7 @@ export function SignUpForm() {
 
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/sign-in" className="font-semibold text-brand hover:underline">
+        <Link href="/sign-in" className="font-semibold text-primary hover:underline">
           Sign in
         </Link>
       </p>

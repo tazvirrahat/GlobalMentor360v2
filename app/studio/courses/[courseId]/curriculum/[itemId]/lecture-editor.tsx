@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldError } from "@/components/site/field-error";
 import { updateLecture, type CurriculumState } from "../../../../curriculum-actions";
 
 const initial: CurriculumState = { status: "idle" };
@@ -30,7 +31,7 @@ export function LectureEditor({
   const isVideo = lecture.contentType === "VIDEO";
 
   return (
-    <Card className="rounded-2xl">
+    <Card>
       <CardHeader>
         <CardTitle>Lecture</CardTitle>
       </CardHeader>
@@ -74,20 +75,17 @@ export function LectureEditor({
             </p>
           </div>
 
-          {state.status !== "idle" ? (
+          {state.status === "error" ? <FieldError message={state.message} /> : null}
+          {state.status === "done" ? (
             <p
               role="status"
-              className={
-                state.status === "error"
-                  ? "text-sm font-medium text-destructive"
-                  : "text-sm font-medium"
-              }
+              className="text-sm font-medium"
             >
               {state.message}
             </p>
           ) : null}
 
-          <Button type="submit" disabled={pending} className="w-fit shadow-brand">
+          <Button type="submit" disabled={pending} className="w-fit">
             {pending ? "Saving…" : "Save"}
           </Button>
         </form>

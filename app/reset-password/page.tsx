@@ -20,7 +20,7 @@ export default async function ResetPasswordPage({
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 px-4 py-16 sm:px-6">
       <div className="text-center">
-        <h1 className="text-3xl font-extrabold tracking-tight">Choose a new password</h1>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">Choose a new password</h1>
       </div>
 
       {!token || error ? (
@@ -29,7 +29,9 @@ export default async function ResetPasswordPage({
           <AlertDescription>
             <p>Reset links only work once and expire after an hour.</p>
             <Button asChild variant="outline" size="sm" className="mt-2">
-              <Link href="/forgot-password">Request a new link</Link>
+              <Link href="/forgot-password" className="cursor-pointer">
+                Request a new link
+              </Link>
             </Button>
           </AlertDescription>
         </Alert>

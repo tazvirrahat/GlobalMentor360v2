@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { SEED, signIn } from "./helpers";
+import { SEED, ensureSeedLearnerIsNotInstructor, paginateUntilVisible, signIn } from "./helpers";
 
 /**
  * Exploratory QA for the INSTRUCTOR (studio) persona. Creates a uniquely named
@@ -11,7 +11,9 @@ const STAMP = Date.now().toString(36).slice(-6);
 test.describe("studio exploratory QA", () => {
   test.describe.configure({ timeout: 90_000 });
 
-  test("learner cannot open /studio", async ({ page }) => {
+  test("learner cannot open /studio", async ({ page, context }) => {
+    await ensureSeedLearnerIsNotInstructor(page);
+    await context.clearCookies();
     await signIn(page, SEED.learner, "/studio");
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("link", { name: "Studio" })).toHaveCount(0);
@@ -21,7 +23,7 @@ test.describe("studio exploratory QA", () => {
     await signIn(page, SEED.instructor, "/studio");
     await expect(page).toHaveURL(/\/studio$/);
     await expect(page.getByRole("heading", { name: "Studio", exact: true })).toBeVisible();
-    await expect(page.getByText(/typescript foundations/i)).toBeVisible();
+    await paginateUntilVisible(page, page.getByRole("link", { name: /typescript foundations/i }));
 
     const nav = page.getByRole("navigation", { name: "Studio" });
     await expect(nav.getByRole("link", { name: "Courses" })).toBeVisible();
@@ -47,7 +49,7 @@ test.describe("studio exploratory QA", () => {
     await nav.getByRole("link", { name: "Courses" }).click();
     await expect(page).toHaveURL(/\/studio$/);
     await expect(page.getByRole("heading", { name: "Studio", exact: true })).toBeVisible();
-    await expect(page.getByText(/typescript foundations/i)).toBeVisible();
+    await paginateUntilVisible(page, page.getByRole("link", { name: /typescript foundations/i }));
 
     await page.goto("/studio/qa");
     await page.getByRole("banner").getByRole("link", { name: "Studio" }).click();
@@ -63,7 +65,7 @@ test.describe("studio exploratory QA", () => {
     await page.getByRole("button", { name: "Create draft" }).click();
 
     await expect(page.getByRole("heading", { name: title })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
+    await expect(page.getByText("Draft", { exact: true })).toBeVisible();
     await expect(page.getByText("Settings")).toBeVisible();
     await expect(page.getByLabel("Subtitle")).toBeVisible();
     await expect(page.getByLabel("Description")).toBeVisible();
@@ -92,6 +94,7 @@ test.describe("studio exploratory QA", () => {
     await expect(page.getByText(/no questions yet/i)).toBeVisible();
 
     await page.getByRole("link", { name: "QA article lecture" }).click();
+    await expect(page).toHaveURL(/\/curriculum\/[^/]+$/);
     await expect(page.getByRole("heading", { name: "QA article lecture" })).toBeVisible();
     await expect(page.getByLabel("Article body")).toBeVisible();
     await page.getByLabel("Article body").fill("QA article body for the player.");
@@ -105,6 +108,7 @@ test.describe("studio exploratory QA", () => {
 
     // Seed course: video upload + SQS refresh live on lectures that already exist.
     await page.goto("/studio");
+    await paginateUntilVisible(page, page.getByRole("link", { name: /typescript foundations/i }));
     await page.getByRole("link", { name: /typescript foundations/i }).click();
     await page.getByRole("link", { name: /edit curriculum/i }).click();
     await expect(page.getByRole("button", { name: /add video|replace video/i }).first()).toBeVisible();
@@ -138,7 +142,7 @@ test.describe("studio exploratory QA", () => {
       message,
       "Instructor coupon create must not be treated as catalog-wide",
     ).not.toMatch(/only an admin can create a coupon that applies to every course/i);
-    await expect(page.getByText(code.toUpperCase(), { exact: true })).toBeVisible();
+    await expect(page.getByRole("status")).toContainText(code.toUpperCase());
   });
 
   test("admin coupon form offers All courses and existing catalog courses", async ({ page }) => {
@@ -162,8 +166,9 @@ test.describe("studio exploratory QA", () => {
 
     await page.goto("/studio/announcements");
     const course = page.getByLabel("Course");
-    await expect(course).toContainText(/typescript foundations/i);
     await expect(course).not.toContainText(draftTitle);
+    await course.click();
+    await page.getByRole("option", { name: /typescript foundations/i }).click();
 
     await page.getByLabel("Subject").fill(`QA studio ping ${STAMP}`);
     await page.getByLabel("Message").fill("QA announcement body — checking the course select posts.");

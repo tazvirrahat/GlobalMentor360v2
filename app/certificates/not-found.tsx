@@ -14,13 +14,17 @@ export const metadata = { title: "Certificate not found" };
 export default function CertificateNotFound() {
   return (
     <main className="mx-auto flex max-w-lg flex-col items-center gap-4 px-4 py-24 text-center sm:px-6">
-      <CircleX className="size-10 text-destructive" aria-hidden />
-      <h1 className="text-2xl font-extrabold tracking-tight">Certificate not found</h1>
+      <span className="flex size-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+        <CircleX className="size-7" aria-hidden />
+      </span>
+      <h1 className="font-heading text-2xl font-semibold tracking-tight">Certificate not found</h1>
       <p className="text-muted-foreground">
         No certificate matches that serial. Check the link and try again.
       </p>
       <Button asChild variant="outline">
-        <Link href="/courses">Browse courses</Link>
+        <Link href="/courses" className="cursor-pointer">
+          Browse courses
+        </Link>
       </Button>
     </main>
   );

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { CompactRating } from "@/components/site/star-rating";
 import { courseLevelLabel, coursePriceLabel } from "@/lib/labels";
+import { cn } from "@/lib/utils";
 
 export type CourseCardData = {
   id: string;
@@ -22,6 +23,31 @@ export type CourseCardData = {
   isFree: boolean;
 };
 
+/** Brand-adjacent cover pairs (existing palette tokens only). */
+const COVER_TONES = [
+  "bg-linear-to-br from-primary-active to-primary",
+  "bg-linear-to-br from-brand-ink to-primary",
+  "bg-linear-to-br from-foreground to-primary-hover",
+  "bg-linear-to-br from-primary-hover to-primary-active",
+  "bg-linear-to-br from-brand-ink via-primary-active to-primary",
+  "bg-linear-to-br from-primary to-brand-ink",
+] as const;
+
+function coverToneClass(slug: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < slug.length; i++) {
+    hash ^= slug.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return COVER_TONES[(hash >>> 0) % COVER_TONES.length];
+}
+
+function initials(title: string) {
+  const parts = title.trim().split(/\s+/).slice(0, 2);
+  const letters = parts.map((part) => part[0] ?? "").join("");
+  return (letters || title.slice(0, 2)).toUpperCase();
+}
+
 export function CourseCard({ course }: { course: CourseCardData }) {
   // isFree comes from lib/courses so the card, the landing page, and the
   // enrol-free action share one definition. A course with no active price is
@@ -29,32 +55,51 @@ export function CourseCard({ course }: { course: CourseCardData }) {
   const free = course.isFree;
 
   return (
-    <Link href={`/courses/${course.slug}`} className="group block h-full">
-      <Card className="h-full gap-0 overflow-hidden rounded-2xl py-0 transition-shadow group-hover:shadow-brand">
-        {/* Cover placeholder until MediaAsset thumbnails land — brand gradient with initials. */}
-        <div className="relative flex h-36 items-end bg-hero-gradient p-4">
-          <span className="text-3xl font-extrabold text-white/25" aria-hidden>
-            {course.title.slice(0, 2).toUpperCase()}
+    <Link href={`/courses/${course.slug}`} className="group block h-full cursor-pointer">
+      <Card className="h-full gap-0 overflow-hidden rounded-lg py-0 transition-shadow duration-200 group-hover:shadow-brand">
+        <div
+          className={cn(
+            "relative flex h-44 items-end overflow-hidden p-4",
+            coverToneClass(course.slug),
+          )}
+        >
+          <span
+            className="pointer-events-none absolute inset-0 flex items-center justify-center font-heading text-7xl font-semibold text-white/15"
+            aria-hidden
+          >
+            {initials(course.title)}
           </span>
-          <div className="absolute right-3 top-3 flex gap-1.5">
-            {free ? <Badge className="bg-brand-pink text-white">Free</Badge> : null}
+          <div className="relative z-10 flex flex-wrap gap-1.5">
+            <Badge variant="secondary" className="bg-white/95 text-foreground">
+              {courseLevelLabel(course.level)}
+            </Badge>
             {course.primaryCategory ? (
-              <Badge variant="secondary" className="bg-white/90 text-brand-ink">
+              <Badge
+                variant="secondary"
+                className="max-w-40 truncate bg-white/95 text-foreground"
+                title={course.primaryCategory.name}
+              >
                 {course.primaryCategory.name}
               </Badge>
+            ) : null}
+            {free ? (
+              <Badge className="bg-accent text-accent-foreground">Free</Badge>
             ) : null}
           </div>
         </div>
 
-        <CardContent className="flex flex-col gap-2 p-4">
-          <h3 className="line-clamp-2 font-bold leading-snug group-hover:text-brand">
+        <CardContent className="flex flex-1 flex-col gap-2 p-5">
+          <h3
+            className="line-clamp-2 font-heading text-base font-semibold leading-snug tracking-tight group-hover:text-primary"
+            title={course.title}
+          >
             {course.title}
           </h3>
           {course.subtitle ? (
             <p className="line-clamp-2 text-sm text-muted-foreground">{course.subtitle}</p>
           ) : null}
 
-          <p className="text-xs text-muted-foreground">{course.instructor.name}</p>
+          <p className="text-sm text-muted-foreground">{course.instructor.name}</p>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {/* The denormalised copy, and the only surface entitled to it: the
@@ -65,7 +110,7 @@ export function CourseCard({ course }: { course: CourseCardData }) {
               <CompactRating
                 average={course.ratingAverage}
                 count={course.ratingCount}
-                className="text-amber-600"
+                className="text-star"
                 starClassName="size-3.5"
                 countClassName="text-muted-foreground"
               />
@@ -80,11 +125,10 @@ export function CourseCard({ course }: { course: CourseCardData }) {
             </span>
           </div>
 
-          <div className="mt-auto flex items-center justify-between pt-2">
-            <span className="text-lg font-extrabold text-brand">
+          <div className="mt-auto flex items-end justify-between gap-3 pt-3">
+            <span className="font-heading text-lg font-semibold tabular-nums text-primary">
               {coursePriceLabel(free, course.price)}
             </span>
-            <span className="text-xs text-muted-foreground">{courseLevelLabel(course.level)}</span>
           </div>
         </CardContent>
       </Card>

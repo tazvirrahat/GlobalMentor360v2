@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FieldError } from "@/components/site/field-error";
 import { createCouponAction, type CouponState } from "./actions";
 
 const initial: CouponState = { status: "idle" };
@@ -29,7 +30,15 @@ export function CouponForm({
     <form action={action} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="code">Code</Label>
-        <Input id="code" name="code" required minLength={3} maxLength={40} placeholder="SAVE20" />
+        <Input
+          id="code"
+          name="code"
+          required
+          minLength={3}
+          maxLength={40}
+          placeholder="SAVE20"
+          className="font-mono uppercase"
+        />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
@@ -46,7 +55,15 @@ export function CouponForm({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="value">Value</Label>
-          <Input id="value" name="value" type="number" min={1} required defaultValue={20} />
+          <Input
+            id="value"
+            name="value"
+            type="number"
+            min={1}
+            required
+            defaultValue={20}
+            className="tabular-nums"
+          />
         </div>
       </div>
       <div className="flex flex-col gap-1.5">
@@ -72,22 +89,18 @@ export function CouponForm({
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="maxRedemptions">Max redemptions (optional)</Label>
-        <Input id="maxRedemptions" name="maxRedemptions" type="number" min={1} />
+        <Input id="maxRedemptions" name="maxRedemptions" type="number" min={1} className="tabular-nums" />
       </div>
-      {state.status !== "idle" ? (
-        <p
-          role="status"
-          className={
-            state.status === "error" ? "text-sm font-medium text-destructive" : "text-sm font-medium"
-          }
-        >
+      {state.status === "error" ? <FieldError message={state.message} /> : null}
+      {state.status === "done" ? (
+        <p role="status" className="text-sm font-medium">
           {state.message}
         </p>
       ) : null}
       <Button
         type="submit"
         disabled={pending || (!canCreateGlobal && courses.length === 0)}
-        className="w-fit shadow-brand"
+        className="w-fit"
       >
         {pending ? "Creating…" : "Create coupon"}
       </Button>

@@ -6,6 +6,7 @@ import type { Route } from "next";
 import { CircleCheck, CircleX } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { submitQuizAction } from "./actions";
 
 type Question = {
@@ -111,7 +112,7 @@ export function QuizForm({
       <div className="flex flex-col gap-6">
         <Alert variant={outcome.passed ? "default" : "destructive"}>
           {outcome.passed ? (
-            <CircleCheck className="size-4 text-brand" />
+            <CircleCheck className="size-4 text-success" />
           ) : (
             <CircleX className="size-4" />
           )}
@@ -134,15 +135,19 @@ export function QuizForm({
           {questions.map((question) => {
             const result = outcome.results.find((r) => r.questionId === question.id);
             return (
-              <li key={question.id} className="rounded-xl border p-4">
+              <li key={question.id} className="rounded-lg border bg-card p-4 shadow-xs">
                 <p className="font-semibold">{question.prompt}</p>
                 <p
-                  className={
-                    result?.isCorrect
-                      ? "mt-1 text-sm font-medium text-brand"
-                      : "mt-1 text-sm font-medium text-destructive"
-                  }
+                  className={cn(
+                    "mt-1 flex items-center gap-1.5 text-sm font-medium",
+                    result?.isCorrect ? "text-success" : "text-destructive",
+                  )}
                 >
+                  {result?.isCorrect ? (
+                    <CircleCheck className="size-4" aria-hidden />
+                  ) : (
+                    <CircleX className="size-4" aria-hidden />
+                  )}
                   {result?.isCorrect ? "Correct" : "Incorrect"}
                 </p>
                 {/* The answer key, option by option. Shown only after submitting:
@@ -153,21 +158,23 @@ export function QuizForm({
                     {result.options.map((option) => (
                       <li
                         key={option.id}
-                        className={
-                          option.isCorrect
-                            ? "rounded-lg border border-brand/40 bg-brand/5 p-2.5"
-                            : option.selected
-                              ? "rounded-lg border border-destructive/40 bg-destructive/5 p-2.5"
-                              : "rounded-lg border p-2.5"
-                        }
+                        className={cn(
+                          "rounded-lg border p-2.5 motion-safe:transition-colors motion-safe:duration-200",
+                          option.isCorrect && "border-success/40 bg-success/10",
+                          !option.isCorrect && option.selected && "border-destructive/40 bg-destructive/5",
+                        )}
                       >
-                        <p className="flex items-center gap-2 text-sm">
+                        <p className="flex flex-wrap items-center gap-2 text-sm">
                           <span className="font-medium">{option.text}</span>
                           {option.isCorrect ? (
-                            <span className="text-xs font-semibold text-brand">Correct answer</span>
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
+                              <CircleCheck className="size-3.5" aria-hidden />
+                              Correct answer
+                            </span>
                           ) : null}
                           {option.selected && !option.isCorrect ? (
-                            <span className="text-xs font-semibold text-destructive">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive">
+                              <CircleX className="size-3.5" aria-hidden />
                               You chose this
                             </span>
                           ) : null}
@@ -202,8 +209,10 @@ export function QuizForm({
         ) : null}
 
         {outcome.passed && nextHref ? (
-          <Button asChild className="w-fit shadow-brand">
-            <a href={nextHref}>Continue to next lesson</a>
+          <Button asChild className="w-fit">
+            <a href={nextHref} className="cursor-pointer">
+              Continue to next lesson
+            </a>
           </Button>
         ) : null}
       </div>
@@ -214,7 +223,7 @@ export function QuizForm({
     <form onSubmit={onSubmit} className="flex flex-col gap-6">
       {previous?.passed ? (
         <Alert>
-          <CircleCheck className="size-4 text-brand" />
+          <CircleCheck className="size-4 text-success" />
           <AlertTitle>Already passed ({previous.scorePct}%)</AlertTitle>
           <AlertDescription>
             {allowRetakes
@@ -228,21 +237,21 @@ export function QuizForm({
         const multi = question.type === "MULTI_SELECT";
         const selected = selections[question.id] ?? [];
         return (
-          <fieldset key={question.id} className="rounded-xl border p-4">
+          <fieldset key={question.id} className="rounded-lg border bg-card p-4 shadow-xs">
             <legend className="px-1 text-sm font-semibold">
               {index + 1}. {question.prompt}
             </legend>
             <ul className="mt-3 flex flex-col gap-2">
               {question.options.map((option) => (
                 <li key={option.id}>
-                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-1 py-1.5 text-sm transition-colors duration-150 hover:bg-muted/50">
                     <input
                       type={multi ? "checkbox" : "radio"}
                       name={question.id}
                       value={option.id}
                       checked={selected.includes(option.id)}
                       onChange={() => toggle(question.id, option.id, multi)}
-                      className="mt-0.5"
+                      className="mt-0.5 size-4 cursor-pointer accent-primary"
                     />
                     {option.text}
                   </label>
@@ -259,7 +268,7 @@ export function QuizForm({
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending} className="w-fit shadow-brand">
+      <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "Submitting…" : "Submit answers"}
       </Button>
     </form>

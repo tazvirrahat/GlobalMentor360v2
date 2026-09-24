@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldError } from "@/components/site/field-error";
 import { setPublished, updateCourse, type ActionState } from "../../actions";
 import { COURSE_LEVELS } from "@/lib/labels";
 
@@ -44,8 +45,8 @@ function LineList({
 }) {
   const rows = defaults.length > 0 ? defaults : [""];
   return (
-    <fieldset className="rounded-xl border p-4">
-      <legend className="px-1 text-sm font-semibold">{label}</legend>
+    <fieldset className="rounded-lg border border-border p-4">
+      <legend className="px-1 text-sm font-medium">{label}</legend>
       <p className="mb-3 text-xs text-muted-foreground">{hint}</p>
       <div className="flex flex-col gap-2">
         {rows.map((text, index) => (
@@ -142,8 +143,8 @@ export function SettingsForm({ course }: { course: Course }) {
         </div>
       </div>
 
-      <fieldset className="rounded-xl border p-4">
-        <legend className="px-1 text-sm font-semibold">Price</legend>
+      <fieldset className="rounded-lg border border-border p-4">
+        <legend className="px-1 text-sm font-medium">Price</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="priceAmount">Amount</Label>
@@ -153,6 +154,7 @@ export function SettingsForm({ course }: { course: Course }) {
               type="number"
               step="0.01"
               min="0"
+              className="tabular-nums"
               defaultValue={primary ? (primary.amount / 100).toFixed(2) : ""}
             />
           </div>
@@ -177,13 +179,14 @@ export function SettingsForm({ course }: { course: Course }) {
         </p>
       </fieldset>
 
-      {state.status !== "idle" ? (
+      {state.status === "error" ? <FieldError message={state.message} /> : null}
+      {state.status === "done" ? (
         <p role="status" className="text-sm font-medium">
           {state.message}
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending} className="w-fit shadow-brand">
+      <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "Saving…" : "Save"}
       </Button>
     </form>
@@ -211,7 +214,6 @@ export function PublishForm({
         type="submit"
         disabled={pending || (!published && !ready)}
         variant={published ? "outline" : "default"}
-        className={published ? "" : "shadow-brand"}
       >
         {pending ? "Working…" : published ? "Unpublish" : "Publish"}
       </Button>
@@ -219,7 +221,8 @@ export function PublishForm({
       {!published && !ready ? (
         <p className="text-xs text-muted-foreground">Complete the checklist before publishing.</p>
       ) : null}
-      {state.status !== "idle" ? (
+      {state.status === "error" ? <FieldError message={state.message} /> : null}
+      {state.status === "done" ? (
         <p role="status" className="text-sm font-medium">
           {state.message}
         </p>

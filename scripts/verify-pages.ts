@@ -427,7 +427,7 @@ async function main(): Promise<number> {
 
   // --- anonymous public ---
   assertPage("anonymous", "/", await getPage("/"), {
-    mustInclude: ["Learn real skills"],
+    mustInclude: ["Learn with structure"],
   });
 
   const catalog1 = await getPage("/courses");
@@ -563,9 +563,10 @@ async function main(): Promise<number> {
   assertPage("vol", "/orders", orders1, {
     mustInclude: ["page 1 of 2"],
   });
+  const orderTitleRe = /<p class="truncate font-medium"[^>]*>([\s\S]*?)<\/p>/g;
   const orderTitles1 = titlesIn(orders1.html).concat(
-    [...orders1.html.matchAll(/<p class="font-bold">([\s\S]*?)<\/p>/g)].map((m) =>
-      (m[1] ?? "").replace(/<[^>]+>/g, "").trim(),
+    [...orders1.html.matchAll(orderTitleRe)].map((m) =>
+      (m[1] ?? "").replace(/<[^>]+>/g, "").replace(/<!--[\s\S]*?-->/g, "").trim(),
     ),
   );
 
@@ -573,7 +574,7 @@ async function main(): Promise<number> {
   assertPage("vol", "/orders?page=2", orders2, {
     extra: (html, text) => {
       if (!text.includes("page 2 of")) return "missing page 2 of N";
-      const t2 = [...html.matchAll(/<p class="font-bold">([\s\S]*?)<\/p>/g)].map((m) =>
+      const t2 = [...html.matchAll(orderTitleRe)].map((m) =>
         (m[1] ?? "").replace(/<[^>]+>/g, "").replace(/<!--[\s\S]*?-->/g, "").trim(),
       );
       if (t2.length === 0) return "no order rows on page 2";
@@ -686,7 +687,9 @@ async function main(): Promise<number> {
     extra: (_html, text) => {
       const awaiting = text.match(/(\d+) awaiting/);
       const total = awaiting ? Number(awaiting[1]) : 0;
-      if (total <= 40) return `expected payments page 2 (total>40), got ${total}`;
+      // Queue page size is 20; page 2 exists when total > 20 (seed has 40 pending).
+      if (total <= 20) return `expected payments page 2 (total>20), got ${total}`;
+      if (!/Showing 1–20 of \d+/.test(text)) return "payments showing-range missing";
       if (!text.includes("page 1 of")) return "payments pager missing";
       if (!text.includes("VOLTXN")) return "vol trx ids missing on page 1";
       return null;

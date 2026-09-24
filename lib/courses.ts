@@ -89,9 +89,9 @@ export type CatalogFilters = {
 
 /**
  * One catalog page. The public /courses route pages with ?page= rather than
- * silently dropping everything past the first 48.
+ * silently dropping everything past the first 24.
  */
-export const CATALOG_PAGE_SIZE = 48;
+export const CATALOG_PAGE_SIZE = 24;
 
 /**
  * Only the orderings Prisma can apply without a search.

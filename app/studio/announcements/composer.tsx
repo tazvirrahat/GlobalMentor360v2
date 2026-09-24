@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldError } from "@/components/site/field-error";
 import {
   ANNOUNCEMENT_BODY_MAX,
   ANNOUNCEMENT_SUBJECT_MAX,
@@ -89,20 +90,14 @@ export function Composer({
         />
       </div>
 
-      {state.status !== "idle" ? (
-        <p
-          role="status"
-          className={
-            state.status === "error"
-              ? "text-sm font-medium text-destructive"
-              : "text-sm font-medium text-brand"
-          }
-        >
+      {state.status === "error" ? <FieldError message={state.message} /> : null}
+      {state.status === "done" ? (
+        <p role="status" className="text-sm font-medium text-primary">
           {state.message}
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending} className="w-fit shadow-brand">
+      <Button type="submit" disabled={pending} className="w-fit">
         <Megaphone className="size-4" aria-hidden />
         {pending ? "Sending…" : "Send to enrolled learners"}
       </Button>

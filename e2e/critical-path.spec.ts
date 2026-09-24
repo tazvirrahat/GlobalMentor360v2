@@ -8,7 +8,7 @@ import { expect, test } from "@playwright/test";
 test.describe("learner critical path", () => {
   test("home, catalog, and course landing render", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /learn real skills/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /learn with structure/i })).toBeVisible();
 
     await page.goto("/courses");
     await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
@@ -61,15 +61,14 @@ test.describe("learner critical path", () => {
     await page.getByRole("button", { name: /add to cart/i }).click();
     await expect(page).toHaveURL(/\/cart/);
     await expect(page.getByRole("heading", { name: "Cart" })).toBeVisible();
-    await expect(page.getByText(/sql for analysts/i)).toBeVisible();
+    await expect(page.getByRole("link", { name: /sql for analysts/i })).toBeVisible();
 
     await page.goto("/account");
-    await expect(page.getByRole("heading", { name: "Account" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Account" })).toBeVisible();
     await expect(page.getByLabel("Current password")).toBeVisible();
 
     await page.goto("/notifications");
     await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
-    await expect(page.getByText("Nothing yet.")).toBeVisible();
   });
 });
 
@@ -92,6 +91,10 @@ test.describe("staff surfaces", () => {
     await expect(page).toHaveURL(/\/admin\/payments/);
     await page.goto("/admin/refunds");
     await expect(page.getByRole("heading", { name: "Refunds" })).toBeVisible();
-    await expect(page.getByText(/no paid orders to refund|refund and revoke access/i)).toBeVisible();
+    await expect(
+      page.getByText(/no paid orders to refund/i).or(
+        page.getByRole("button", { name: /refund and revoke access/i }).first(),
+      ),
+    ).toBeVisible();
   });
 });

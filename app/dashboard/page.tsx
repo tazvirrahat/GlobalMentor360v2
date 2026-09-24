@@ -1,9 +1,8 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { Archive, Award, BookOpen, CheckCircle2, PlayCircle, Receipt } from "lucide-react";
+import { Archive, Award, BookOpen, PlayCircle, Receipt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignOutButton } from "@/components/site/sign-out-button";
@@ -19,88 +18,111 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-function EnrolledCourseCard({ entry }: { entry: MyLearningEntry }) {
+/** Visible cap before a disclosure — Coursera-style density, not a wall of cards. */
+const DASHBOARD_PREVIEW = 8;
+
+function EnrolledCourseRow({ entry }: { entry: MyLearningEntry }) {
   const done = entry.percent >= 100;
   // typedRoutes cannot validate runtime-built strings; both routes exist
   // (player and public certificates are separate segments), so the casts are contained.
   const learnHref = `/learn/${entry.slug}` as Route;
+  const meta = [
+    entry.instructorName,
+    entry.categoryName,
+    courseLevelLabel(entry.level),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <Card className="rounded-2xl py-0 transition-shadow hover:shadow-brand">
-      <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
-        {/* Cover placeholder — matches the catalog card until thumbnails land. */}
-        <div
-          className="flex h-20 w-full shrink-0 items-center justify-center rounded-xl bg-hero-gradient sm:w-32"
-          aria-hidden
-        >
-          <span className="text-2xl font-extrabold text-white/25">
-            {entry.title.slice(0, 2).toUpperCase()}
-          </span>
-        </div>
-
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href={learnHref} className="font-bold leading-snug hover:text-brand">
+    <li className="px-3 py-2.5 transition-colors duration-150 hover:bg-muted/50 sm:px-4">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <Link
+              href={learnHref}
+              className="min-w-0 truncate font-medium hover:text-primary"
+              title={entry.title}
+            >
               {entry.title}
             </Link>
             {done ? (
-              <Badge className="bg-brand text-primary-foreground">
-                <CheckCircle2 aria-hidden />
+              <Badge variant="success" className="shrink-0">
+                <Award aria-hidden />
                 Completed
               </Badge>
             ) : null}
           </div>
-          <p className="text-xs text-muted-foreground">
-            {entry.instructorName}
-            {entry.categoryName ? ` · ${entry.categoryName}` : ""}
-            {` · ${courseLevelLabel(entry.level)}`}
+          <p className="truncate text-xs text-muted-foreground" title={meta}>
+            {meta}
           </p>
-          <div className="flex items-center gap-3 pt-1">
-            <Progress value={entry.percent} className="max-w-64" aria-label="Course progress" />
-            <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+          <div className="mt-1.5 flex items-center gap-2">
+            <Progress
+              value={entry.percent}
+              className="h-1.5"
+              aria-label={`Course progress ${entry.percent}%`}
+            />
+            <span className="w-10 shrink-0 text-right text-xs font-medium tabular-nums text-muted-foreground">
               {entry.percent}%
             </span>
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {done && entry.certificateSerial ? (
-            <Button asChild variant="outline">
-              <Link href={`/certificates/${entry.certificateSerial}` as Route}>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/certificates/${entry.certificateSerial}` as Route} className="cursor-pointer">
                 <Award aria-hidden />
                 View certificate
               </Link>
             </Button>
           ) : null}
-          <Button asChild>
-            <Link href={learnHref}>
+          <Button asChild size="sm">
+            <Link href={learnHref} className="cursor-pointer">
               <PlayCircle aria-hidden />
               {done ? "Review" : "Continue"}
             </Link>
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </li>
   );
 }
 
-const emptyIcon = (
-  <span className="flex size-12 items-center justify-center rounded-full bg-brand text-primary-foreground">
-    <BookOpen className="size-6" aria-hidden />
-  </span>
-);
+function CourseList({ entries }: { entries: MyLearningEntry[] }) {
+  const preview = entries.slice(0, DASHBOARD_PREVIEW);
+  const rest = entries.slice(DASHBOARD_PREVIEW);
 
-function LearningEmptyState({ message }: { message: string }) {
   return (
-    <Card className="rounded-2xl border-dashed">
-      <CardContent className="p-0">
-        <EmptyState className="border-0 px-6 py-12" icon={emptyIcon} message={message}>
-          <Button asChild className="shadow-brand">
-            <Link href="/courses">Browse courses</Link>
-          </Button>
-        </EmptyState>
-      </CardContent>
-    </Card>
+    <div className="overflow-hidden rounded-lg border bg-card shadow-xs">
+      <ul className="divide-y">{preview.map((entry) => (
+        <EnrolledCourseRow key={entry.courseId} entry={entry} />
+      ))}</ul>
+      {rest.length > 0 ? (
+        <details className="border-t">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
+            Show all {entries.length} courses
+          </summary>
+          <ul className="divide-y border-t">
+            {rest.map((entry) => (
+              <EnrolledCourseRow key={entry.courseId} entry={entry} />
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function LearningEmptyState({ title, message }: { title: string; message: string }) {
+  return (
+    <EmptyState icon={<BookOpen className="size-6" aria-hidden />} title={title} message={message}>
+      <Button asChild>
+        <Link href="/courses" className="cursor-pointer">
+          Browse courses
+        </Link>
+      </Button>
+    </EmptyState>
   );
 }
 
@@ -110,11 +132,11 @@ export default async function DashboardPage() {
   const { inProgress, completed, archived } = await getMyLearning(user.id);
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-3xl font-extrabold tracking-tight">
-            Welcome back, <span className="text-brand">{user.name}</span>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+            Welcome back, <span className="text-primary">{user.name}</span>
           </h1>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-sm text-muted-foreground">{user.email}</span>
@@ -129,11 +151,13 @@ export default async function DashboardPage() {
           {/* The only route into the purchase record. A page nothing links to is
               reachable only by typing its URL — the gap that left the quiz
               builder orphaned past a green build. */}
-          <Button asChild variant="outline" size="sm">
-            <Link href={"/account" as Route}>Account</Link>
+          <Button asChild variant="outline">
+            <Link href={"/account" as Route} className="cursor-pointer">
+              Account
+            </Link>
           </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/orders">
+          <Button asChild variant="outline">
+            <Link href="/orders" className="cursor-pointer">
               <Receipt className="size-4" aria-hidden /> Purchases
             </Link>
           </Button>
@@ -155,9 +179,10 @@ export default async function DashboardPage() {
             ) : null}
           </TabsList>
 
-          <TabsContent value="in-progress" className="mt-4 space-y-4">
+          <TabsContent value="in-progress" className="mt-4">
             {inProgress.length === 0 ? (
               <LearningEmptyState
+                title={completed.length === 0 ? "No courses yet" : "Nothing in progress"}
                 message={
                   completed.length === 0
                     ? "You haven't enrolled in any courses yet. Pick one and start learning today."
@@ -165,23 +190,24 @@ export default async function DashboardPage() {
                 }
               />
             ) : (
-              inProgress.map((entry) => <EnrolledCourseCard key={entry.courseId} entry={entry} />)
+              <CourseList entries={inProgress} />
             )}
           </TabsContent>
 
-          <TabsContent value="completed" className="mt-4 space-y-4">
+          <TabsContent value="completed" className="mt-4">
             {completed.length === 0 ? (
-              <LearningEmptyState message="No completed courses yet — finish a course to earn your certificate." />
+              <LearningEmptyState
+                title="No completed courses yet"
+                message="No completed courses yet — finish a course to earn your certificate."
+              />
             ) : (
-              completed.map((entry) => <EnrolledCourseCard key={entry.courseId} entry={entry} />)
+              <CourseList entries={completed} />
             )}
           </TabsContent>
 
           {archived.length > 0 ? (
-            <TabsContent value="archived" className="mt-4 space-y-4">
-              {archived.map((entry) => (
-                <EnrolledCourseCard key={entry.courseId} entry={entry} />
-              ))}
+            <TabsContent value="archived" className="mt-4">
+              <CourseList entries={archived} />
             </TabsContent>
           ) : null}
         </Tabs>

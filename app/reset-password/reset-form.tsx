@@ -47,11 +47,11 @@ export function ResetPasswordForm({ token }: { token: string }) {
   if (done) {
     return (
       <Alert role="status">
-        <CircleCheck className="size-4 text-brand" />
+        <CircleCheck className="size-4 text-primary" />
         <AlertTitle>Password updated</AlertTitle>
         <AlertDescription>
           You can sign in with your new password now — redirecting you to{" "}
-          <Link href="/sign-in" className="font-semibold text-brand hover:underline">
+          <Link href="/sign-in" className="font-semibold text-primary hover:underline">
             sign in
           </Link>
           .
@@ -61,7 +61,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
   }
 
   return (
-    <Card className="rounded-2xl">
+    <Card>
       <CardContent className="p-6">
         <form method="post" action="/reset-password" onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -99,7 +99,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
             </p>
           ) : null}
 
-          <Button type="submit" disabled={pending} className="shadow-brand">
+          <Button type="submit" disabled={pending}>
             {pending ? "Updating…" : "Update password"}
           </Button>
         </form>

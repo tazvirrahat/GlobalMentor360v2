@@ -44,12 +44,12 @@ export function ReplyForm({ threadId, questionTitle }: { threadId: string; quest
       ) : null}
 
       {state.status === "posted" ? (
-        <p role="status" className="text-sm font-medium text-brand">
+        <p role="status" className="text-sm font-medium text-primary">
           Reply posted.
         </p>
       ) : null}
 
-      <Button type="submit" variant="outline" size="sm" disabled={pending} className="w-fit">
+      <Button type="submit" variant="outline" disabled={pending} className="w-fit">
         {pending ? "Posting…" : "Post reply"}
       </Button>
     </form>

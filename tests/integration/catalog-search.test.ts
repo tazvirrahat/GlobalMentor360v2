@@ -162,10 +162,12 @@ describe("sort", () => {
   });
 
   it("orders by enrollment count and by rating", async () => {
-    const popular = mine(await listPublishedCourses({ sort: "popular" }));
+    // Scope to this run: a 0-enrollment fixture otherwise falls off page 1 of
+    // a shared catalog larger than CATALOG_PAGE_SIZE.
+    const popular = mine(await listPublishedCourses({ sort: "popular", query: run }));
     expect(popular.indexOf(paidDearId)).toBeLessThan(popular.indexOf(paidCheapId));
 
-    const rated = mine(await listPublishedCourses({ sort: "rating" }));
+    const rated = mine(await listPublishedCourses({ sort: "rating", query: run }));
     expect(rated.indexOf(paidDearId)).toBeLessThan(rated.indexOf(paidCheapId));
   });
 });

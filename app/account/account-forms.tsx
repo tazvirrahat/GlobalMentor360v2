@@ -62,7 +62,7 @@ export function ChangePasswordForm() {
           {state.message}
         </p>
       ) : null}
-      <Button type="submit" disabled={pending} className="w-fit shadow-brand">
+      <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "Updating…" : "Update password"}
       </Button>
     </form>
@@ -109,7 +109,7 @@ export function RevokeOthersForm() {
 
   return (
     <form action={action} className="flex flex-col gap-2">
-      <Button type="submit" disabled={pending} variant="outline" className="w-fit">
+      <Button type="submit" disabled={pending} variant="destructive" className="w-fit">
         {pending ? "Signing out…" : "Sign out other devices"}
       </Button>
       {state.status !== "idle" ? (

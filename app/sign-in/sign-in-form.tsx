@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MailWarning } from "lucide-react";
 import { EmailDeliveryNote } from "@/components/auth/email-delivery-note";
+import { FieldError } from "@/components/site/field-error";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,7 +59,7 @@ export function SignInForm({ next }: { next: string | null }) {
     <form method="post" action="/sign-in" onSubmit={onSubmit} className="flex flex-col gap-4">
       {unverified ? (
         <Alert role="status">
-          <MailWarning className="size-4 text-brand" />
+          <MailWarning className="size-4 text-primary" />
           <AlertTitle>Verify your email first</AlertTitle>
           <AlertDescription>
             Your account exists but the email isn&rsquo;t verified yet, so sign-in is blocked.
@@ -87,7 +88,7 @@ export function SignInForm({ next }: { next: string | null }) {
           <Label htmlFor="password">Password</Label>
           <Link
             href="/forgot-password"
-            className="text-xs font-medium text-brand hover:underline"
+            className="text-xs font-medium text-primary hover:underline"
           >
             Forgot password?
           </Link>
@@ -103,13 +104,9 @@ export function SignInForm({ next }: { next: string | null }) {
         />
       </div>
 
-      {error ? (
-        <p role="alert" className="text-sm font-medium text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <FieldError message={error} /> : null}
 
-      <Button type="submit" disabled={pending} className="shadow-brand">
+      <Button type="submit" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>

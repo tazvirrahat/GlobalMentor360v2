@@ -40,7 +40,7 @@ export function ForgotPasswordForm() {
   if (sent) {
     return (
       <Alert role="status">
-        <MailCheck className="size-4 text-brand" />
+        <MailCheck className="size-4 text-primary" />
         <AlertTitle>Check your email</AlertTitle>
         <AlertDescription>
           If an account exists for <strong>{email}</strong>, a reset link is on its way. It
@@ -52,7 +52,7 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <Card className="rounded-2xl">
+    <Card>
       <CardContent className="p-6">
         <form method="post" action="/forgot-password" onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -70,7 +70,7 @@ export function ForgotPasswordForm() {
 
           {error ? <FieldError message={error} /> : null}
 
-          <Button type="submit" disabled={pending} className="shadow-brand">
+          <Button type="submit" disabled={pending}>
             {pending ? "Sending…" : "Send reset link"}
           </Button>
         </form>
