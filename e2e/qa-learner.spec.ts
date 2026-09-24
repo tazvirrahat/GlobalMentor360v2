@@ -8,9 +8,8 @@ import { expectHonestBkashMerchantCopy, SEED, signIn } from "./helpers";
  * and does not trigger MediaConvert / paid AWS.
  */
 
-const LOCAL_DATABASE_URL =
-  process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:5432/globalmentor360?schema=public";
+// playwright.config.ts points DATABASE_URL at the _test database before specs load.
+const LOCAL_DATABASE_URL = process.env.DATABASE_URL!;
 
 const SQL_BDT_MINOR = 399_000;
 const SAVE10_DISCOUNT_MINOR = Math.floor((SQL_BDT_MINOR * 10) / 100);
@@ -105,7 +104,7 @@ test.describe("learner QA — public catalog", () => {
     await expect(page.getByRole("link", { name: /explore courses/i }).first()).toBeVisible();
 
     await page.goto("/courses");
-    await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Courses" })).toBeVisible();
     await expect(page.locator("a[href^='/courses/']").first()).toBeVisible();
 
     await page.getByLabel("Search courses").fill("typescript");
@@ -115,7 +114,7 @@ test.describe("learner QA — public catalog", () => {
     await expect(page.getByRole("link", { name: /sql for analysts/i })).toHaveCount(0);
 
     await page.goto("/courses?price=free");
-    await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Courses" })).toBeVisible();
     await expect(page.getByRole("link", { name: /enrol for free/i })).toHaveCount(0);
 
     await page.goto("/courses?price=paid&level=BEGINNER");
@@ -421,7 +420,7 @@ test.describe("learner QA — player, account, social", () => {
     const diag = attachDiagnostics(page);
     await signIn(page, SEED.learner, "/account");
     await expect(page.getByRole("heading", { level: 1, name: "Account" })).toBeVisible();
-    await expect(page.getByText(/learner@example.com/i)).toBeVisible();
+    await expect(page.getByText(/learner@example.com/i).first()).toBeVisible();
     await expect(page.getByText(/this device/i)).toBeVisible();
 
     await page.getByLabel("Current password").fill("definitely-not-the-seed");
