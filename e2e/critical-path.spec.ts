@@ -30,7 +30,7 @@ test.describe("learner critical path", () => {
     await page.getByLabel("Password", { exact: true }).fill("dev-password-12345");
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "My learning" })).toBeVisible();
   });
 
   test("enrolled learner can open the player", async ({ page }) => {
