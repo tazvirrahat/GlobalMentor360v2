@@ -204,6 +204,15 @@
   }
 }
 
+/* For rows inside scroll containers, where an outside outline would be clipped. */
+@utility focus-ring-inset {
+  outline-style: none;
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+  }
+}
+
 /*
  * First tab stop in every shell (WCAG 2.4.1). Hidden until focused, then an ink
  * pill above the sticky bars.

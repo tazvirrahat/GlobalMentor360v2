@@ -2,27 +2,19 @@ import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import {
-  Award,
-  CheckCircle2,
-  ChevronRight,
-  FileQuestion,
-  Lock,
-  PlayCircle,
-} from "lucide-react";
+import { Award, CheckCircle2, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { LearnShell } from "@/components/learn/learn-shell";
 import {
   canAccessPlayerItem,
   continueTargetId,
   getPlayerCourse,
   sequentialItemFromPlayer,
-  type PlayerItem,
 } from "@/lib/progress";
+import { db } from "@/lib/db";
 import { getLearnerAnnouncements } from "@/lib/announcements";
 import { getCurrentUser, requireUser } from "@/lib/session";
-import { cn } from "@/lib/utils";
 import { AnnouncementsPanel } from "../announcements-panel";
 import { CompleteLectureForm } from "../complete-lecture-form";
 import { BookmarkButton, NotesPanel } from "../notes-panel";
@@ -37,8 +29,14 @@ type Params = {
 };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const { slug } = await params;
-  return { title: `Learning · ${slug}` };
+  const { slug, itemId } = await params;
+  // Titles of published courses only: the page itself decides access, and a
+  // draft's lesson names should not leak through the document title.
+  const item = await db.curriculumItem.findFirst({
+    where: { id: itemId, section: { course: { slug, status: "PUBLISHED" } } },
+    select: { title: true, section: { select: { course: { select: { title: true } } } } },
+  });
+  return { title: item ? `${item.title} | ${item.section.course.title}` : "Lesson" };
 }
 
 export const dynamic = "force-dynamic";
@@ -47,20 +45,6 @@ function itemTypeLabel(type: string) {
   if (type === "QUIZ") return "Quiz";
   if (type === "LECTURE") return "Lecture";
   return type;
-}
-
-function ItemIcon({ item }: { item: PlayerItem }) {
-  if (item.locked) return <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
-  if (item.completed) return <CheckCircle2 className="size-4 shrink-0 text-success" aria-hidden />;
-  if (item.type === "QUIZ") return <FileQuestion className="size-4 shrink-0 text-primary" aria-hidden />;
-  return <PlayCircle className="size-4 shrink-0 text-primary" aria-hidden />;
-}
-
-function ItemStateLabel({ item, active }: { item: PlayerItem; active: boolean }) {
-  if (item.locked) return <span className="text-xs text-muted-foreground">Locked</span>;
-  if (item.completed) return <span className="text-xs text-muted-foreground">Done</span>;
-  if (active) return <span className="text-xs text-muted-foreground">Current</span>;
-  return null;
 }
 
 export default async function LearnItemPage({ params, searchParams }: Params) {
@@ -107,17 +91,37 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
     user && course.enrolled ? isBookmarked(user.id, current.id) : Promise.resolve(false),
   ]);
 
+  const sections = course.sections.map((section) => ({
+    id: section.id,
+    title: section.title,
+    items: section.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      type: item.type,
+      isPreview: item.isPreview,
+      locked: item.locked,
+      completed: item.completed,
+      durationSeconds: item.lecture?.durationSeconds || null,
+    })),
+  }));
+  const openNext = next && !next.locked ? { href: `/learn/${course.slug}/${next.id}`, title: next.title } : null;
+
   return (
-    <main className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_18.75rem] sm:px-6 lg:px-8">
-      <div className="flex min-w-0 flex-col gap-6">
+    <LearnShell
+      course={{
+        title: course.title,
+        slug: course.slug,
+        enrolled: course.enrolled,
+        percent: course.percent,
+        done: flat.filter((item) => item.completed).length,
+        total: flat.length,
+        sections,
+      }}
+      currentId={current.id}
+      next={openNext}
+    >
         <header className="flex flex-col gap-3">
-          <Link
-            href={`/courses/${course.slug}` as Route}
-            className="w-fit text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          >
-            {course.title}
-          </Link>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h1 className="text-2xl font-semibold sm:text-3xl">
             {current.title}
           </h1>
           <div className="flex flex-wrap items-center gap-2">
@@ -129,26 +133,24 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
                 Completed
               </Badge>
             ) : null}
+            {course.enrolled ? (
+              <BookmarkButton itemId={current.id} slug={course.slug} bookmarked={bookmarked} />
+            ) : null}
           </div>
-          {course.enrolled ? (
-            <BookmarkButton itemId={current.id} slug={course.slug} bookmarked={bookmarked} />
-          ) : null}
         </header>
 
         {course.percent >= 100 && course.certificateSerial ? (
-          <div className="flex flex-col gap-3 rounded-lg border border-success/30 bg-success/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-lg border border-rule bg-surface p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
-                <Award className="size-5" aria-hidden />
-              </span>
+              <Award className="mt-0.5 size-5 shrink-0 text-verified" aria-hidden />
               <div>
-                <p className="font-heading font-semibold tracking-tight">Course complete</p>
-                <p className="text-sm text-muted-foreground">Your certificate is ready.</p>
+                <p className="font-semibold">Course complete</p>
+                <p className="text-sm text-graphite">Your certificate is ready.</p>
               </div>
             </div>
             <Button asChild>
               <Link href={`/certificates/${course.certificateSerial}` as Route} className="cursor-pointer">
-                <Award className="size-4" aria-hidden /> View certificate
+                View certificate
               </Link>
             </Button>
           </div>
@@ -235,74 +237,6 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
             )}
           />
         ) : null}
-      </div>
-
-      <aside className="h-fit lg:sticky lg:top-20">
-        <div className="rounded-lg border bg-card p-4 shadow-xs">
-          <div className="mb-4">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold">Your progress</span>
-              <span className="tabular-nums text-muted-foreground">{course.percent}%</span>
-            </div>
-            <Progress
-              value={course.percent}
-              className="mt-2"
-              aria-label={`Course progress ${course.percent}%`}
-            />
-          </div>
-
-          <nav aria-label="Curriculum" className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
-            {course.sections.map((section) => (
-              <div key={section.id}>
-                <p className="mb-1 text-sm font-semibold text-ink">
-                  {section.title}
-                </p>
-                <ul className="flex flex-col">
-                  {section.items.map((item) => {
-                    const active = item.id === current.id;
-                    const href = `/learn/${course.slug}/${item.id}` as Route;
-                    const content = (
-                      <span className="flex min-w-0 items-start gap-2 text-sm">
-                        <ItemIcon item={item} />
-                        <span className="min-w-0 flex-1">
-                          <span
-                            className={cn("block truncate", active && "font-semibold")}
-                            title={item.title}
-                          >
-                            {item.title}
-                          </span>
-                          <ItemStateLabel item={item} active={active} />
-                        </span>
-                      </span>
-                    );
-
-                    return (
-                      <li key={item.id}>
-                        {item.locked ? (
-                          <span className="flex min-h-11 cursor-not-allowed items-center rounded-md px-2 py-1.5 opacity-60">
-                            {content}
-                          </span>
-                        ) : (
-                          <Link
-                            href={href}
-                            aria-current={active ? "page" : undefined}
-                            className={cn(
-                              "flex min-h-11 cursor-pointer items-center rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-muted/70 focus-ring",
-                              active && "bg-muted",
-                            )}
-                          >
-                            {content}
-                          </Link>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </nav>
-        </div>
-      </aside>
-    </main>
+    </LearnShell>
   );
 }

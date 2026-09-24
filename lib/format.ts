@@ -47,3 +47,8 @@ export function formatDateLong(date: Date): string {
     year: "numeric",
   });
 }
+
+/** A lesson's length in the curriculum: "7 min". Rounds, never shows 0. */
+export function formatLessonMinutes(totalSeconds: number): string {
+  return `${Math.max(1, Math.round(totalSeconds / 60))} min`;
+}

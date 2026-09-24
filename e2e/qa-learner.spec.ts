@@ -184,7 +184,7 @@ test.describe("learner QA — session and library", () => {
     await expect(page.getByText(/sql for analysts/i)).toHaveCount(0);
     await page.getByRole("link", { name: /continue|review/i }).first().click();
     await page.waitForURL(/\/learn\/typescript-foundations\/[^/]+/);
-    await expect(page.getByText(/your progress/i)).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: /course progress/i })).toBeVisible();
     await diag.assertClean();
   });
 
@@ -206,7 +206,7 @@ test.describe("learner QA — session and library", () => {
 
     await page.goto("/learn/typescript-foundations");
     await page.waitForURL(/\/learn\/typescript-foundations\/[^/]+/);
-    await expect(page.getByText(/your progress/i)).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: /course progress/i })).toBeVisible();
 
     const playerPercent = parsePercent(
       await page.getByLabel(/course progress/i).getAttribute("aria-label"),
@@ -214,7 +214,7 @@ test.describe("learner QA — session and library", () => {
     expect(playerPercent).toBe(dashPercent);
 
     const items = await curriculum("typescript-foundations");
-    const lockedCount = await page.locator("aside nav li span.cursor-not-allowed").count();
+    const lockedCount = await page.locator('nav[aria-label="Curriculum"] [data-state="locked"]').count();
     const impliedCompleted = Math.round(((playerPercent ?? 0) / 100) * items.length);
     const expectedUnlocked = Math.min(
       items.length,
@@ -249,8 +249,11 @@ test.describe("learner QA — session and library", () => {
 
     const later = items.slice(1);
     for (const item of later) {
-      const link = page.locator(`aside a[href="/learn/typescript-foundations/${item.id}"]`);
-      const locked = page.locator("aside nav li").filter({ hasText: item.title }).locator("span.cursor-not-allowed");
+      const link = page.locator(`nav[aria-label="Curriculum"] a[href="/learn/typescript-foundations/${item.id}"]`);
+      const locked = page
+        .locator('nav[aria-label="Curriculum"] li')
+        .filter({ hasText: item.title })
+        .locator('[data-state="locked"]');
       const linkVisible = (await link.count()) > 0;
       if (linkVisible) continue;
 
@@ -362,7 +365,7 @@ test.describe("learner QA — player, account, social", () => {
     await signIn(page, SEED.learner, `/learn/typescript-foundations/${items[0]!.id}`);
 
     await expect(page.getByRole("heading", { name: items[0]!.title })).toBeVisible();
-    await expect(page.getByText(/your progress/i)).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: /course progress/i })).toBeVisible();
     await expect(page.locator("video")).toHaveCount(0);
 
     const note = `Learner QA note ${Date.now()}`;
