@@ -57,9 +57,11 @@ function Section({
   const headingId = `app-nav-${label.toLowerCase()}`;
   return (
     <nav aria-labelledby={headingId} className="flex flex-col gap-1">
-      <h2 id={headingId} className="px-3 text-xs font-semibold text-graphite">
+      {/* A label, not a heading: it names the nav landmark, and a second
+          "Studio" heading beside the page's own h1 only adds noise. */}
+      <p id={headingId} className="px-3 text-xs font-semibold text-graphite">
         {label}
-      </h2>
+      </p>
       <ul className="flex flex-col">
         {items.map((item) => {
           const current = active(item.href, pathname);

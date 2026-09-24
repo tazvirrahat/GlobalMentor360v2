@@ -64,14 +64,14 @@ function readApp(rel: string) {
 
 describe("Auth UI (password must never land in the query string)", () => {
   it("posts sign-in, sign-up, forgot-password, and reset forms", () => {
-    expect(readApp("app/sign-in/sign-in-form.tsx")).toMatch(/<form method="post"/);
-    expect(readApp("app/sign-up/sign-up-form.tsx")).toMatch(/<form method="post"/);
-    expect(readApp("app/forgot-password/forgot-password-form.tsx")).toMatch(/<form method="post"/);
-    expect(readApp("app/reset-password/reset-form.tsx")).toMatch(/<form method="post"/);
+    expect(readApp("app/(site)/sign-in/sign-in-form.tsx")).toMatch(/<form method="post"/);
+    expect(readApp("app/(site)/sign-up/sign-up-form.tsx")).toMatch(/<form method="post"/);
+    expect(readApp("app/(site)/forgot-password/forgot-password-form.tsx")).toMatch(/<form method="post"/);
+    expect(readApp("app/(site)/reset-password/reset-form.tsx")).toMatch(/<form method="post"/);
   });
 
   it("does not treat every sign-in failure as a wrong password", () => {
-    const form = readApp("app/sign-in/sign-in-form.tsx");
+    const form = readApp("app/(site)/sign-in/sign-in-form.tsx");
     expect(form).toContain("signInError.status === 401");
     expect(form).toContain("Could not sign in. Try again in a moment.");
   });
@@ -81,12 +81,12 @@ describe("Auth UI (password must never land in the query string)", () => {
     expect(note).toMatch(/SES sandbox/);
     expect(note).toMatch(/server terminal/);
     expect(note).toMatch(/fully enabled/);
-    expect(readApp("app/sign-up/sign-up-form.tsx")).toContain("EmailDeliveryNote");
-    expect(readApp("app/forgot-password/forgot-password-form.tsx")).toContain("EmailDeliveryNote");
-    expect(readApp("app/sign-in/sign-in-form.tsx")).toContain("EmailDeliveryNote");
+    expect(readApp("app/(site)/sign-up/sign-up-form.tsx")).toContain("EmailDeliveryNote");
+    expect(readApp("app/(site)/forgot-password/forgot-password-form.tsx")).toContain("EmailDeliveryNote");
+    expect(readApp("app/(site)/sign-in/sign-in-form.tsx")).toContain("EmailDeliveryNote");
   });
 
   it("lets the learner sign out from /account, not only My learning", () => {
-    expect(readApp("app/account/page.tsx")).toContain("SignOutButton");
+    expect(readApp("app/(site)/account/page.tsx")).toContain("SignOutButton");
   });
 });
