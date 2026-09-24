@@ -31,6 +31,8 @@ export type SiteConfig = {
   currency: string;
   /** Prefix on certificate serials, e.g. GM360-1A2B-… */
   certificatePrefix: string;
+  /** Where the Help page sends people who are still stuck; null hides the address. */
+  supportEmail: string | null;
 };
 
 // Same source of truth as Better Auth's base URL: the app's own origin.
@@ -39,7 +41,7 @@ function origin(): string {
   return raw.replace(/\/+$/, "");
 }
 
-const GLOBALMENTOR360: Omit<SiteConfig, "url"> = {
+const GLOBALMENTOR360: Omit<SiteConfig, "url" | "supportEmail"> = {
   name: "GlobalMentor360",
   shortName: "GM360",
   title: "Online Courses with Certificates",
@@ -54,7 +56,7 @@ const GLOBALMENTOR360: Omit<SiteConfig, "url"> = {
 
 /** The storefront for the current request. One academy for now; see the note above. */
 export function getSite(): SiteConfig {
-  return { ...GLOBALMENTOR360, url: origin() };
+  return { ...GLOBALMENTOR360, url: origin(), supportEmail: process.env.SUPPORT_EMAIL?.trim() || null };
 }
 
 /** Absolute URL on the storefront's origin, for emails and anything shared outside the app. */
