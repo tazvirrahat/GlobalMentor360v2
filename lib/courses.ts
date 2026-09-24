@@ -171,10 +171,13 @@ function catalogFilterSql(input: {
     parts.push(Prisma.sql`c."ratingAverage" >= ${input.minRating}`);
   }
   if (input.categorySlug) {
+    // A subject ("Development") includes its subcategories' courses.
     parts.push(
       Prisma.sql`EXISTS (
         SELECT 1 FROM categories cat
-        WHERE cat.id = c."primaryCategoryId" AND cat.slug = ${input.categorySlug}
+        LEFT JOIN categories parent ON parent.id = cat."parentId"
+        WHERE cat.id = c."primaryCategoryId"
+          AND (cat.slug = ${input.categorySlug} OR parent.slug = ${input.categorySlug})
       )`,
     );
   }
@@ -234,7 +237,15 @@ function catalogPrismaWhere(filters: {
   return {
     status: "PUBLISHED",
     ...(filters.level ? { level: filters.level } : {}),
-    ...(filters.categorySlug ? { primaryCategory: { slug: filters.categorySlug } } : {}),
+    // A subject ("Development") includes its subcategories' courses.
+    ...(filters.categorySlug
+      ? {
+          OR: [
+            { primaryCategory: { slug: filters.categorySlug } },
+            { primaryCategory: { parent: { slug: filters.categorySlug } } },
+          ],
+        }
+      : {}),
     ...(filters.language ? { language: filters.language } : {}),
     ...(filters.minRating ? { ratingAverage: { gte: filters.minRating } } : {}),
     // "free" is every active price being zero, matching isFreeCourse — a course
