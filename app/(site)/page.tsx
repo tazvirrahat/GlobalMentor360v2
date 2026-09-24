@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Award, BookOpen, PlayCircle, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CourseCard } from "@/components/site/course-card";
+import { CourseRow } from "@/components/course/course-row";
 import { StarRating } from "@/components/site/star-rating";
 import { listPublishedCourses } from "@/lib/courses";
 import { availableRails } from "@/lib/payments";
@@ -78,11 +78,13 @@ export default async function HomePage() {
               </Button>
             </div>
 
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="mt-8 flex flex-col divide-y divide-rule border-y border-rule">
               {featured.map((course) => (
-                <CourseCard key={course.id} course={course} />
+                <li key={course.id}>
+                  <CourseRow course={course} />
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </section>
       ) : null}

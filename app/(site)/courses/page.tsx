@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BookOpen, SearchX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CourseCard } from "@/components/site/course-card";
+import { CourseRow } from "@/components/course/course-row";
 import { EmptyState } from "@/components/site/empty-state";
 import {
   CATALOG_PAGE_SIZE,
@@ -202,11 +202,13 @@ export default async function CoursesPage({
           <h2 id="catalog-results-heading" className="sr-only">
             Results
           </h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="flex flex-col divide-y divide-rule border-y border-rule">
             {courses.map((course) => (
-              <CourseCard key={course.id} course={course} />
+              <li key={course.id}>
+                <CourseRow course={course} />
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       ) : (
         <EmptyState
