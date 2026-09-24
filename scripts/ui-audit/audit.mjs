@@ -84,7 +84,10 @@ const ids = await lookupIds();
 const routes = buildRoutes(ids);
 await mkdir(path.join(OUT, "shots"), { recursive: true });
 
-const browser = await chromium.launch();
+// PLAYWRIGHT_CHROMIUM_PATH: use an installed Chromium instead of Playwright's download.
+const browser = await chromium.launch(
+  process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {},
+);
 const results = [];
 
 try {

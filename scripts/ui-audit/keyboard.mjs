@@ -11,7 +11,10 @@ const PICK = ["home", "catalog", "landing", "learn-article", "dashboard", "studi
 
 const ids = await lookupIds();
 const routes = buildRoutes(ids).filter(([, name]) => PICK.includes(name));
-const browser = await chromium.launch();
+// PLAYWRIGHT_CHROMIUM_PATH: use an installed Chromium instead of Playwright's download.
+const browser = await chromium.launch(
+  process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {},
+);
 let problems = 0;
 
 try {
