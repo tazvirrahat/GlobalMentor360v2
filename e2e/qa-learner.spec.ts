@@ -375,6 +375,8 @@ test.describe("learner QA — player, account, social", () => {
     await expect(page.getByRole("progressbar", { name: /course progress/i })).toBeVisible();
     await expect(page.locator("video")).toHaveCount(0);
 
+    // Notes and Q&A are tabs under the lesson.
+    await page.getByRole("tab", { name: /notes/i }).click();
     const note = `Learner QA note ${Date.now()}`;
     await page.getByPlaceholder(/capture something from this lecture/i).fill(note);
     await page.getByRole("button", { name: /save note/i }).click();
@@ -384,13 +386,14 @@ test.describe("learner QA — player, account, social", () => {
     await bookmark.click();
     await expect(page.getByRole("button", { name: /bookmarked/i })).toBeVisible();
 
+    await page.getByRole("tab", { name: /q&a/i }).click();
     const questionTitle = `Why does sequential unlock exist ${Date.now()}?`;
     await page.getByLabel(/^title$/i).fill(questionTitle);
     await page.getByLabel(/^details$/i).fill("Checking that a learner can post a lecture question from the player.");
     await page.getByRole("button", { name: /post question/i }).click();
     await expect(page.getByRole("heading", { name: questionTitle })).toBeVisible();
 
-    const continueBtn = page.getByRole("button", { name: /mark complete and continue/i });
+    const continueBtn = page.getByRole("button", { name: /complete and continue/i });
     if ((await continueBtn.count()) > 0) {
       await continueBtn.click();
       await page.waitForURL(new RegExp(`/learn/typescript-foundations/${items[1]!.id}`));
@@ -420,7 +423,7 @@ test.describe("learner QA — player, account, social", () => {
         await expect(page.getByText(/passed/i).first()).toBeVisible({ timeout: 15_000 });
         continue;
       }
-      const mark = page.getByRole("button", { name: /mark complete/i });
+      const mark = page.getByRole("button", { name: /mark lesson complete|complete and continue/i });
       if ((await mark.count()) > 0) {
         await mark.click();
         await page.waitForLoadState("networkidle");

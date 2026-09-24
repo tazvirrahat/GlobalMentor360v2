@@ -23,12 +23,12 @@ export function CompleteLectureForm({
       <input type="hidden" name="itemId" value={itemId} />
       <input type="hidden" name="slug" value={slug} />
       {state.status === "error" ? (
-        <p role="alert" className="text-sm font-medium text-destructive">
+        <p role="alert" className="text-sm font-medium text-seal">
           {state.message}
         </p>
       ) : null}
-      <Button type="submit" disabled={pending} className="w-fit">
-        {pending ? "Saving…" : hasNext ? "Mark complete and continue" : "Mark complete"}
+      <Button type="submit" size="lg" disabled={pending} className="w-full sm:w-fit">
+        {pending ? "Saving…" : hasNext ? "Complete and continue" : "Mark lesson complete"}
         {hasNext ? <ChevronRight className="size-4" aria-hidden /> : null}
       </Button>
     </form>

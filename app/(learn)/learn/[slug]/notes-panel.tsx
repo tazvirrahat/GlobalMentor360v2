@@ -1,24 +1,16 @@
-import { Bookmark, BookmarkCheck, Trash2 } from "lucide-react";
+import { Bookmark, BookmarkCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import type { LectureNote } from "@/lib/notes";
-import { addNoteAction, deleteNoteAction, toggleBookmarkAction } from "./note-actions";
+import { ConfirmSubmit } from "./confirm-button";
+import { NoteForm, NoteTime } from "./note-form";
+import { deleteNoteAction, toggleBookmarkAction } from "./note-actions";
 
-export function BookmarkButton({
-  itemId,
-  slug,
-  bookmarked,
-}: {
-  itemId: string;
-  slug: string;
-  bookmarked: boolean;
-}) {
+export function BookmarkButton({ itemId, slug, bookmarked }: { itemId: string; slug: string; bookmarked: boolean }) {
   return (
     <form action={toggleBookmarkAction}>
       <input type="hidden" name="itemId" value={itemId} />
       <input type="hidden" name="slug" value={slug} />
-      <Button type="submit" variant="outline">
+      <Button type="submit" variant="secondary" size="sm" aria-pressed={bookmarked}>
         {bookmarked ? <BookmarkCheck className="size-4" aria-hidden /> : <Bookmark className="size-4" aria-hidden />}
         {bookmarked ? "Bookmarked" : "Bookmark"}
       </Button>
@@ -26,6 +18,7 @@ export function BookmarkButton({
   );
 }
 
+/** Your notes on this lesson: newest first, each able to jump the video to its moment. */
 export function NotesPanel({
   lectureId,
   itemId,
@@ -40,58 +33,35 @@ export function NotesPanel({
   hiddenByPageSize?: number;
 }) {
   return (
-    <section className="rounded-lg border bg-card p-5 shadow-xs">
-      <h2 className="font-heading text-lg font-semibold tracking-tight">Notes</h2>
-      <form action={addNoteAction} className="mt-3 flex flex-col gap-2">
-        <input type="hidden" name="lectureId" value={lectureId} />
-        <input type="hidden" name="itemId" value={itemId} />
-        <input type="hidden" name="slug" value={slug} />
-        <Textarea
-          name="body"
-          rows={3}
-          placeholder="Capture something from this lecture…"
-          required
-          maxLength={4000}
-          aria-label="Note"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            name="timestampSeconds"
-            type="number"
-            min={0}
-            defaultValue={0}
-            className="w-28 tabular-nums"
-            aria-label="Timestamp in seconds"
-          />
-          <Button type="submit">Save note</Button>
-        </div>
-      </form>
+    <section aria-labelledby="notes-heading" className="flex flex-col gap-5">
+      <h2 id="notes-heading" className="sr-only">
+        Notes
+      </h2>
+      <NoteForm lectureId={lectureId} itemId={itemId} slug={slug} />
       {notes.length > 0 ? (
-        <ul className="mt-4 flex flex-col gap-3">
-          {hiddenByPageSize > 0 ? (
-            <li className="text-xs text-muted-foreground">
-              Showing the {notes.length} newest of {notes.length + hiddenByPageSize} notes.
-            </li>
-          ) : null}
+        <ul className="flex flex-col divide-y divide-rule border-y border-rule">
           {notes.map((note) => (
-            <li key={note.id} className="rounded-lg bg-muted/50 p-3 text-sm">
-              <div className="flex items-start justify-between gap-2">
-                <p className="whitespace-pre-line">{note.body}</p>
-                <form action={deleteNoteAction}>
+            <li key={note.id} className="flex flex-col gap-2 py-3">
+              <p className="text-base whitespace-pre-line text-ink">{note.body}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <NoteTime seconds={note.timestampSeconds} />
+                <form action={deleteNoteAction} className="ml-auto">
                   <input type="hidden" name="noteId" value={note.id} />
                   <input type="hidden" name="itemId" value={itemId} />
                   <input type="hidden" name="slug" value={slug} />
-                  <Button type="submit" variant="ghost" size="icon" aria-label="Delete note">
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <ConfirmSubmit label="Delete" question="Delete this note?" confirmLabel="Delete note" />
                 </form>
               </div>
-              {note.timestampSeconds > 0 ? (
-                <p className="mt-1 text-xs tabular-nums text-muted-foreground">{note.timestampSeconds}s</p>
-              ) : null}
             </li>
           ))}
         </ul>
+      ) : (
+        <p className="text-graphite">No notes on this lesson yet.</p>
+      )}
+      {hiddenByPageSize > 0 ? (
+        <p className="text-sm text-graphite">
+          Showing the {notes.length} newest of {notes.length + hiddenByPageSize} notes.
+        </p>
       ) : null}
     </section>
   );

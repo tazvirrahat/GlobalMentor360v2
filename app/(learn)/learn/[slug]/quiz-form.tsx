@@ -111,20 +111,16 @@ export function QuizForm({
     return (
       <div className="flex flex-col gap-6">
         <Alert variant={outcome.passed ? "verified" : "destructive"} role="status">
-          {outcome.passed ? (
-            <CircleCheck className="size-4 text-success" />
-          ) : (
-            <CircleX className="size-4" />
-          )}
+          {outcome.passed ? <CircleCheck className="size-4" /> : <CircleX className="size-4" />}
           <AlertTitle>
-            {outcome.passed ? "Passed" : "Not quite"} — {outcome.scorePct}%
+            {outcome.passed ? "Passed" : "Not passed yet"}: {outcome.scorePct}%
           </AlertTitle>
           <AlertDescription>
             Pass mark is {outcome.threshold}%.
             {outcome.passed
               ? nextHref
-                ? " The next lesson is now unlocked — continuing shortly."
-                : " The next lesson is now unlocked."
+                ? " The next lesson is open. Continuing shortly."
+                : " The next lesson is open."
               : allowRetakes
                 ? " Review the answers below and try again."
                 : " Retakes are not allowed for this quiz."}
@@ -135,12 +131,12 @@ export function QuizForm({
           {questions.map((question) => {
             const result = outcome.results.find((r) => r.questionId === question.id);
             return (
-              <li key={question.id} className="rounded-lg border bg-card p-4 shadow-xs">
+              <li key={question.id} className="rounded-lg border border-rule bg-surface p-4">
                 <p className="font-semibold">{question.prompt}</p>
                 <p
                   className={cn(
                     "mt-1 flex items-center gap-1.5 text-sm font-medium",
-                    result?.isCorrect ? "text-success" : "text-destructive",
+                    result?.isCorrect ? "text-verified" : "text-seal",
                   )}
                 >
                   {result?.isCorrect ? (
@@ -159,28 +155,28 @@ export function QuizForm({
                       <li
                         key={option.id}
                         className={cn(
-                          "rounded-lg border p-2.5 motion-safe:transition-colors motion-safe:duration-200",
-                          option.isCorrect && "border-success/40 bg-success/10",
-                          !option.isCorrect && option.selected && "border-destructive/40 bg-destructive/5",
+                          "rounded-md border border-rule p-2.5 motion-safe:transition-colors motion-safe:duration-200",
+                          option.isCorrect && "border-verified bg-surface",
+                          !option.isCorrect && option.selected && "border-seal bg-surface",
                         )}
                       >
                         <p className="flex flex-wrap items-center gap-2 text-sm">
                           <span className="font-medium">{option.text}</span>
                           {option.isCorrect ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
+                            <span className="inline-flex items-center gap-1 text-sm font-semibold text-verified">
                               <CircleCheck className="size-3.5" aria-hidden />
                               Correct answer
                             </span>
                           ) : null}
                           {option.selected && !option.isCorrect ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive">
+                            <span className="inline-flex items-center gap-1 text-sm font-semibold text-seal">
                               <CircleX className="size-3.5" aria-hidden />
                               You chose this
                             </span>
                           ) : null}
                         </p>
                         {option.explanation ? (
-                          <p className="mt-1 text-sm text-muted-foreground">{option.explanation}</p>
+                          <p className="mt-1 text-sm text-graphite">{option.explanation}</p>
                         ) : null}
                       </li>
                     ))}
@@ -188,7 +184,7 @@ export function QuizForm({
                 ) : null}
 
                 {!result?.isCorrect && result?.explanation ? (
-                  <p className="mt-3 text-sm text-muted-foreground">{result.explanation}</p>
+                  <p className="mt-3 text-sm text-graphite">{result.explanation}</p>
                 ) : null}
               </li>
             );
@@ -198,7 +194,8 @@ export function QuizForm({
         {!outcome.passed && allowRetakes ? (
           <Button
             type="button"
-            variant="outline"
+            size="lg"
+            className="w-fit"
             onClick={() => {
               setOutcome(null);
               setSelections({});
@@ -209,10 +206,8 @@ export function QuizForm({
         ) : null}
 
         {outcome.passed && nextHref ? (
-          <Button asChild className="w-fit">
-            <a href={nextHref} className="cursor-pointer">
-              Continue to next lesson
-            </a>
+          <Button asChild size="lg" className="w-fit">
+            <a href={nextHref}>Next lesson</a>
           </Button>
         ) : null}
       </div>
@@ -223,12 +218,12 @@ export function QuizForm({
     <form onSubmit={onSubmit} className="flex flex-col gap-6">
       {previous?.passed ? (
         <Alert variant="verified">
-          <CircleCheck className="size-4 text-success" />
-          <AlertTitle>Already passed ({previous.scorePct}%)</AlertTitle>
+          <CircleCheck className="size-4" />
+          <AlertTitle>You passed this quiz with {previous.scorePct}%</AlertTitle>
           <AlertDescription>
             {allowRetakes
-              ? "You can retake if you want a higher score."
-              : "You're done with this quiz."}
+              ? "You can take it again for a higher score."
+              : "You are done with this quiz."}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -237,21 +232,25 @@ export function QuizForm({
         const multi = question.type === "MULTI_SELECT";
         const selected = selections[question.id] ?? [];
         return (
-          <fieldset key={question.id} className="rounded-lg border bg-card p-4 shadow-xs">
-            <legend className="px-1 text-sm font-semibold">
-              {index + 1}. {question.prompt}
+          <fieldset key={question.id} className="flex flex-col gap-3">
+            <legend className="mb-3 flex flex-col gap-1">
+              <span className="text-sm text-graphite">
+                Question {index + 1} of {questions.length}
+                {multi ? ", choose all that apply" : ""}
+              </span>
+              <span className="text-lg font-semibold text-ink">{question.prompt}</span>
             </legend>
-            <ul className="mt-3 flex flex-col gap-2">
+            <ul className="flex flex-col gap-2">
               {question.options.map((option) => (
                 <li key={option.id}>
-                  <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-1 py-1.5 text-sm transition-colors duration-150 hover:bg-muted/50">
+                  <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-md border border-rule bg-surface px-3 py-2 text-base transition-colors duration-150 hover:bg-wash has-[:checked]:border-ink has-[:checked]:bg-wash">
                     <input
                       type={multi ? "checkbox" : "radio"}
                       name={question.id}
                       value={option.id}
                       checked={selected.includes(option.id)}
                       onChange={() => toggle(question.id, option.id, multi)}
-                      className="mt-0.5 size-4 cursor-pointer accent-primary"
+                      className="size-6 shrink-0 cursor-pointer accent-ink"
                     />
                     {option.text}
                   </label>
@@ -263,12 +262,12 @@ export function QuizForm({
       })}
 
       {error ? (
-        <p role="alert" className="text-sm font-medium text-destructive">
+        <p role="alert" className="text-sm font-medium text-seal">
           {error}
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending} className="w-fit">
+      <Button type="submit" size="lg" disabled={pending} className="w-full sm:w-fit">
         {pending ? "Submitting…" : "Submit answers"}
       </Button>
     </form>

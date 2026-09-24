@@ -29,13 +29,13 @@ export function AskQuestionForm({
     state.status === "error" ? state.fieldErrors?.[name]?.[0] : undefined;
 
   return (
-    <form action={action} className="flex flex-col gap-4 rounded-lg border bg-card p-5 shadow-xs">
+    <form action={action} className="flex flex-col gap-4 rounded-lg border border-rule bg-surface p-5">
       <input type="hidden" name="courseId" value={courseId} />
       <input type="hidden" name="curriculumItemId" value={curriculumItemId} />
 
       <div className="flex flex-col gap-1.5">
-        <h3 className="font-heading font-semibold tracking-tight">Ask a question</h3>
-        <p className="text-sm text-muted-foreground">
+        <h3 className="text-base font-semibold">Ask a question</h3>
+        <p className="text-sm text-graphite">
           Your question is visible to everyone taking this course.
         </p>
       </div>
@@ -49,12 +49,12 @@ export function AskQuestionForm({
               name="scope"
               value="LECTURE"
               defaultChecked
-              className="size-4 cursor-pointer accent-primary"
+              className="size-6 shrink-0 cursor-pointer accent-ink"
             />
             This lecture ({lectureTitle})
           </label>
           <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
-            <input type="radio" name="scope" value="COURSE" className="size-4 cursor-pointer accent-primary" />
+            <input type="radio" name="scope" value="COURSE" className="size-6 shrink-0 cursor-pointer accent-ink" />
             The whole course
           </label>
         </div>
@@ -69,8 +69,9 @@ export function AskQuestionForm({
           maxLength={QUESTION_TITLE_MAX}
           placeholder="What are you stuck on?"
           aria-invalid={fieldError("title") ? true : undefined}
+          aria-describedby={fieldError("title") ? `${uid}-title-error` : undefined}
         />
-        {fieldError("title") ? <FieldError message={fieldError("title")!} /> : null}
+        {fieldError("title") ? <FieldError id={`${uid}-title-error`} message={fieldError("title")!} /> : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -83,8 +84,9 @@ export function AskQuestionForm({
           maxLength={QUESTION_BODY_MAX}
           placeholder="Describe what you tried and what happened."
           aria-invalid={fieldError("body") ? true : undefined}
+          aria-describedby={fieldError("body") ? `${uid}-body-error` : undefined}
         />
-        {fieldError("body") ? <FieldError message={fieldError("body")!} /> : null}
+        {fieldError("body") ? <FieldError id={`${uid}-body-error`} message={fieldError("body")!} /> : null}
       </div>
 
       {state.status === "error" && !state.fieldErrors ? (
@@ -92,12 +94,12 @@ export function AskQuestionForm({
       ) : null}
 
       {state.status === "posted" ? (
-        <p role="status" className="text-sm font-medium text-primary">
-          Posted — your question is in the list below.
+        <p role="status" className="text-sm font-medium text-ink">
+          Posted. Your question is in the list below.
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending} className="w-fit">
+      <Button type="submit" size="lg" disabled={pending} className="w-fit">
         {pending ? "Posting…" : "Post question"}
       </Button>
     </form>
