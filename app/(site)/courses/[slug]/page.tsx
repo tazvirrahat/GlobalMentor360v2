@@ -28,7 +28,8 @@ import { ReviewList } from "@/components/site/review-list";
 import { CompactRating, StarRating } from "@/components/site/star-rating";
 import { isEnrolled } from "@/lib/entitlement";
 import { getPublishedCourseBySlug } from "@/lib/courses";
-import { courseLevelLabel, coursePriceLabel } from "@/lib/labels";
+import { courseLevelLabel } from "@/lib/labels";
+import { CoursePrice } from "@/components/course/price";
 import { getPlayerLockedItemIds } from "@/lib/progress";
 import { getCourseReviewPanel, REVIEW_PAGE_SIZE } from "@/lib/reviews";
 import { showingRange } from "@/lib/pagination";
@@ -450,7 +451,7 @@ function PurchasePanel({
     <Card className="h-fit">
       <CardContent className="flex flex-col gap-4 p-5 sm:p-6">
         <p className="font-heading text-3xl font-semibold tabular-nums text-primary">
-          {coursePriceLabel(free, course.price)}
+          <CoursePrice isFree={free} price={course.price} />
         </p>
 
         <div className="flex flex-col gap-2">

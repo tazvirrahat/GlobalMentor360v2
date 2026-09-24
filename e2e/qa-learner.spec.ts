@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import pg from "pg";
+import { formatPrice } from "../lib/format";
 import { expectHonestBkashMerchantCopy, SEED, signIn } from "./helpers";
 
 /**
@@ -15,9 +16,8 @@ const SQL_BDT_MINOR = 399_000;
 const SAVE10_DISCOUNT_MINOR = Math.floor((SQL_BDT_MINOR * 10) / 100);
 const SAVE10_TOTAL_MINOR = SQL_BDT_MINOR - SAVE10_DISCOUNT_MINOR;
 
-function formatMoney(amountMinor: number, currency: string) {
-  return new Intl.NumberFormat("en", { style: "currency", currency }).format(amountMinor / 100);
-}
+// The app's own formatter, so the spec and the pages cannot disagree on "৳3,990".
+const formatMoney = formatPrice;
 
 function attachDiagnostics(page: Page) {
   const failures: string[] = [];

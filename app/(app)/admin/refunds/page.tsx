@@ -4,12 +4,13 @@ import { FlashAlert } from "@/components/site/flash-alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatDate, formatPrice } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { showingRange } from "@/lib/pagination";
 import { listRefundableOrders, REFUND_PAGE_SIZE } from "@/lib/refunds";
 import { requireRole } from "@/lib/session";
 import { refundOrderAction } from "../actions";
 import { PageNav } from "@/components/site/page-nav";
+import { Price } from "@/components/course/price";
 
 export const metadata = { title: "Refunds | Admin" };
 export const dynamic = "force-dynamic";
@@ -77,7 +78,7 @@ export default async function AdminRefundsPage({
                         </p>
                       </div>
                       <p className="text-right font-semibold tabular-nums">
-                        {formatPrice(order.total, order.currency)}
+                        <Price amount={order.total} currency={order.currency} />
                       </p>
                       <form
                         action={refundOrderAction}

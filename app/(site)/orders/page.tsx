@@ -2,13 +2,14 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDate, formatPrice } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { listLearnerOrders, ORDER_PAGE_SIZE } from "@/lib/orders";
 import { showingRange } from "@/lib/pagination";
 import { requireUser } from "@/lib/session";
 import { EmptyState } from "@/components/site/empty-state";
 import { PageNav } from "@/components/site/page-nav";
 import { OrderStatusBadge } from "@/components/site/status-badges";
+import { Price } from "@/components/course/price";
 
 export const metadata: Metadata = { title: "Purchases" };
 export const dynamic = "force-dynamic";
@@ -67,7 +68,7 @@ export default async function OrdersPage({
                   </p>
                 </div>
                 <p className="text-right text-sm font-semibold tabular-nums sm:w-28">
-                  {formatPrice(order.total, order.currency)}
+                  <Price amount={order.total} currency={order.currency} />
                 </p>
                 <OrderStatusBadge status={order.status} />
                 <Button asChild variant="outline" size="sm" className="w-fit shrink-0">

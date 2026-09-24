@@ -26,6 +26,7 @@ import {
 } from "@/lib/payments";
 import { requireUser } from "@/lib/session";
 import { startStripeCheckout, submitBkashPayment } from "./actions";
+import { Price } from "@/components/course/price";
 
 type Params = {
   params: Promise<{ slug: string }>;
@@ -184,7 +185,7 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
                 <p className="text-sm text-muted-foreground">
                   Amount:{" "}
                   <strong className="font-heading text-lg font-semibold tabular-nums text-primary">
-                    {formatPrice(usdPrice!.amount, usdPrice!.currency)}
+                    <Price amount={usdPrice!.amount} currency={usdPrice!.currency} />
                   </strong>
                 </p>
               </CardHeader>
@@ -275,16 +276,16 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
                 </span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">
                   {bdtPrice
-                    ? formatPrice(bdtPrice.amount, bdtPrice.currency)
+                    ? <Price amount={bdtPrice.amount} currency={bdtPrice.currency} />
                     : usdPrice
-                      ? formatPrice(usdPrice.amount, usdPrice.currency)
+                      ? <Price amount={usdPrice.amount} currency={usdPrice.currency} />
                       : "—"}
                 </span>
               </div>
               {quote?.ok && quote.discount > 0 ? (
                 <p className="text-muted-foreground">
                   Discount{quote.coupon ? ` (${quote.coupon.code})` : ""}: −
-                  {formatPrice(quote.discount, BKASH_CURRENCY)}
+                  <Price amount={quote.discount} currency={BKASH_CURRENCY} />
                 </p>
               ) : null}
               <Separator />
@@ -292,11 +293,11 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
                 <span className="text-muted-foreground">Due</span>
                 <span className="font-heading text-lg font-semibold tabular-nums text-primary">
                   {quote?.ok
-                    ? formatPrice(bkashAmountDue(quote), BKASH_CURRENCY)
+                    ? <Price amount={bkashAmountDue(quote)} currency={BKASH_CURRENCY} />
                     : bdtPrice
-                      ? formatPrice(bdtPrice.amount, bdtPrice.currency)
+                      ? <Price amount={bdtPrice.amount} currency={bdtPrice.currency} />
                       : usdPrice
-                        ? formatPrice(usdPrice.amount, usdPrice.currency)
+                        ? <Price amount={usdPrice.amount} currency={usdPrice.currency} />
                         : "—"}
                 </span>
               </p>
