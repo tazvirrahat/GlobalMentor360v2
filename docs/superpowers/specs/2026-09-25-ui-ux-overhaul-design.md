@@ -221,6 +221,7 @@ two memorable elements. Everything else is quiet.
 | `--ink` | `#1d2242` | Text, primary buttons, primary icons. Blue-black ink, not tinted near-black |
 | `--graphite` | `#5e6376` | Secondary text, meta, placeholders (≥ 5.9:1 on white) |
 | `--rule` | `#e3e5ec` | Borders and dividers |
+| `--control` | `#8a8fa3` | Borders of inputs, selects, checkboxes, secondary buttons. `--rule` is too faint for controls (1.27:1); WCAG 1.4.11 needs 3:1, and this is 3.2:1 |
 | `--wash` | `#f3f4f7` | Subtle fills: table header, hover rows, muted surfaces |
 | `--mark` | `#f6e35a` | **Highlighter. Only "you are here"**: current lesson in curriculum, current step. Never a button, never decoration. Text on it is `--ink`. |
 | `--verified` | `#0b5d46` | Bottle green. **Completed, verified, paid, certificate.** Done ticks, "Paid" status, verify success, certificate surface/shadow. |
@@ -229,7 +230,7 @@ two memorable elements. Everything else is quiet.
 
 Replaces the current teal `#0e4f56` + amber `#c2410c` system entirely. Map shadcn tokens:
 `--background: paper`, `--foreground: ink`, `--primary: ink`, `--primary-foreground: #fff`,
-`--muted: wash`, `--muted-foreground: graphite`, `--border/--input: rule`, `--ring: ink`,
+`--muted: wash`, `--muted-foreground: graphite`, `--border: rule`, `--input: control`, `--ring: ink`,
 `--success: verified`, `--destructive: seal`, `--warning: caution`, `--accent` → remove amber (no
 second CTA colour; the primary CTA is ink). Light mode only; delete the `.dark` block's usage (keep
 nothing that ships dark chrome).
@@ -239,15 +240,18 @@ not as a flag.
 
 ### Type
 
-- **Anek Bangla** (variable, `wdth` 75–125, `wght` 100–800, subsets `latin`, `latin-ext`,
-  `bengali`) for **everything** — one family covers English and Bangla with matched design. Load via
-  `next/font/google` with `axes: ["wdth"]`. Replaces Fraunces + Source Sans 3 + Noto Sans Bengali.
+- **Schibsted Grotesk** (variable, `wght` 400–900, subsets `latin`, `latin-ext`) for
+  **everything** — headings, UI and body. It is the face from mockup direction 2. Load via
+  `next/font/google`. Replaces Fraunces + Source Sans 3 + Noto Sans Bengali.
+- **No Bangla font.** The user said so on 2026-09-25 ("i dont need bangla font 1 and 2 arent
+  bangla"). Do not load Anek Bangla or Noto Sans Bengali. Any Bangla text that does appear (course
+  content, the `৳` sign) uses the system fallback.
 - **IBM Plex Mono** 500/600 **only** for strings a person must read or type exactly: certificate
   serials, bKash transaction IDs, coupon codes, order IDs. Nothing else is monospace.
 - Scale (px / line-height): 13/1.45 meta · 15/1.5 UI · 16/1.6 body · 18/1.55 lede · 20/1.35 ·
   24/1.25 · 32/1.12 · 44/1.04 display · 56/1.02 hero (desktop only). **Minimum anywhere: 13px.**
-- Headings: weight 620–660, `wdth` 92 for display sizes (slightly condensed), letter-spacing
-  −0.02 to −0.025em at ≥ 32px. Body `wdth` 100, weight 400; UI labels 500.
+- Headings: weight 650–700, letter-spacing −0.02 to −0.025em at ≥ 32px. Body weight 400; UI
+  labels 500; buttons 600.
 - `font-variant-numeric: tabular-nums` on prices, durations, counts, dates in tables.
 - Sentence case everywhere. `text-wrap: balance` on headings, `pretty` on paragraphs.
 - Taka prices written `৳5,990` (symbol, no "BDT " prefix) with `Intl.NumberFormat`; USD `$49`.
@@ -311,7 +315,7 @@ routes into groups must not change URLs.
 
 ### Site top bar
 
-Left: wordmark "GlobalMentor360" (text only, Anek 650, `--ink`; no icon tile). Nav: Courses,
+Left: wordmark "GlobalMentor360" (text only, Schibsted Grotesk 700, `--ink`; no icon tile). Nav: Courses,
 Verify a certificate. Right, signed out: Sign in, Create account (primary). Right, signed in: My
 learning, cart (icon + count), notifications (icon + count), **one account menu** (initials avatar)
 containing Account, Orders, Studio (staff), Admin (admin), Sign out. Phone: wordmark + cart +
@@ -409,7 +413,7 @@ Remove: stat tiles, "How it works" numbered cards, final dark CTA band, scroll r
   (Duration added in phase 2). On phone: search + "Filters" button opening a sheet; applied filters
   shown as removable chips. URL keeps all state.
 - Results as **rows** (Linear list), each row: a small generated cover mark (48px square, category
-  hue from a fixed restrained set, course initial in Anek 650 — not giant faded initials), title,
+  hue from a fixed restrained set, course initial in Schibsted Grotesk 700 — not giant faded initials), title,
   subtitle (1 line clamp), instructor, lessons + duration, rating, price right-aligned tabular.
   Phone row: cover mark, title, instructor, price; meta wraps below. Target phone page ≤ 3,000px
   for 24 results. Pagination below.
@@ -417,7 +421,7 @@ Remove: stat tiles, "How it works" numbered cards, final dark CTA band, scroll r
 
 **Course landing `/courses/[slug]`**
 - Header block: breadcrumb (Courses / Category), title, subtitle, rating, learners, level,
-  **language by name** (English/বাংলা via `Intl.DisplayNames`), instructor link (phase 2 profile).
+  **language by name** ("English", "Bengali" via `Intl.DisplayNames`, not `en`), instructor link (phase 2 profile).
 - Right sticky purchase panel: price, **primary "Buy course"** (or "Enrol for free" / "Go to course"
   when enrolled), secondary "Add to cart", tertiary text link "Watch free preview". Includes list:
   lessons, duration, quizzes, certificate, lifetime access. Phone: sticky bottom bar with price +
@@ -545,7 +549,7 @@ Rebuild or restyle in `components/`:
 | Phase | Scope | Done when |
 |---|---|---|
 | **0 Foundation** | Test DB isolation; dev data reset (ask consent) + realistic seed; move audit harness into `scripts/ui-audit/` with `axe-core` as a devDependency; fix the 2 real lint errors; eslint-ignore `.cursor/**` | Suites green against `_test` DB; dev catalog shows only real content; `npm run ui-audit` works |
-| **1 Tokens & type** | New tokens in `globals.css`; Anek Bangla + Plex Mono via next/font; remove Fraunces/Source Sans/Noto; base `ui/*` restyle; remove reveal animations; replace `design-system/MASTER.md` | Build green; no teal/amber left (`grep`) |
+| **1 Tokens & type** | New tokens in `globals.css`; Schibsted Grotesk + Plex Mono via next/font; remove Fraunces/Source Sans/Noto Sans Bengali; base `ui/*` restyle; remove reveal animations; replace `design-system/MASTER.md` | Build green; no teal/amber left (`grep`) |
 | **2 Shells** | Route groups; site top bar + account menu + state-aware footer; learn shell; app shell | Every route renders in the right shell; URLs unchanged |
 | **3 Core components** | course-module, certificate, cover-mark, course-row, price, status-badge, serial, sheet | Unit/visual check |
 | **4 Public pages** | Home, catalog, landing, certificate, auth, checkout, cart, not-found | Audit clean on these routes |
@@ -619,13 +623,12 @@ suspend/grant (impersonation last, after confirming with the user).
 - **Dev DB reset needs the user's explicit consent** (Prisma AI guard). Ask when phase 0 reaches it.
 - Route-group restructuring touches every page file path; do it in one commit with the build
   proving URLs unchanged, and keep e2e specs passing.
-- Anek Bangla's Latin is less common than Inter — check rendering of `৳`, digits, and weights at
-  13px on Windows early in phase 1.
+- `৳` (U+09F3) is not in Schibsted Grotesk; it falls back to a system font. Check early in phase 1
+  that it sits well next to the digits at 15–32px on Windows; if not, show prices as `Tk 5,990`.
 - Impersonation is security-sensitive; confirm scope before building.
 - Old screenshot scripts (`scripts/design-shots*.mjs`, `scripts/p1-shots.mjs`, `verify-pages.ts`)
   reference fixture slugs (`vol-big-course`); update or retire them after the data reset.
-- Direction 3 (Bangla-first UI) was not chosen; Bangla still renders correctly via Anek Bangla.
-  Any Bangla copy must be checked by a native speaker.
+- Direction 3 (Bangla-first UI) was not chosen, and the user does not want a Bangla font.
 
 ---
 
@@ -674,4 +677,6 @@ course `typescript-foundations`, buy course `sql-for-analysts`, studio course
 | Date | Phase | What landed | Commit |
 |---|---|---|---|
 | 2026-09-25 | setup | Branch `claude/ui-ux-overhaul`; checkpoint of Cursor design pass | `ada4df3` |
-| 2026-09-25 | brainstorm | Audit, standards review, directions chosen (1+2), this spec | (this commit) |
+| 2026-09-25 | brainstorm | Audit, standards review, directions chosen (1+2), this spec | `10bf46a` |
+| 2026-09-25 | spec | No Bangla font (user); Schibsted Grotesk replaces Anek Bangla; `--control` token for 1.4.11 | (this commit) |
+| 2026-09-25 | plan | Plan 1 (phase 0 + 1) at `docs/superpowers/plans/2026-09-25-ui-ux-overhaul-foundation.md` | (this commit) |
