@@ -180,7 +180,7 @@ export function VideoPlayer({
   }
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-lg bg-brand-ink">
+    <div className="relative min-w-0 overflow-hidden rounded-lg bg-ink">
       {loading ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center text-white/80">
           <Loader2 className="size-6 animate-spin motion-reduce:animate-none" aria-hidden />

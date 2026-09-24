@@ -1,47 +1,41 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Fraunces, Noto_Sans_Bengali, Source_Sans_3 } from "next/font/google";
+import { IBM_Plex_Mono, Schibsted_Grotesk } from "next/font/google";
 import { SiteHeader } from "@/components/site/header";
 import { SiteFooter } from "@/components/site/footer";
 import { MotionProvider } from "@/components/site/motion-provider";
 import "./globals.css";
 
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
+// One family for everything; weights come from the variable axis (400–900).
+const schibsted = Schibsted_Grotesk({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-schibsted",
   display: "swap",
-  weight: ["500", "600", "700"],
 });
 
-const sourceSans = Source_Sans_3({
+// Only for strings people read or type exactly: serials, transaction IDs, codes.
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
-  variable: "--font-source-sans",
+  weight: ["500", "600"],
+  variable: "--font-plex-mono",
   display: "swap",
-  weight: ["400", "500", "600", "700"],
-});
-
-const notoBengali = Noto_Sans_Bengali({
-  subsets: ["bengali"],
-  variable: "--font-noto-bengali",
-  display: "swap",
-  weight: ["400", "500", "600", "700"],
   preload: false,
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "GlobalMentor360 — Learn without limits",
+    default: "GlobalMentor360",
     template: "%s — GlobalMentor360",
   },
   description:
-    "A single-organization online academy. Structured courses, quiz-gated lessons, verifiable certificates.",
+    "Structured online courses. Each section ends with a quiz, and every certificate has a serial anyone can verify.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`min-w-0 overflow-x-clip ${fraunces.variable} ${sourceSans.variable} ${notoBengali.variable}`}
+      className={`min-w-0 overflow-x-clip ${schibsted.variable} ${plexMono.variable}`}
     >
       <body className="flex min-h-screen min-w-0 flex-col overflow-x-clip font-sans">
         <MotionProvider>

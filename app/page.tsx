@@ -103,7 +103,7 @@ export default async function HomePage() {
       </section>
 
       {featured.length > 0 ? (
-        <section className="bg-surface-alt">
+        <section className="bg-wash">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
@@ -157,7 +157,7 @@ export default async function HomePage() {
       </section>
 
       {testimonials.length > 0 ? (
-        <section className="bg-surface-alt">
+        <section className="bg-wash">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
             <h2 className="text-center font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
               What learners say

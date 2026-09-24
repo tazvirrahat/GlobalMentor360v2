@@ -33,7 +33,7 @@ export function StudioNav() {
   const router = useRouter();
 
   return (
-    <nav aria-label="Studio" className="border-b bg-surface-alt">
+    <nav aria-label="Studio" className="border-b bg-wash">
       <div className="mx-auto flex max-w-6xl flex-wrap gap-1 px-4 py-2 sm:px-6 lg:px-8">
         {LINKS.map((link) => {
           const active = isActive(link.href, pathname);
