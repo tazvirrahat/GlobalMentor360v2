@@ -56,6 +56,8 @@ let paidDearId: string;
 let frenchId: string;
 let draftId: string;
 let mixedPriceId: string;
+let childCategoryCourseId: string;
+const categoryIds: string[] = [];
 
 beforeAll(async () => {
   instructorId = (
@@ -85,11 +87,25 @@ beforeAll(async () => {
   await db.price.create({
     data: { courseId: mixedPriceId, currency: "BDT", amount: 0, isActive: true },
   });
+
+  // A subject with a subcategory: the course sits in the child only.
+  const parent = await db.category.create({
+    data: { name: `Subject ${run}`, slug: `subject-${run}` },
+    select: { id: true },
+  });
+  const child = await db.category.create({
+    data: { name: `Topic ${run}`, slug: `topic-${run}`, parentId: parent.id },
+    select: { id: true },
+  });
+  categoryIds.push(child.id, parent.id);
+  childCategoryCourseId = await makeCourse({ label: "catalog-child", priceUsd: 1500 });
+  await db.course.update({ where: { id: childCategoryCourseId }, data: { primaryCategoryId: child.id } });
 });
 
 afterAll(async () => {
   await db.price.deleteMany({ where: { courseId: { in: courseIds } } });
   await db.course.deleteMany({ where: { id: { in: courseIds } } });
+  for (const id of categoryIds) await db.category.deleteMany({ where: { id } });
   await db.user.deleteMany({ where: { id: instructorId } });
   await db.$disconnect();
 });
@@ -139,6 +155,15 @@ describe("filters", () => {
     const wellRated = mine(await listPublishedCourses({ minRating: 4 }));
     expect(wellRated).toEqual(expect.arrayContaining([freeId, paidDearId]));
     expect(wellRated).not.toContain(paidCheapId);
+  });
+
+  it("includes a subcategory's courses when filtering by its parent subject", async () => {
+    // Both read paths: the plain Prisma query and the full-text SQL one.
+    expect(mine(await listPublishedCourses({ categorySlug: `subject-${run}` }))).toEqual([childCategoryCourseId]);
+    expect(mine(await listPublishedCourses({ categorySlug: `topic-${run}` }))).toEqual([childCategoryCourseId]);
+    expect(
+      mine(await listPublishedCourses({ categorySlug: `subject-${run}`, query: "catalog-child" })),
+    ).toEqual([childCategoryCourseId]);
   });
 
   it("searches the instructor's name, not just the course text", async () => {
