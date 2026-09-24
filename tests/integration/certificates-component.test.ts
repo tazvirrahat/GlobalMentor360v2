@@ -8,7 +8,7 @@ import {
   issueCertificateIfComplete,
 } from "@/lib/certificates";
 import { markLectureComplete, recomputeCourseProgress } from "@/lib/progress";
-import { GET as getCertificatePdf } from "@/app/certificates/[serial]/pdf/route";
+import { GET as getCertificatePdf } from "@/app/(site)/certificates/[serial]/pdf/route";
 
 const SERIAL = /^GM360-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}$/;
 

@@ -26,7 +26,7 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { askQuestionAction, replyAction } = await import("@/app/learn/[slug]/qa-actions");
+const { askQuestionAction, replyAction } = await import("@/app/(learn)/learn/[slug]/qa-actions");
 const { getCourseQaPanel } = await import("@/lib/qa");
 const { db } = await import("@/lib/db");
 const { grantEnrollment, revokeEnrollment } = await import("@/lib/enrollment");

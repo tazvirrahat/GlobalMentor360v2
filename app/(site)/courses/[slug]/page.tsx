@@ -35,7 +35,7 @@ import { showingRange } from "@/lib/pagination";
 import { getCurrentUser } from "@/lib/session";
 import { enrollFree } from "./enroll-free-action";
 import { ReviewForm } from "./review-form";
-import { addCourseToCart } from "@/app/cart/actions";
+import { addCourseToCart } from "@/app/(site)/cart/actions";
 import { PageNav } from "@/components/site/page-nav";
 
 type Params = {

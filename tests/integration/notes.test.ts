@@ -18,7 +18,7 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { addNoteAction, toggleBookmarkAction } = await import("@/app/learn/[slug]/note-actions");
+const { addNoteAction, toggleBookmarkAction } = await import("@/app/(learn)/learn/[slug]/note-actions");
 const { createNote, listNotes, toggleBookmark } = await import("@/lib/notes");
 const { db } = await import("@/lib/db");
 const { grantEnrollment, revokeEnrollment } = await import("@/lib/enrollment");
