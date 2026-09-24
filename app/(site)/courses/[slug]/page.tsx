@@ -7,19 +7,10 @@ import {
   Check,
   ChevronRight,
   Clock,
-  FileQuestion,
   Globe,
-  Lock,
   MessageSquare,
-  PlayCircle,
   Users,
 } from "lucide-react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,6 +21,7 @@ import { isEnrolled } from "@/lib/entitlement";
 import { getPublishedCourseBySlug } from "@/lib/courses";
 import { courseLevelLabel } from "@/lib/labels";
 import { CoursePrice } from "@/components/course/price";
+import { CourseModule } from "@/components/course/course-module";
 import { getPlayerLockedItemIds } from "@/lib/progress";
 import { getCourseReviewPanel, REVIEW_PAGE_SIZE } from "@/lib/reviews";
 import { showingRange } from "@/lib/pagination";
@@ -75,14 +67,6 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     openGraph: { type: "website", title: course.title, description },
   };
 }
-
-const ITEM_LABEL: Record<string, string> = {
-  LECTURE: "Lecture",
-  QUIZ: "Quiz",
-  PRACTICE_TEST: "Practice test",
-  ASSIGNMENT: "Assignment",
-  CODING_EXERCISE: "Coding exercise",
-};
 
 function instructorInitials(name: string) {
   const parts = name.trim().split(/\s+/).slice(0, 2);
@@ -263,72 +247,27 @@ export default async function CourseLandingPage({ params, searchParams }: Params
                 </p>
               </div>
             ) : (
-              <Accordion
-                type="multiple"
-                defaultValue={previewSectionIds}
-                className="mt-4 rounded-lg border bg-card shadow-sm"
-              >
-                {course.sections.map((section) => (
-                  <AccordionItem key={section.id} value={section.id} className="px-4">
-                    <AccordionTrigger className="cursor-pointer hover:no-underline">
-                      <span className="flex w-full min-w-0 items-center justify-between gap-2 pr-2 text-left">
-                        <span className="min-w-0 truncate font-heading font-semibold">
-                          {section.title}
-                        </span>
-                        <span className="shrink-0 text-xs font-normal text-muted-foreground">
-                          {section.items.length} items · {section.duration}
-                        </span>
-                      </span>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <ul className="flex flex-col gap-1 pb-1">
-                        {section.items.map((item) => (
-                          <li
-                            key={item.id}
-                            className="flex min-w-0 items-center gap-2 rounded-md px-1 py-1.5 text-sm"
-                          >
-                            {playable.has(item.id) ? (
-                              <Link
-                                href={`/learn/${course.slug}/${item.id}` as Route}
-                                className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 hover:text-primary"
-                              >
-                                <PlayCircle className="size-4 shrink-0 text-primary" aria-hidden />
-                                <span className="truncate">{item.title}</span>
-                              </Link>
-                            ) : item.type === "QUIZ" ? (
-                              <>
-                                <FileQuestion
-                                  className="size-4 shrink-0 text-muted-foreground"
-                                  aria-hidden
-                                />
-                                <span className="min-w-0 truncate">{item.title}</span>
-                                <span className="text-xs text-muted-foreground">Locked</span>
-                              </>
-                            ) : (
-                              <>
-                                <Lock
-                                  className="size-4 shrink-0 text-muted-foreground"
-                                  aria-hidden
-                                />
-                                <span className="min-w-0 truncate">{item.title}</span>
-                                <span className="text-xs text-muted-foreground">Locked</span>
-                              </>
-                            )}
-                            <span className="text-xs text-muted-foreground">
-                              {ITEM_LABEL[item.type] ?? item.type}
-                            </span>
-                            {item.isPreview ? (
-                              <Badge variant="outline" className="text-primary">
-                                Preview
-                              </Badge>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
+              <div className="mt-4">
+                <CourseModule
+                  variant="outline"
+                  slug={course.slug}
+                  playableIds={[...playable]}
+                  openSectionIds={previewSectionIds.length > 0 ? previewSectionIds : undefined}
+                  sections={course.sections.map((section) => ({
+                    id: section.id,
+                    title: section.title,
+                    items: section.items.map((item) => ({
+                      id: item.id,
+                      title: item.title,
+                      type: item.type,
+                      isPreview: item.isPreview,
+                      contentType: item.lecture?.contentType ?? null,
+                      durationSeconds: item.lecture?.durationSeconds || null,
+                      locked: enrolled ? lockedIds.has(item.id) : undefined,
+                    })),
+                  }))}
+                />
+              </div>
             )}
           </section>
 
@@ -469,7 +408,7 @@ function PurchasePanel({
                     href={`/learn/${course.slug}/${firstPreview.id}` as Route}
                     className="cursor-pointer"
                   >
-                    Preview: {firstPreview.title}
+                    Watch free preview
                   </Link>
                 </Button>
               ) : null}
