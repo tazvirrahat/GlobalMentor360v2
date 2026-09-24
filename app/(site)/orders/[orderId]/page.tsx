@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { formatDate } from "@/lib/format";
 import { getLearnerOrder } from "@/lib/orders";
 import { requireUser } from "@/lib/session";
-import { OrderStatusBadge } from "@/components/site/status-badges";
+import { StatusBadge } from "@/components/course/status-badge";
 import { Price } from "@/components/course/price";
 
 export const metadata: Metadata = { title: "Receipt" };
@@ -47,7 +47,7 @@ export default async function ReceiptPage({ params }: Params) {
               Order {order.id} · {formatDate(order.createdAt)}
             </p>
           </div>
-          <OrderStatusBadge status={order.status} />
+          <StatusBadge kind="order" status={order.status} />
         </div>
 
         <Separator className="my-5" />

@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronRight, CircleCheck, CircleX, TriangleAlert } from "lu
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CourseStatusBadge } from "@/components/site/status-badges";
+import { StatusBadge } from "@/components/course/status-badge";
 import { courseSellabilityWarning } from "@/lib/payments";
 import { requireRole } from "@/lib/session";
 import { getOwnedCourse, readinessChecks } from "@/lib/studio";
@@ -39,7 +39,7 @@ export default async function CourseSettingsPage({ params }: Params) {
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <h1 className="font-heading text-3xl font-semibold tracking-tight">{course.title}</h1>
-        <CourseStatusBadge status={course.status} />
+        <StatusBadge kind="course" status={course.status} />
       </div>
 
       {sellabilityWarning ? (

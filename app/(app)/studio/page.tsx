@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/site/empty-state";
 import { PageNav } from "@/components/site/page-nav";
-import { CourseStatusBadge } from "@/components/site/status-badges";
+import { StatusBadge } from "@/components/course/status-badge";
 import { formatDate } from "@/lib/format";
 import { db } from "@/lib/db";
 import { courseSellabilityWarning } from "@/lib/payments";
@@ -102,7 +102,7 @@ export default async function StudioPage({
                             ) : null}
                           </div>
                           <div>
-                            <CourseStatusBadge status={course.status} />
+                            <StatusBadge kind="course" status={course.status} />
                           </div>
                           <p className="text-sm tabular-nums text-muted-foreground md:text-right">
                             <span className="md:hidden">Learners · </span>
