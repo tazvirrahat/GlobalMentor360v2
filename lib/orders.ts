@@ -31,6 +31,11 @@ export type OrderPaymentSummary = {
   /** The identifier the learner can reconcile against their own records. */
   reference: string | null;
   paidAt: Date | null;
+  /**
+   * Why an admin did not accept a bKash payment. Only for rejected payments:
+   * it is the note the admin wrote for the learner when rejecting.
+   */
+  rejectReason: string | null;
 };
 
 export type LearnerOrder = {
@@ -81,6 +86,7 @@ const ORDER_SELECT = {
       paidAt: true,
       bkashTransactionId: true,
       stripePaymentIntentId: true,
+      verificationNotes: true,
     },
   },
 } as const;
@@ -107,6 +113,7 @@ type OrderRow = {
     paidAt: Date | null;
     bkashTransactionId: string | null;
     stripePaymentIntentId: string | null;
+    verificationNotes: string | null;
   }[];
 };
 
@@ -147,6 +154,8 @@ function toLearnerOrder(order: OrderRow): LearnerOrder {
       status: payment.status,
       reference: paymentReference(payment),
       paidAt: payment.paidAt,
+      rejectReason:
+        payment.method === "BKASH" && payment.status === "FAILED" ? (payment.verificationNotes ?? null) : null,
     })),
   };
 }

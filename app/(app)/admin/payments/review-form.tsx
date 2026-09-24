@@ -52,7 +52,7 @@ export function ReviewForm({ paymentId }: { paymentId: string }) {
         id={`reject-notes-hint-${paymentId}`}
         className="shrink-0 text-xs text-graphite sm:whitespace-nowrap"
       >
-        Staff only — not shown on the learner receipt.
+        The learner sees this reason on their receipt and in a notification.
       </p>
       {state.status === "error" ? <FieldError message={state.message} /> : null}
       {state.status === "done" ? (

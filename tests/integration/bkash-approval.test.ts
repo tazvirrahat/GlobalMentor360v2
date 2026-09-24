@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { getLearnerOrder } from "@/lib/orders";
 
 /**
  * The bKash happy path and the convergence check, driven through the real admin
@@ -323,6 +324,30 @@ describe("bKash coupon reservation", () => {
       1,
     );
     expect(await hasRedeemedCoupon(learnerId, created.id)).toBe(true);
+  });
+
+  it("tells the learner why a payment was rejected, on the receipt and in a notification", async () => {
+    const { paymentId } = await submitBkashClaim();
+    const reason = "The amount sent does not match the order total.";
+    const form = new FormData();
+    form.set("paymentId", paymentId);
+    form.set("notes", reason);
+    const result = await rejectPayment({ status: "idle" }, form);
+    expect(result.status).toBe("done");
+
+    const { orderId } = await db.payment.findUniqueOrThrow({ where: { id: paymentId }, select: { orderId: true } });
+    const order = await getLearnerOrder(learnerId, orderId);
+    expect(order?.payments[0]?.rejectReason).toBe(reason);
+
+    const notification = await db.notification.findFirst({
+      where: { userId: learnerId, type: "payment" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(notification?.payload).toMatchObject({
+      title: "Payment not accepted",
+      body: reason,
+      href: `/orders/${orderId}`,
+    });
   });
 
   it("refuses a blank reject reason without claiming the learner receipt shows it", async () => {

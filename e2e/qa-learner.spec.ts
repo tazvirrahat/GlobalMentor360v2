@@ -476,7 +476,7 @@ test.describe("learner QA — player, account, social", () => {
     await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
 
     await page.goto("/orders");
-    await expect(page.getByRole("heading", { name: /purchases/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Orders" })).toBeVisible();
 
     await page.context().clearCookies();
     await signIn(page, SEED.learner, "/dashboard");
