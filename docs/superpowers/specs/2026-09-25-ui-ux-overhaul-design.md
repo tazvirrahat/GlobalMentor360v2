@@ -679,4 +679,7 @@ course `typescript-foundations`, buy course `sql-for-analysts`, studio course
 | 2026-09-25 | setup | Branch `claude/ui-ux-overhaul`; checkpoint of Cursor design pass | `ada4df3` |
 | 2026-09-25 | brainstorm | Audit, standards review, directions chosen (1+2), this spec | `10bf46a` |
 | 2026-09-25 | spec | No Bangla font (user); Schibsted Grotesk replaces Anek Bangla; `--control` token for 1.4.11 | (this commit) |
-| 2026-09-25 | plan | Plan 1 (phase 0 + 1) at `docs/superpowers/plans/2026-09-25-ui-ux-overhaul-foundation.md` | (this commit) |
+| 2026-09-25 | plan | Plan 1 (phase 0 + 1) at `docs/superpowers/plans/2026-09-25-ui-ux-overhaul-foundation.md` | `44f80a1` |
+| 2026-09-25 | 0 | Lint 0 errors; addToCart double-click race fixed; suites/e2e/volume fixture on `globalmentor360_test` (guarded); e2e on :3100, one worker | `5e206f2` `cfc3d49` `7c78d25` |
+| 2026-09-25 | 0 | Six-course seed with real lessons, reviews, learner journey (Python Basics finished + certificate, TypeScript stopped at first quiz). **Dev DB fully reset with the user's consent** ("Full reset"): their Gmail test account and the Pogash Pro Coder video course are gone | `0a2777c` |
+| 2026-09-25 | 0 | Audit harness in `scripts/ui-audit` (`npm run ui-audit`, `:summary`, `:keyboard`). Baseline on clean data: 56 loads OK; axe `label` ×28 (studio-course objectives inputs), `color-contrast` ×50 (dashboard tab trigger, player curriculum); 12px text on 48 loads; 26 targets < 24px (20px table/nav links, 16px checkboxes, "Forgot password?" 16px); no overflow; one h1 + main everywhere; keyboard: skip link first everywhere, dashboard tab panel focusable without indicator; longest phone page home 5,445px | (this commit) |
