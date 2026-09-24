@@ -44,10 +44,12 @@ export async function addToCart(userId: string, courseId: string): Promise<{ ok:
   }
 
   const id = await cartIdFor(userId);
-  await db.cartItem.upsert({
-    where: { cartId_courseId: { cartId: id, courseId } },
-    create: { cartId: id, courseId },
-    update: {},
+  // INSERT … ON CONFLICT DO NOTHING. An upsert on the compound key is not run
+  // natively by Prisma: it reads, then inserts, so a double-click raced into a
+  // unique violation on (cartId, courseId).
+  await db.cartItem.createMany({
+    data: [{ cartId: id, courseId }],
+    skipDuplicates: true,
   });
 
   return { ok: true };

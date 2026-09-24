@@ -1,3 +1,5 @@
+import { testDatabaseUrl } from "../../lib/test-database";
+
 /**
  * Environment for the database-backed integration suite.
  *
@@ -25,16 +27,13 @@ process.env.STRIPE_WEBHOOK_SECRET = "whsec_integration_suite_secret";
 // false, so sendEmail uses the console fallback instead of AWS.
 process.env.EMAIL_FROM = "";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "The integration suite runs against a real Postgres. Set DATABASE_URL " +
-      "(docker compose up -d, then copy .env.example to .env) or run `npm run test` " +
-      "for the unit suite, which needs no database.",
-  );
-}
+// Never the dev database: testDatabaseUrl() throws unless the name ends in _test.
+// `npm run db:test:prepare` creates, migrates and seeds it. `npm run test` is the
+// unit suite and needs no database at all.
+process.env.DATABASE_URL = testDatabaseUrl();
 
 /*
- * Leftover hygiene (local QA DB only — never truncate seed).
+ * Leftover hygiene (globalmentor360_test only — never truncate seed).
  *
  * `analytics_events` has no FK, so a crashed run that deleted users first
  * leaves orphan rows. Tests that grant enrollment or call `recordEvent` must

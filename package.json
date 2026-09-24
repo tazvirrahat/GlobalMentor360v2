@@ -12,9 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:db": "npm run test:db:payments && npm run test:db:prices && npm run test:db:schema && npm run test:db:flows",
-    "test:db:payments": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360 -q < prisma/tests/payment-constraints.sql",
-    "test:db:prices": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360 -q < prisma/tests/price-constraints.sql",
-    "test:db:schema": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360 -q < prisma/tests/schema-hardening.sql",
+    "test:db:payments": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360_test -q < prisma/tests/payment-constraints.sql",
+    "test:db:prices": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360_test -q < prisma/tests/price-constraints.sql",
+    "test:db:schema": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360_test -q < prisma/tests/schema-hardening.sql",
     "test:db:flows": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "verify:apis": "tsx scripts/verify-apis.ts",
@@ -24,6 +24,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
+    "db:test:prepare": "tsx scripts/test-db-prepare.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {
