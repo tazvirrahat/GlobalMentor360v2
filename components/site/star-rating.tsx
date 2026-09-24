@@ -74,7 +74,7 @@ export function CompactRating({
 
   return (
     <span
-      className={cn("flex items-center gap-1 font-semibold tabular-nums text-star", className)}
+      className={cn("flex items-center gap-1 font-semibold text-star", className)}
       role="img"
       aria-label={`${average.toFixed(1)} out of 5 stars, ${ratings}`}
     >
