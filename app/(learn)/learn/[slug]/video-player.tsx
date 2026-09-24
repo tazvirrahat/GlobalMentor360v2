@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { Loader2 } from "lucide-react";
 import { getSignedPlayback, reportWatchProgress } from "./actions";
+import { onSeekRequest, publishTime } from "./player-clock";
 
 const SPEED_KEY = "gm360.playbackSpeed";
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -67,6 +68,22 @@ export function VideoPlayer({
     const el = videoRef.current;
     if (el) el.playbackRate = speed;
   }, [speed]);
+
+  // Notes read the current time and ask the video to seek (player-clock.ts).
+  useEffect(() => {
+    publishTime(0);
+    const stop = onSeekRequest((seconds) => {
+      const el = videoRef.current;
+      if (!el) return;
+      el.currentTime = seconds;
+      el.focus();
+      void el.play().catch(() => undefined);
+    });
+    return () => {
+      stop();
+      publishTime(null);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -200,7 +217,10 @@ export function VideoPlayer({
             playsInline
             onPlay={() => void report(true)}
             onPause={() => void report(true)}
-            onTimeUpdate={() => void report(false)}
+            onTimeUpdate={(event) => {
+              publishTime(event.currentTarget.currentTime);
+              void report(false);
+            }}
             onEnded={onEnded}
           >
             {captions.map((caption) => (
@@ -214,7 +234,7 @@ export function VideoPlayer({
               />
             ))}
           </video>
-          <div className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-t border-white/10 px-4 py-2 text-sm text-white/85">
+          <div className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-t border-white/15 px-4 py-2 text-sm text-white">
             <label className="flex cursor-pointer items-center gap-2">
               Speed
               <select
