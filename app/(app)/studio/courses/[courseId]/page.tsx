@@ -45,8 +45,7 @@ export default async function CourseSettingsPage({ params }: Params) {
       {sellabilityWarning ? (
         <Alert
           className="mt-6"
-          variant={course.status === "PUBLISHED" ? "destructive" : "default"}
-          role="alert"
+          variant={course.status === "PUBLISHED" ? "destructive" : "caution"}
         >
           <TriangleAlert className="size-4" aria-hidden />
           <AlertTitle>

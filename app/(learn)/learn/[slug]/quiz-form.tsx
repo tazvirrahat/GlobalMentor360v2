@@ -110,7 +110,7 @@ export function QuizForm({
   if (outcome) {
     return (
       <div className="flex flex-col gap-6">
-        <Alert variant={outcome.passed ? "default" : "destructive"}>
+        <Alert variant={outcome.passed ? "verified" : "destructive"} role="status">
           {outcome.passed ? (
             <CircleCheck className="size-4 text-success" />
           ) : (
@@ -222,7 +222,7 @@ export function QuizForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-6">
       {previous?.passed ? (
-        <Alert>
+        <Alert variant="verified">
           <CircleCheck className="size-4 text-success" />
           <AlertTitle>Already passed ({previous.scorePct}%)</AlertTitle>
           <AlertDescription>
