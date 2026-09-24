@@ -6,6 +6,7 @@ node_modules/
 # next.js
 .next/
 .next-verify/
+.next-e2e/
 out/
 next-env.d.ts
 

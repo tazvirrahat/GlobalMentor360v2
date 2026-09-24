@@ -92,7 +92,7 @@ test.describe("staff surfaces", () => {
     await page.goto("/admin/refunds");
     await expect(page.getByRole("heading", { name: "Refunds" })).toBeVisible();
     await expect(
-      page.getByText(/no paid orders to refund/i).or(
+      page.getByRole("heading", { name: /no paid orders/i }).or(
         page.getByRole("button", { name: /refund and revoke access/i }).first(),
       ),
     ).toBeVisible();

@@ -1,13 +1,15 @@
 /**
  * Identifiable volume fixture for pagination / empty-vs-full page checks.
  *
- * Prefix: vol- on emails, slugs, and titles. Safe to wipe with:
+ * Prefix: vol- on emails, slugs, and titles. Writes to the _test database only
+ * (scripts/use-test-db.ts), never dev. Wipe with:
  *   npx tsx scripts/seed-volume.ts --clean
  *
  * Leaves the rows in place after a normal run so pages can be browsed.
  * Does not touch seed accounts (learner@ / instructor@ / admin@).
  */
 import "dotenv/config";
+import "./use-test-db";
 import { auth } from "../lib/auth";
 import { db } from "../lib/db";
 import { grantEnrollment } from "../lib/enrollment";
