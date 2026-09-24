@@ -19,6 +19,11 @@ const SAVE10_TOTAL_MINOR = SQL_BDT_MINOR - SAVE10_DISCOUNT_MINOR;
 // The app's own formatter, so the spec and the pages cannot disagree on "৳3,990".
 const formatMoney = formatPrice;
 
+/** A row of the checkout's order summary, e.g. "Subtotal ৳3,990". */
+function summaryRow(page: Page, label: string) {
+  return page.locator("main dl > div").filter({ has: page.locator("dt", { hasText: label }) });
+}
+
 function attachDiagnostics(page: Page) {
   const failures: string[] = [];
 
@@ -298,14 +303,15 @@ test.describe("learner QA — cart and checkout", () => {
 
     await expect(page.getByRole("heading", { name: "Cart" })).toBeVisible();
     await expect(page.getByRole("link", { name: /sql for analysts/i })).toBeVisible();
-    await expect(page.getByText(`Subtotal: ${subtotal}`)).toBeVisible();
+    await expect(summaryRow(page, "Subtotal")).toContainText(subtotal);
 
     await page.getByLabel(/coupon/i).fill("SAVE10");
     await page.getByRole("button", { name: /^apply$/i }).click();
     await expect(page).toHaveURL(/coupon=SAVE10/i);
-    await expect(page.getByText(`Subtotal: ${subtotal}`)).toBeVisible();
-    await expect(page.getByText(`Discount (SAVE10): −${discount}`)).toBeVisible();
-    await expect(page.getByText("Amount to send:")).toBeVisible();
+    await expect(summaryRow(page, "Subtotal")).toContainText(subtotal);
+    await expect(summaryRow(page, "Discount (SAVE10)")).toContainText(`−${discount}`);
+    await expect(summaryRow(page, "Total")).toContainText(discounted);
+    await expect(page.getByText("Send exactly")).toBeVisible();
     await expect(page.getByText(discounted).first()).toBeVisible();
     await expect(page.getByText(/via bKash|to our bKash number/i)).toBeVisible();
 
@@ -314,7 +320,7 @@ test.describe("learner QA — cart and checkout", () => {
 
     await page.goto("/courses/sql-for-analysts/checkout?coupon=SAVE10");
     await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
-    await expect(page.getByText(`Subtotal: ${subtotal}`)).toBeVisible();
+    await expect(summaryRow(page, "Subtotal")).toContainText(subtotal);
     await expect(page.getByText(discounted).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /continue to stripe/i })).toHaveCount(0);
     await expect(page.getByText(/via bKash|to our bKash number/i)).toBeVisible();

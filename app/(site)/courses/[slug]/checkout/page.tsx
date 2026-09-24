@@ -1,32 +1,27 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CircleCheck, CreditCard, Hourglass } from "lucide-react";
-import { BkashProofForm } from "@/components/checkout/bkash-proof-form";
-import { BkashQuoteCard } from "@/components/checkout/bkash-quote";
+import { CreditCard, Hourglass } from "lucide-react";
+import { Price } from "@/components/course/price";
+import { Serial } from "@/components/course/serial";
+import { BkashCheckout } from "@/components/checkout/bkash-checkout";
+import { BkashReview } from "@/components/checkout/bkash-quote";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import {
   applyCouponQueryResult,
   bkashAmountDue,
   quoteBkashCourses,
   quotedBkashCouponCode,
 } from "@/lib/checkout";
-import { formatDate } from "@/lib/format";
-import { formatPrice, getPublishedCourseBySlug } from "@/lib/courses";
+import { getPublishedCourseBySlug } from "@/lib/courses";
 import { db } from "@/lib/db";
 import { isEnrolled } from "@/lib/entitlement";
-import {
-  availableRails,
-  BKASH_CURRENCY,
-  getBkashMerchantNumber,
-  STRIPE_CURRENCY,
-} from "@/lib/payments";
+import { formatDate, formatPrice } from "@/lib/format";
+import { availableRails, BKASH_CURRENCY, getBkashMerchantNumber, STRIPE_CURRENCY } from "@/lib/payments";
 import { requireUser } from "@/lib/session";
+import { siteToday } from "@/lib/site";
 import { startStripeCheckout, submitBkashPayment } from "./actions";
-import { Price } from "@/components/course/price";
 
 type Params = {
   params: Promise<{ slug: string }>;
@@ -35,6 +30,24 @@ type Params = {
 
 export const metadata = { title: "Checkout" };
 
+function Shell({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-semibold">{title}</h1>
+        {subtitle ? <p className="text-lg text-graphite">{subtitle}</p> : null}
+      </div>
+      {children}
+    </main>
+  );
+}
+
+/**
+ * Buying one course (spec §6): the bKash sequence (review, pay, submit the
+ * transaction ID) and, when card payments are configured and the course has a
+ * USD price, Stripe as a second option. The learner's name and email are never
+ * asked for: they are known (WCAG 3.3.7).
+ */
 export default async function CheckoutPage({ params, searchParams }: Params) {
   const { slug } = await params;
   const { status, coupon: couponParam } = await searchParams;
@@ -43,43 +56,36 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
   if (!course) notFound();
 
   const user = await requireUser(`/courses/${slug}/checkout`);
-  const enrolled = await isEnrolled(user.id, course.id);
 
-  if (enrolled) {
+  if (await isEnrolled(user.id, course.id)) {
     return (
-      <main className="mx-auto max-w-lg px-4 py-16 sm:px-6">
-        <Alert>
-          <CircleCheck className="size-4 text-primary" />
-          <AlertTitle>You already have access</AlertTitle>
-          <AlertDescription>
-            <p>{course.title} is in your library.</p>
-            <Button asChild variant="outline" size="sm" className="mt-2">
-              <Link href={`/learn/${course.slug}` as Route} className="cursor-pointer">
-                Start learning
-              </Link>
-            </Button>
-          </AlertDescription>
-        </Alert>
-      </main>
+      <Shell title="You already have this course" subtitle={course.title}>
+        <div>
+          <Button asChild size="lg">
+            <Link href={`/learn/${course.slug}` as Route}>Go to course</Link>
+          </Button>
+        </div>
+      </Shell>
     );
   }
 
   if (status === "success") {
     return (
-      <main className="mx-auto max-w-lg px-4 py-16 sm:px-6">
-        <Alert role="status">
-          <Hourglass className="size-4 text-primary" />
-          <AlertTitle>Payment received — finalizing…</AlertTitle>
+      <Shell title="Payment received" subtitle={course.title}>
+        <Alert role="status" variant="caution">
+          <Hourglass className="size-4" />
+          <AlertTitle>Opening your course</AlertTitle>
           <AlertDescription>
-            Stripe confirmed the charge. Access appears the moment the webhook lands — usually a
-            few seconds.{" "}
-            <Link href={`/dashboard` as Route} className="font-semibold text-primary underline">
-              Check My Learning
-            </Link>{" "}
-            or refresh this page.
+            <p>
+              Stripe confirmed the payment. The course opens as soon as the confirmation reaches us, usually within a
+              few seconds.
+            </p>
+            <Button asChild variant="secondary" size="sm" className="mt-2">
+              <Link href="/dashboard">Go to My learning</Link>
+            </Button>
           </AlertDescription>
         </Alert>
-      </main>
+      </Shell>
     );
   }
 
@@ -108,10 +114,7 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
   const stripeAvailable = stripeConfigured && Boolean(usdPrice);
   const bkashAvailable = rails.some((rail) => rail.id === "bkash-manual") && Boolean(bdtPrice);
 
-  let quote =
-    !pending && bkashAvailable
-      ? await quoteBkashCourses(user.id, [course.id], appliedCoupon)
-      : null;
+  let quote = !pending && bkashAvailable ? await quoteBkashCourses(user.id, [course.id], appliedCoupon) : null;
   let couponMessage: string | null = null;
   if (quote) {
     const fallback = applyCouponQueryResult(quote, appliedCoupon);
@@ -122,189 +125,113 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="font-heading text-3xl font-semibold tracking-tight">Checkout</h1>
-      <p className="mt-1 text-muted-foreground">{course.title}</p>
-
+    <Shell title="Checkout" subtitle={course.title}>
       {status === "cancelled" ? (
-        <Alert className="mt-6" role="status">
-          <AlertTitle>Payment cancelled</AlertTitle>
-          <AlertDescription>No charge was made. Pick a payment method below to try again.</AlertDescription>
+        <Alert role="status">
+          <AlertTitle>Card payment cancelled</AlertTitle>
+          <AlertDescription>No money was taken. Choose a way to pay below to try again.</AlertDescription>
         </Alert>
       ) : null}
-
       {status === "in-flight" ? (
-        <Alert className="mt-6" role="status">
-          <Hourglass className="size-4 text-primary" />
-          <AlertTitle>Payment already in progress</AlertTitle>
-          <AlertDescription>
-            You already have a payment awaiting verification for this course.
-          </AlertDescription>
+        <Alert role="status" variant="caution">
+          <Hourglass className="size-4" />
+          <AlertTitle>A payment is already being checked</AlertTitle>
+          <AlertDescription>You have a bKash payment for this course awaiting verification.</AlertDescription>
         </Alert>
       ) : null}
-
       {status === "unavailable" ? (
-        <Alert className="mt-6" variant="destructive" role="alert">
-          <AlertTitle>Card payments unavailable</AlertTitle>
-          <AlertDescription>
-            Card payments aren&rsquo;t available right now. Try bKash, or come back later.
-          </AlertDescription>
+        <Alert variant="destructive" role="alert">
+          <AlertTitle>Card payments are not available right now</AlertTitle>
+          <AlertDescription>Pay with bKash below, or try the card again later.</AlertDescription>
         </Alert>
       ) : null}
-
       {status === "error" ? (
-        <Alert className="mt-6" variant="destructive" role="alert">
-          <AlertTitle>Could not start checkout</AlertTitle>
+        <Alert variant="destructive" role="alert">
+          <AlertTitle>Could not start the card payment</AlertTitle>
+          <AlertDescription>Something went wrong before Stripe opened. Try again, or pay with bKash.</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {pending ? (
+        <Alert variant="caution">
+          <Hourglass className="size-4" />
+          <AlertTitle>Awaiting verification</AlertTitle>
           <AlertDescription>
-            Something went wrong starting card checkout. Try again, or pay with bKash.
+            <p className="flex flex-wrap items-center gap-x-1.5">
+              You submitted transaction
+              {pending.bkashTransactionId ? <Serial value={pending.bkashTransactionId} size="sm" /> : null}
+              on {formatDate(pending.createdAt)}.
+            </p>
+            <p>The course opens as soon as the payment is confirmed. You will get a notification.</p>
           </AlertDescription>
         </Alert>
       ) : null}
 
-      <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="flex min-w-0 flex-col gap-6">
-          {pending ? (
-            <Alert role="status">
-              <Hourglass className="size-4 text-primary" />
-              <AlertTitle>Awaiting verification</AlertTitle>
-              <AlertDescription>
-                You submitted transaction <strong>{pending.bkashTransactionId}</strong> on{" "}
-                {formatDate(pending.createdAt)}. An admin will confirm it shortly —
-                you&rsquo;ll get access as soon as it&rsquo;s approved.
-              </AlertDescription>
-            </Alert>
-          ) : null}
+      {!pending && bkashAvailable && quote && !quote.ok ? (
+        <Alert variant="destructive" role="alert">
+          <AlertTitle>Could not price this course</AlertTitle>
+          <AlertDescription>{quote.message}</AlertDescription>
+        </Alert>
+      ) : null}
 
-          {!pending && stripeAvailable ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="size-5 text-primary" aria-hidden />
-                  Pay with card
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Amount:{" "}
-                  <strong className="font-heading text-lg font-semibold tabular-nums text-primary">
-                    <Price amount={usdPrice!.amount} currency={usdPrice!.currency} />
-                  </strong>
-                </p>
-              </CardHeader>
-              <CardContent>
-                <form action={startStripeCheckout}>
-                  <input type="hidden" name="courseId" value={course.id} />
-                  <Button type="submit" size="lg" className="w-full">
-                    Continue to Stripe
-                  </Button>
-                </form>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  You&rsquo;ll be redirected to Stripe&rsquo;s secure checkout. Access unlocks the
-                  moment payment is confirmed.
-                </p>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {!pending && stripeAvailable && bkashAvailable ? (
-            <div className="flex items-center gap-3 text-sm text-graphite">
-              <Separator className="flex-1" />
-              or
-              <Separator className="flex-1" />
-            </div>
-          ) : null}
-
-          {!pending && bkashAvailable && quote && !quote.ok ? (
-            <Alert variant="destructive" role="alert">
-              <AlertTitle>Could not price this course</AlertTitle>
-              <AlertDescription>{quote.message}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          {!pending && bkashAvailable && quote?.ok ? (
-            <BkashQuoteCard
-              title="Pay with bKash"
+      {!pending && bkashAvailable && quote?.ok ? (
+        <BkashCheckout
+          action={submitBkashPayment}
+          review={
+            <BkashReview
               quote={quote}
               appliedCoupon={appliedCoupon}
               couponAction={`/courses/${course.slug}/checkout` as Route}
-              couponFieldsClassName="flex flex-wrap gap-2"
               couponMessage={couponMessage}
-            >
-              <BkashProofForm
-                action={submitBkashPayment}
-                hiddenFields={
-                  <>
-                    <input type="hidden" name="courseId" value={course.id} />
-                    {quotedBkashCouponCode(quote) ? (
-                      <input type="hidden" name="couponCode" value={quotedBkashCouponCode(quote)} />
-                    ) : null}
-                  </>
-                }
-                amountLabel={formatPrice(bkashAmountDue(quote), BKASH_CURRENCY)}
-                merchantNumber={getBkashMerchantNumber()}
-                successDescription={
-                  <>
-                    Your payment is awaiting verification. An admin will confirm it, usually within a
-                    few hours. You&rsquo;ll get access to the course as soon as it&rsquo;s approved.
-                  </>
-                }
-              />
-            </BkashQuoteCard>
-          ) : null}
-
-          {!pending && !stripeAvailable && !bkashAvailable ? (
-            <Alert>
-              <AlertTitle>No payment methods available</AlertTitle>
-              <AlertDescription>
-                {/* Only name a fix that would actually work: a USD price does
-                    nothing while the card rail is unconfigured. */}
-                {stripeConfigured
-                  ? "This course needs a USD price for card payments and/or a BDT price for bKash. Ask an instructor to set one in Studio."
-                  : "This course has no BDT price, so it can't be bought with bKash — the only payment method right now. Ask an instructor to set a BDT price in Studio."}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-        </div>
-
-        <aside className="lg:sticky lg:top-24">
-          <Card>
-            <CardHeader>
-              <CardTitle>Order summary</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3 text-sm">
-              <div className="flex items-start justify-between gap-3">
-                <span className="min-w-0 truncate font-medium" title={course.title}>
-                  {course.title}
-                </span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {bdtPrice
-                    ? <Price amount={bdtPrice.amount} currency={bdtPrice.currency} />
-                    : usdPrice
-                      ? <Price amount={usdPrice.amount} currency={usdPrice.currency} />
-                      : "—"}
-                </span>
-              </div>
-              {quote?.ok && quote.discount > 0 ? (
-                <p className="text-muted-foreground">
-                  Discount{quote.coupon ? ` (${quote.coupon.code})` : ""}: −
-                  <Price amount={quote.discount} currency={BKASH_CURRENCY} />
-                </p>
+            />
+          }
+          amount={<Price amount={bkashAmountDue(quote)} currency={BKASH_CURRENCY} />}
+          amountText={formatPrice(bkashAmountDue(quote), BKASH_CURRENCY)}
+          merchantNumber={getBkashMerchantNumber()}
+          today={siteToday()}
+          zeroTotal={bkashAmountDue(quote) === 0}
+          hiddenFields={
+            <>
+              <input type="hidden" name="courseId" value={course.id} />
+              {quotedBkashCouponCode(quote) ? (
+                <input type="hidden" name="couponCode" value={quotedBkashCouponCode(quote)} />
               ) : null}
-              <Separator />
-              <p className="flex items-baseline justify-between gap-3">
-                <span className="text-muted-foreground">Due</span>
-                <span className="font-heading text-lg font-semibold tabular-nums text-primary">
-                  {quote?.ok
-                    ? <Price amount={bkashAmountDue(quote)} currency={BKASH_CURRENCY} />
-                    : bdtPrice
-                      ? <Price amount={bdtPrice.amount} currency={bdtPrice.currency} />
-                      : usdPrice
-                        ? <Price amount={usdPrice.amount} currency={usdPrice.currency} />
-                        : "—"}
-                </span>
-              </p>
-            </CardContent>
-          </Card>
-        </aside>
-      </div>
-    </main>
+            </>
+          }
+        />
+      ) : null}
+
+      {!pending && stripeAvailable ? (
+        <section aria-labelledby="card-heading" className="flex flex-col gap-4 rounded-lg border border-rule bg-surface p-5">
+          <h2 id="card-heading" className="flex items-center gap-2 text-xl font-semibold">
+            <CreditCard className="size-5" strokeWidth={1.75} aria-hidden />
+            {bkashAvailable ? "Or pay by card" : "Pay by card"}
+          </h2>
+          <p className="text-graphite">
+            <Price amount={usdPrice!.amount} currency={usdPrice!.currency} className="font-semibold text-ink" /> on
+            Stripe&rsquo;s secure page. The course opens as soon as the payment goes through.
+          </p>
+          <form action={startStripeCheckout}>
+            <input type="hidden" name="courseId" value={course.id} />
+            <Button type="submit" size="lg" variant={bkashAvailable ? "secondary" : "default"}>
+              Continue to Stripe
+            </Button>
+          </form>
+        </section>
+      ) : null}
+
+      {!pending && !stripeAvailable && !bkashAvailable ? (
+        <Alert>
+          <AlertTitle>No payment methods available</AlertTitle>
+          <AlertDescription>
+            {/* Only name a fix that would actually work: a USD price does
+                nothing while the card rail is unconfigured. */}
+            {stripeConfigured
+              ? "This course needs a USD price for card payments or a BDT price for bKash, so it cannot be bought yet."
+              : "This course has no BDT price, so it cannot be bought with bKash, the only payment method right now."}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+    </Shell>
   );
 }

@@ -27,6 +27,8 @@ export type SiteConfig = {
   url: string;
   /** BCP 47 locale for dates and numbers. */
   locale: string;
+  /** IANA time zone for "today" (payment dates, due dates). */
+  timeZone: string;
   /** Currency bKash settles in; the storefront's home currency. */
   currency: string;
   /** Prefix on certificate serials, e.g. GM360-1A2B-… */
@@ -50,6 +52,7 @@ const GLOBALMENTOR360: Omit<SiteConfig, "url" | "supportEmail"> = {
   headline: "Build job-ready skills with online courses",
   lede: "Practical courses in programming, data, business and careers. Learn at your own pace, earn a certificate when you finish, and pay in taka with bKash.",
   locale: "en-BD",
+  timeZone: "Asia/Dhaka",
   currency: "BDT",
   certificatePrefix: "GM360",
 };
@@ -57,6 +60,11 @@ const GLOBALMENTOR360: Omit<SiteConfig, "url" | "supportEmail"> = {
 /** The storefront for the current request. One academy for now; see the note above. */
 export function getSite(): SiteConfig {
   return { ...GLOBALMENTOR360, url: origin(), supportEmail: process.env.SUPPORT_EMAIL?.trim() || null };
+}
+
+/** Today's date in the storefront's time zone, as YYYY-MM-DD (for date inputs). */
+export function siteToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: getSite().timeZone }).format(now);
 }
 
 /** Absolute URL on the storefront's origin, for emails and anything shared outside the app. */

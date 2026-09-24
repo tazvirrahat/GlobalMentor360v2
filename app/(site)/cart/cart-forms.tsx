@@ -14,7 +14,7 @@ export function EnrollFreeCartButton() {
 
   return (
     <form action={action} className="flex flex-col gap-2">
-      <Button type="submit" disabled={pending} variant="outline">
+      <Button type="submit" size="lg" disabled={pending} variant="secondary">
         {pending ? "Enrolling…" : "Enrol free courses"}
       </Button>
       {state.status === "error" ? (

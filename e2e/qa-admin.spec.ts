@@ -47,7 +47,7 @@ async function submitBkashCheckout(page: Page, trx: string) {
   await page.getByLabel("bKash transaction ID").fill(trx);
   await page.getByLabel("Your bKash number").fill("01712345678");
   await page.getByLabel("Date of payment").fill("2026-08-01");
-  await page.getByRole("button", { name: /submit payment for verification/i }).click();
+  await page.getByRole("button", { name: /submit transaction id/i }).click();
   await expect(page.getByText(/payment submitted|awaiting verification/i)).toBeVisible({
     timeout: 20_000,
   });
