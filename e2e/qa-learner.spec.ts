@@ -21,7 +21,8 @@ const formatMoney = formatPrice;
 
 /** A row of the checkout's order summary, e.g. "Subtotal ৳3,990". */
 function summaryRow(page: Page, label: string) {
-  return page.locator("main dl > div").filter({ has: page.locator("dt", { hasText: label }) });
+  const exact = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+  return page.locator("main dl > div").filter({ has: page.locator("dt", { hasText: exact }) });
 }
 
 function attachDiagnostics(page: Page) {
