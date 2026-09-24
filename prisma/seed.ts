@@ -1,15 +1,30 @@
 import "dotenv/config";
 import { auth } from "../lib/auth";
 import { db } from "../lib/db";
+import { sendAnnouncement } from "../lib/announcements";
 import { grantEnrollment } from "../lib/enrollment";
-import { recomputeCourseProgress } from "../lib/progress";
+import { markLectureComplete, recomputeCourseProgress, submitQuizAttempt } from "../lib/progress";
+import { saveReview } from "../lib/reviews";
+import { SEED_COURSES, SEED_LEARNERS, type SeedCourse, type SeedLesson } from "./seed-content";
 
 /**
  * Idempotent development seed. Safe to re-run.
  *
- * Creates the taxonomy, two staff accounts, and one published course with a real
- * curriculum so later features have something to render against.
+ * Creates the taxonomy, the three seed accounts, the six-course catalog from
+ * prisma/seed-content.ts, a handful of learners with reviews, and the sample
+ * learner's journey: one course finished (with its certificate) and one in
+ * progress, stopped at a section quiz.
+ *
+ * Every write that has a domain rule goes through the domain function
+ * (grantEnrollment, markLectureComplete, submitQuizAttempt, saveReview,
+ * sendAnnouncement), so seeded data obeys the same invariants as real data.
  */
+
+// Seeding never sends mail. lib/email reads EMAIL_FROM per send, so clearing it
+// here puts sign-ups and announcements on the console fallback.
+process.env.EMAIL_FROM = "";
+
+const SEED_PASSWORD = "dev-password-12345";
 
 const CATEGORIES = [
   {
@@ -27,6 +42,8 @@ const CATEGORIES = [
     children: [
       { name: "Entrepreneurship", slug: "entrepreneurship" },
       { name: "Management", slug: "management" },
+      { name: "Office Productivity", slug: "office-productivity" },
+      { name: "Career Skills", slug: "career-skills" },
     ],
   },
   {
@@ -134,199 +151,126 @@ async function setPrice(courseId: string, currency: string, amount: number) {
   await db.price.create({ data: { courseId, currency, amount, isActive: true } });
 }
 
-async function seedCourse(instructorId: string) {
-  const category = await db.category.findUniqueOrThrow({ where: { slug: "web-development" } });
+function curriculumItemData(sectionId: string, position: number, lesson: SeedLesson) {
+  if (lesson.kind === "article") {
+    return {
+      sectionId,
+      position,
+      type: "LECTURE" as const,
+      title: lesson.title,
+      isPreview: Boolean(lesson.preview), // free preview — the conversion path
+      lecture: {
+        create: {
+          contentType: "ARTICLE" as const,
+          articleBody: lesson.body,
+          durationSeconds: lesson.minutes * 60,
+        },
+      },
+    };
+  }
+
+  return {
+    sectionId,
+    position,
+    type: "QUIZ" as const,
+    title: lesson.title,
+    assessment: {
+      create: {
+        type: "QUIZ" as const,
+        passThresholdPct: lesson.passPct,
+        questions: {
+          create: lesson.questions.map((question, questionIndex) => ({
+            prompt: question.prompt,
+            type: question.type,
+            position: questionIndex,
+            explanation: question.explanation,
+            options: {
+              create: question.options.map((option, optionIndex) => ({
+                text: option.text,
+                isCorrect: option.correct,
+                position: optionIndex,
+              })),
+            },
+          })),
+        },
+      },
+    },
+  };
+}
+
+async function replaceTextList(
+  model: "courseObjective" | "courseRequirement" | "courseTargetAudience",
+  courseId: string,
+  items: string[],
+) {
+  const rows = items.map((text, position) => ({ courseId, text, position }));
+  // Three delegates with the same shape; a switch keeps each call fully typed.
+  switch (model) {
+    case "courseObjective":
+      await db.courseObjective.deleteMany({ where: { courseId } });
+      await db.courseObjective.createMany({ data: rows });
+      return;
+    case "courseRequirement":
+      await db.courseRequirement.deleteMany({ where: { courseId } });
+      await db.courseRequirement.createMany({ data: rows });
+      return;
+    case "courseTargetAudience":
+      await db.courseTargetAudience.deleteMany({ where: { courseId } });
+      await db.courseTargetAudience.createMany({ data: rows });
+      return;
+  }
+}
+
+async function seedCourse(spec: SeedCourse, instructorId: string) {
+  const category = await db.category.findUniqueOrThrow({ where: { slug: spec.categorySlug } });
+  const data = {
+    title: spec.title,
+    subtitle: spec.subtitle,
+    description: spec.description,
+    level: spec.level,
+    language: "en",
+    status: "PUBLISHED" as const,
+    primaryCategoryId: category.id,
+    instructorId,
+  };
 
   const course = await db.course.upsert({
-    where: { slug: "typescript-foundations" },
-    update: {},
-    create: {
-      title: "TypeScript Foundations",
-      slug: "typescript-foundations",
-      subtitle: "Types, generics, and the compiler settings that actually matter.",
-      description:
-        "A practical introduction to TypeScript for developers who already write JavaScript.",
-      level: "BEGINNER",
-      language: "en",
-      status: "PUBLISHED",
-      primaryCategoryId: category.id,
-      instructorId,
-      publishedAt: new Date(),
-    },
+    where: { slug: spec.slug },
+    update: data,
+    create: { ...data, slug: spec.slug, publishedAt: new Date() },
   });
 
-  // Re-seeding should not stack duplicate curriculum rows on the same positions.
-  await db.section.deleteMany({ where: { courseId: course.id } });
-
-  const intro = await db.section.create({
-    data: { courseId: course.id, title: "Getting started", position: 0 },
+  // Rebuild the curriculum only when its shape changed. Deleting sections
+  // cascades to curriculum items and from there to learners' item_progress,
+  // so an unconditional rebuild would wipe progress on every re-seed.
+  const existing = await db.curriculumItem.findMany({
+    where: { section: { courseId: course.id } },
+    orderBy: [{ section: { position: "asc" } }, { position: "asc" }],
+    select: { title: true },
   });
+  const wanted = spec.sections.flatMap((section) => section.lessons.map((lesson) => lesson.title));
 
-  await db.curriculumItem.create({
-    data: {
-      sectionId: intro.id,
-      type: "LECTURE",
-      title: "Why TypeScript",
-      position: 0,
-      isPreview: true, // free preview — the conversion path
-      lecture: {
-        create: {
-          contentType: "ARTICLE",
-          articleBody: "Placeholder article body.",
-          durationSeconds: 180,
-        },
-      },
-    },
-  });
+  if (existing.map((item) => item.title).join("\n") !== wanted.join("\n")) {
+    await db.section.deleteMany({ where: { courseId: course.id } });
+    for (const [sectionIndex, section] of spec.sections.entries()) {
+      const row = await db.section.create({
+        data: { courseId: course.id, title: section.title, position: sectionIndex },
+      });
+      for (const [lessonIndex, lesson] of section.lessons.entries()) {
+        await db.curriculumItem.create({ data: curriculumItemData(row.id, lessonIndex, lesson) });
+      }
+    }
+  }
 
-  await db.curriculumItem.create({
-    data: {
-      sectionId: intro.id,
-      type: "LECTURE",
-      title: "Setting up the compiler",
-      position: 1,
-      lecture: {
-        create: { contentType: "ARTICLE", articleBody: "Placeholder.", durationSeconds: 420 },
-      },
-    },
-  });
+  await replaceTextList("courseObjective", course.id, spec.objectives);
+  await replaceTextList("courseRequirement", course.id, spec.requirements);
+  await replaceTextList("courseTargetAudience", course.id, spec.audience);
 
-  const types = await db.section.create({
-    data: { courseId: course.id, title: "The type system", position: 1 },
-  });
-
-  await db.curriculumItem.create({
-    data: {
-      sectionId: types.id,
-      type: "LECTURE",
-      title: "Structural typing",
-      position: 0,
-      lecture: {
-        create: { contentType: "ARTICLE", articleBody: "Placeholder.", durationSeconds: 600 },
-      },
-    },
-  });
-
-  await db.curriculumItem.create({
-    data: {
-      sectionId: types.id,
-      type: "QUIZ",
-      title: "Check your understanding",
-      position: 1,
-      assessment: {
-        create: {
-          type: "QUIZ",
-          passThresholdPct: 70,
-          questions: {
-            create: [
-              {
-                prompt: "TypeScript's type system is primarily…",
-                type: "SINGLE_CHOICE",
-                position: 0,
-                explanation: "Compatibility is decided by shape, not by declared inheritance.",
-                options: {
-                  create: [
-                    { text: "Structural", isCorrect: true, position: 0 },
-                    { text: "Nominal", isCorrect: false, position: 1 },
-                    { text: "Dynamic", isCorrect: false, position: 2 },
-                  ],
-                },
-              },
-              {
-                prompt: "`strict` in tsconfig enables noImplicitAny.",
-                type: "TRUE_FALSE",
-                position: 1,
-                options: {
-                  create: [
-                    { text: "True", isCorrect: true, position: 0 },
-                    { text: "False", isCorrect: false, position: 1 },
-                  ],
-                },
-              },
-            ],
-          },
-        },
-      },
-    },
-  });
-
-  await setPrice(course.id, "USD", 4900);
-
+  await setPrice(course.id, "USD", spec.priceUsdCents);
   // bKash settles in BDT, so a course without a BDT price cannot be bought on
   // that rail at all. Priced independently rather than converted — FX drift
   // would silently change what learners are charged.
-  await setPrice(course.id, "BDT", 599000);
-
-  return course;
-}
-
-async function seedSecondCourse(instructorId: string) {
-  const category = await db.category.findUniqueOrThrow({ where: { slug: "data-science" } });
-
-  const course = await db.course.upsert({
-    where: { slug: "sql-for-analysts" },
-    update: {},
-    create: {
-      title: "SQL for Analysts",
-      slug: "sql-for-analysts",
-      subtitle: "Query, join, and summarise data without waiting on an engineer.",
-      description:
-        "A practical SQL course for people who already live in spreadsheets and want the database to do the heavy lifting.",
-      level: "BEGINNER",
-      language: "en",
-      status: "PUBLISHED",
-      primaryCategoryId: category.id,
-      instructorId,
-      publishedAt: new Date(),
-    },
-  });
-
-  await db.section.deleteMany({ where: { courseId: course.id } });
-
-  const intro = await db.section.create({
-    data: { courseId: course.id, title: "Getting started", position: 0 },
-  });
-
-  await db.curriculumItem.create({
-    data: {
-      sectionId: intro.id,
-      type: "LECTURE",
-      title: "Why SQL still matters",
-      position: 0,
-      isPreview: true,
-      lecture: {
-        create: {
-          contentType: "ARTICLE",
-          articleBody:
-            "Spreadsheets are a great sandbox. SQL is how you ask the same question of a million rows without copying them into RAM first.",
-          durationSeconds: 240,
-        },
-      },
-    },
-  });
-
-  await db.curriculumItem.create({
-    data: {
-      sectionId: intro.id,
-      type: "LECTURE",
-      title: "SELECT, FROM, WHERE",
-      position: 1,
-      lecture: {
-        create: { contentType: "ARTICLE", articleBody: "Placeholder.", durationSeconds: 480 },
-      },
-    },
-  });
-
-  await setPrice(course.id, "USD", 3900);
-  await setPrice(course.id, "BDT", 399000);
-
-  await db.courseObjective.deleteMany({ where: { courseId: course.id } });
-  await db.courseObjective.createMany({
-    data: [
-      { courseId: course.id, text: "Write SELECT queries you can trust.", position: 0 },
-      { courseId: course.id, text: "Join tables without duplicating rows.", position: 1 },
-    ],
-  });
+  await setPrice(course.id, "BDT", spec.priceBdtMinor);
 
   return course;
 }
@@ -344,6 +288,68 @@ async function seedCoupon() {
   });
 }
 
+function expectOk(result: { ok: boolean; message?: string }, what: string) {
+  if (!result.ok) throw new Error(`${what}: ${result.message ?? "refused"}`);
+}
+
+/**
+ * Completes the first `limit` curriculum items in order (all of them when
+ * omitted), passing each quiz with the correct answers. Items already complete
+ * are skipped, so re-seeding does not trip "retakes are not allowed".
+ */
+async function completeItems(userId: string, courseId: string, limit?: number) {
+  const items = await db.curriculumItem.findMany({
+    where: { section: { courseId } },
+    orderBy: [{ section: { position: "asc" } }, { position: "asc" }],
+    take: limit,
+    select: {
+      id: true,
+      type: true,
+      title: true,
+      progress: { where: { userId }, select: { completedAt: true } },
+      assessment: {
+        select: {
+          id: true,
+          attempts: { where: { userId, passed: true }, select: { id: true }, take: 1 },
+          questions: {
+            select: { id: true, options: { select: { id: true, isCorrect: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  for (const item of items) {
+    if (item.type === "LECTURE") {
+      if (item.progress[0]?.completedAt) continue;
+      expectOk(await markLectureComplete(userId, item.id), `complete "${item.title}"`);
+    }
+
+    if (item.type === "QUIZ" && item.assessment) {
+      if (item.assessment.attempts.length > 0) continue;
+      expectOk(
+        await submitQuizAttempt(
+          userId,
+          item.assessment.id,
+          item.assessment.questions.map((question) => ({
+            questionId: question.id,
+            selectedOptionIds: question.options.filter((o) => o.isCorrect).map((o) => o.id),
+          })),
+        ),
+        `pass "${item.title}"`,
+      );
+    }
+  }
+
+  await recomputeCourseProgress(userId, courseId);
+}
+
+async function ensureEnrolled(userId: string, courseId: string) {
+  // grantEnrollment is idempotent: it revives a revoked row or inserts
+  // ON CONFLICT DO NOTHING, and keeps Course.enrollmentCount right (invariant 7).
+  await grantEnrollment(userId, courseId, "GRANT");
+}
+
 async function main() {
   console.log("Seeding taxonomy…");
   await seedTaxonomy();
@@ -352,40 +358,89 @@ async function main() {
   const instructor = await ensureUser({
     name: "Dana Instructor",
     email: "instructor@example.com",
-    password: "dev-password-12345",
+    password: SEED_PASSWORD,
     roles: ["LEARNER", "INSTRUCTOR"],
   });
 
   await ensureUser({
     name: "Alex Admin",
     email: "admin@example.com",
-    password: "dev-password-12345",
+    password: SEED_PASSWORD,
     roles: ["LEARNER", "ADMIN"],
   });
 
   const learner = await ensureUser({
     name: "Sam Learner",
     email: "learner@example.com",
-    password: "dev-password-12345",
+    password: SEED_PASSWORD,
     roles: ["LEARNER"],
   });
 
-  console.log("Seeding course…");
-  const course = await seedCourse(instructor.id);
-  const second = await seedSecondCourse(instructor.id);
+  console.log("Seeding courses…");
+  const courses = new Map<string, { id: string; title: string }>();
+  for (const spec of SEED_COURSES) {
+    const course = await seedCourse(spec, instructor.id);
+    courses.set(spec.slug, course);
+  }
   await seedCoupon();
 
-  // Enrol the sample learner so the critical-path E2E has something to open.
-  // Routed through grantEnrollment rather than writing the row directly:
-  // invariant 7 says one code path grants access, and it is also what keeps
-  // Course.enrollmentCount right — seeding the row by hand left a freshly seeded
-  // database already showing "0 enrolled" for a course with an enrollment.
-  await grantEnrollment(learner.id, course.id, "GRANT");
-  await recomputeCourseProgress(learner.id, course.id);
+  const bySlug = (slug: string) => {
+    const course = courses.get(slug);
+    if (!course) throw new Error(`Seed course ${slug} is missing from seed-content.ts`);
+    return course;
+  };
 
-  console.log(`Done. Seeded "${course.title}" and "${second.title}".`);
+  console.log("Seeding the sample learner's journey…");
+  // Finished course → certificate (recomputeCourseProgress issues it at 100%).
+  // Not SQL for Analysts: the e2e suite buys that one as the seed learner.
+  const finished = bySlug("python-basics");
+  await ensureEnrolled(learner.id, finished.id);
+  await completeItems(learner.id, finished.id);
+
+  // In progress, stopped at the first section quiz, so "Continue" lands on a gate.
+  const current = bySlug("typescript-foundations");
+  await ensureEnrolled(learner.id, current.id);
+  await completeItems(learner.id, current.id, 2);
+
+  console.log("Seeding learners and reviews…");
+  for (const person of SEED_LEARNERS) {
+    const user = await ensureUser({
+      name: person.name,
+      email: person.email,
+      password: SEED_PASSWORD,
+      roles: ["LEARNER"],
+    });
+    for (const review of person.reviews) {
+      const course = bySlug(review.courseSlug);
+      await ensureEnrolled(user.id, course.id);
+      const saved = await saveReview({
+        userId: user.id,
+        courseId: course.id,
+        rating: review.rating,
+        body: review.body,
+      });
+      if (!saved.ok) throw new Error(`review by ${person.email}: ${saved.message}`);
+    }
+  }
+
+  const officeHours = "Office hours this Thursday";
+  const announced = await db.announcement.findFirst({
+    where: { courseId: current.id, subject: officeHours },
+    select: { id: true },
+  });
+  if (!announced) {
+    const sent = await sendAnnouncement({
+      instructorId: instructor.id,
+      courseId: current.id,
+      subject: officeHours,
+      body: "I'll be answering questions about generics and strict mode live on Thursday at 8pm Dhaka time. Post your question in the Q&A tab beforehand and I'll start with those.",
+    });
+    if (!sent.ok) throw new Error(`announcement: ${sent.message}`);
+  }
+
+  console.log(`Done. Seeded ${courses.size} courses and ${SEED_LEARNERS.length} reviewers.`);
   console.log(
-    "Sign in as learner@example.com, instructor@example.com or admin@example.com — password dev-password-12345",
+    `Sign in as learner@example.com, instructor@example.com or admin@example.com — password ${SEED_PASSWORD}`,
   );
 }
 

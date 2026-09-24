@@ -66,7 +66,7 @@ test.describe("studio exploratory QA", () => {
 
     await expect(page.getByRole("heading", { name: title })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Draft", { exact: true })).toBeVisible();
-    await expect(page.getByText("Settings")).toBeVisible();
+    await expect(page.getByText("Settings", { exact: true })).toBeVisible();
     await expect(page.getByLabel("Subtitle")).toBeVisible();
     await expect(page.getByLabel("Description")).toBeVisible();
     await expect(page.getByText("What you'll learn")).toBeVisible();

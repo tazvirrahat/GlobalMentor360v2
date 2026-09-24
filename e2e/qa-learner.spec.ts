@@ -70,6 +70,21 @@ async function withDb<T>(fn: (client: pg.Client) => Promise<T>): Promise<T> {
   }
 }
 
+/** The correct option ids for a quiz item, straight from the database. */
+async function correctOptionIds(curriculumItemId: string) {
+  return withDb(async (client) => {
+    const result = await client.query<{ id: string }>(
+      `SELECT o.id
+       FROM answer_options o
+       JOIN questions q ON q.id = o."questionId"
+       JOIN assessments a ON a.id = q."assessmentId"
+       WHERE a."curriculumItemId" = $1 AND o."isCorrect"`,
+      [curriculumItemId],
+    );
+    return result.rows.map((row) => row.id);
+  });
+}
+
 async function curriculum(slug: string) {
   return withDb(async (client) => {
     const result = await client.query<{
@@ -91,7 +106,8 @@ async function curriculum(slug: string) {
 }
 
 function parsePercent(text: string | null): number | null {
-  const match = text?.match(/(\d+)\s*%/);
+  // completionPercent keeps one decimal ("22.2%"), so read the whole number.
+  const match = text?.match(/(\d+(?:\.\d+)?)\s*%/);
   return match ? Number(match[1]) : null;
 }
 
@@ -210,6 +226,9 @@ test.describe("learner QA — session and library", () => {
       `progress ${playerPercent}% implies ${impliedCompleted}/${items.length} complete and ${expectedLocked} locked, but ${lockedCount} items are locked`,
     ).toBe(expectedLocked);
 
+    // The continue target is the first unfinished item, not necessarily the
+    // opening lesson, so check the opening lesson on its own page.
+    await page.goto(`/learn/typescript-foundations/${items[0]!.id}`);
     const firstLessonCompleted =
       (await page.locator("main").getByText("Completed", { exact: true }).count()) > 0;
     if (!firstLessonCompleted) {
@@ -376,9 +395,21 @@ test.describe("learner QA — player, account, social", () => {
     const items = await curriculum("typescript-foundations");
     await signIn(page, SEED.learner, `/learn/typescript-foundations/${items[1]!.id}`);
 
+    // Walk the curriculum in order: each section quiz gates the next section,
+    // so lectures after a quiz only unlock once it is passed.
     for (const item of items) {
-      if (item.type === "QUIZ") continue;
       await page.goto(`/learn/typescript-foundations/${item.id}`);
+      if (item.type === "QUIZ") {
+        await expect(page.getByRole("heading", { name: item.title })).toBeVisible();
+        const submit = page.getByRole("button", { name: /submit answers/i });
+        if ((await submit.count()) === 0) continue; // already passed on an earlier run
+        for (const optionId of await correctOptionIds(item.id)) {
+          await page.locator(`input[value="${optionId}"]`).check();
+        }
+        await submit.click();
+        await expect(page.getByText(/passed/i).first()).toBeVisible({ timeout: 15_000 });
+        continue;
+      }
       const mark = page.getByRole("button", { name: /mark complete/i });
       if ((await mark.count()) > 0) {
         await mark.click();
@@ -386,18 +417,14 @@ test.describe("learner QA — player, account, social", () => {
       }
     }
 
-    const quiz = items.find((item) => item.type === "QUIZ")!;
-    await page.goto(`/learn/typescript-foundations/${quiz.id}`);
-    await expect(page.getByRole("heading", { name: quiz.title })).toBeVisible();
-    await page.getByRole("radio", { name: /structural/i }).check();
-    await page.getByRole("radio", { name: /^true$/i }).check();
-    await page.getByRole("button", { name: /submit answers/i }).click();
-    await expect(page.getByText(/passed/i)).toBeVisible({ timeout: 15_000 });
-
     await page.goto("/dashboard");
     await page.getByRole("tab", { name: /completed/i }).click();
     await expect(page.getByText(/typescript foundations/i)).toBeVisible();
-    const certLink = page.getByRole("link", { name: /view certificate/i });
+    // The seed learner also holds a Python Basics certificate; pick this course's.
+    const certLink = page
+      .locator("li")
+      .filter({ hasText: /typescript foundations/i })
+      .getByRole("link", { name: /view certificate/i });
     await expect(certLink).toBeVisible();
     await certLink.click();
     await expect(page).toHaveURL(/\/certificates\//);
