@@ -62,3 +62,6 @@ finish-move.ps1
 
 # Design review screenshots (large binaries, regenerate with scripts/design-shots*.mjs)
 design-review/
+
+# Brainstorming companion mockups
+.superpowers/
