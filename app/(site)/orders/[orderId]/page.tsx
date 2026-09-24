@@ -9,6 +9,7 @@ import { getLearnerOrder } from "@/lib/orders";
 import { requireUser } from "@/lib/session";
 import { StatusBadge } from "@/components/course/status-badge";
 import { Price } from "@/components/course/price";
+import { Serial } from "@/components/course/serial";
 
 export const metadata: Metadata = { title: "Receipt" };
 export const dynamic = "force-dynamic";
@@ -43,8 +44,12 @@ export default async function ReceiptPage({ params }: Params) {
             <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
               Receipt
             </h1>
-            <p className="mt-1 text-sm tabular-nums text-muted-foreground">
-              Order {order.id} · {formatDate(order.createdAt)}
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-graphite">
+              <span>Order</span>
+              <Serial value={order.id} copyLabel="order number" size="sm" />
+            </p>
+            <p className="text-sm text-graphite">
+              <time dateTime={order.createdAt.toISOString()}>{formatDate(order.createdAt)}</time>
             </p>
           </div>
           <StatusBadge kind="order" status={order.status} />
@@ -107,8 +112,9 @@ export default async function ReceiptPage({ params }: Params) {
                     {payment.paidAt ? ` · ${formatDate(payment.paidAt)}` : ""}
                   </span>
                   {payment.reference ? (
-                    <span className="break-all font-mono text-xs tabular-nums">
-                      Reference: {payment.reference}
+                    <span className="flex flex-wrap items-center gap-x-2">
+                      <span>Transaction ID</span>
+                      <Serial value={payment.reference} copyLabel="transaction ID" size="sm" />
                     </span>
                   ) : null}
                 </li>

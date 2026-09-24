@@ -8,6 +8,7 @@ import { listPendingManualPayments, MANUAL_PAYMENT_QUEUE_PAGE_SIZE } from "@/lib
 import { requireRole } from "@/lib/session";
 import { ReviewForm } from "./review-form";
 import { Price } from "@/components/course/price";
+import { Serial } from "@/components/course/serial";
 
 export const metadata = { title: "Payments | Admin" };
 
@@ -116,11 +117,8 @@ export default async function AdminPaymentsPage({
                       <td className="whitespace-nowrap px-3 py-1.5 text-right font-semibold tabular-nums">
                         <Price amount={payment.amount} currency={payment.currency} />
                       </td>
-                      <td
-                        className="max-w-[8rem] truncate px-3 py-1.5 font-mono text-xs"
-                        title={payment.bkashTransactionId ?? undefined}
-                      >
-                        {payment.bkashTransactionId}
+                      <td className="px-3 py-1.5">
+                        {payment.bkashTransactionId ? <Serial value={payment.bkashTransactionId} size="sm" /> : "—"}
                       </td>
                       <td className="whitespace-nowrap px-3 py-1.5">
                         <ReviewForm paymentId={payment.id} />
