@@ -140,7 +140,7 @@ export function assembleThreads(
  * round trip, then every visible reply to that page in a second. Nothing here
  * runs per thread or per reply.
  */
-const EMPTY_QA_PANEL: QaPanel = { threads: [], total: 0, page: 1, pageCount: 1 };
+export const EMPTY_QA_PANEL: QaPanel = { threads: [], total: 0, page: 1, pageCount: 1 };
 
 async function canReadCourseQa(userId: string, courseId: string): Promise<boolean> {
   if (await isEnrolled(userId, courseId)) return true;

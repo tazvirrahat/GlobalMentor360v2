@@ -2,62 +2,50 @@ import { Badge } from "@/components/ui/badge";
 import { PageNav } from "@/components/site/page-nav";
 import { formatDateMedium } from "@/lib/format";
 import { showingRange } from "@/lib/pagination";
-import { getCourseQaPanel, earlierRepliesCopy, THREAD_PAGE_SIZE, type QaThread } from "@/lib/qa";
-import { getCurrentUser } from "@/lib/session";
+import { earlierRepliesCopy, THREAD_PAGE_SIZE, type QaPanel as QaPanelData, type QaThread } from "@/lib/qa";
 import { AskQuestionForm } from "./ask-question-form";
 import { ReplyForm } from "./reply-form";
 
 function Thread({ thread }: { thread: QaThread }) {
   return (
-    <li className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-xs">
+    <li className="flex flex-col gap-3 py-4">
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-heading font-semibold tracking-tight">{thread.title}</h3>
-          {thread.scope === "COURSE" ? <Badge variant="secondary">Whole course</Badge> : null}
+          <h3 className="text-base font-semibold">{thread.title}</h3>
+          {thread.scope === "COURSE" ? <Badge variant="outline">Whole course</Badge> : null}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {thread.authorName} ·{" "}
-          <time dateTime={thread.createdAt.toISOString()}>
-            {formatDateMedium(thread.createdAt)}
-          </time>
+        <p className="flex flex-wrap gap-x-3 text-sm text-graphite">
+          <span>{thread.authorName}</span>
+          <time dateTime={thread.createdAt.toISOString()}>{formatDateMedium(thread.createdAt)}</time>
         </p>
       </div>
 
       {/* Rendered as text, never as markup — same as every other learner-written
           field in this codebase. */}
-      <p className="whitespace-pre-line text-sm leading-relaxed">{thread.body}</p>
+      <p className="text-base whitespace-pre-line text-ink">{thread.body}</p>
 
       {thread.replies.length > 0 ? (
-        <ul className="flex flex-col gap-3 border-l pl-4">
+        <ul className="flex flex-col gap-4 border-l-2 border-rule pl-4">
           {earlierRepliesCopy(thread.earlierReplyCount) ? (
-            <li className="text-xs text-muted-foreground">
-              {earlierRepliesCopy(thread.earlierReplyCount)}
-            </li>
+            <li className="text-sm text-graphite">{earlierRepliesCopy(thread.earlierReplyCount)}</li>
           ) : null}
           {thread.replies.map((reply) => (
             <li key={reply.id} className="flex flex-col gap-1">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">{reply.authorName}</span>
+              <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-graphite">
+                <span className="font-semibold text-ink">{reply.authorName}</span>
                 {/* Attribution of one answer, not the P1 "answered by
                     instructor" thread badge, which sorts and filters the list. */}
-                {reply.isInstructor ? (
-                  <Badge variant="secondary" className="ml-2">
-                    Instructor
-                  </Badge>
-                ) : null}{" "}
-                ·{" "}
-                <time dateTime={reply.createdAt.toISOString()}>
-                  {formatDateMedium(reply.createdAt)}
-                </time>
+                {reply.isInstructor ? <Badge variant="outline">Instructor</Badge> : null}
+                <time dateTime={reply.createdAt.toISOString()}>{formatDateMedium(reply.createdAt)}</time>
               </p>
-              <p className="whitespace-pre-line text-sm leading-relaxed">{reply.body}</p>
+              <p className="text-base whitespace-pre-line text-ink">{reply.body}</p>
             </li>
           ))}
         </ul>
       ) : null}
 
-      <details className="text-sm">
-        <summary className="w-fit cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+      <details className="group text-sm">
+        <summary className="inline-flex min-h-8 w-fit cursor-pointer list-none items-center rounded-sm font-medium text-ink underline decoration-control underline-offset-4 hover:decoration-ink focus-ring [&::-webkit-details-marker]:hidden">
           Reply
         </summary>
         <div className="mt-3">
@@ -76,32 +64,29 @@ function Thread({ thread }: { thread: QaThread }) {
  * authorization — reads and writes both re-check entitlement in lib/qa.ts,
  * because a server function is reachable without ever loading this page.
  */
-export async function QaPanel({
+export function QaPanel({
   courseId,
   curriculumItemId,
   lectureTitle,
   slug,
-  page: rawPage,
+  panel,
   params,
 }: {
   courseId: string;
   curriculumItemId: string;
   lectureTitle: string;
   slug: string;
-  page?: string;
+  /** From getCourseQaPanel, loaded by the page (which also needs the count). */
+  panel: QaPanelData;
   params?: Record<string, string | undefined>;
 }) {
-  const user = await getCurrentUser();
-  const panel = user
-    ? await getCourseQaPanel(courseId, curriculumItemId, user.id, rawPage)
-    : { threads: [], total: 0, page: 1, pageCount: 1 };
   const { threads, total, page, pageCount } = panel;
   const range = showingRange(page, THREAD_PAGE_SIZE, total);
 
   return (
-    <section aria-labelledby="qa-heading" className="flex flex-col gap-4">
-      <h2 id="qa-heading" className="font-heading text-lg font-semibold tracking-tight">
-        Questions &amp; answers
+    <section aria-labelledby="qa-heading" className="flex flex-col gap-5">
+      <h2 id="qa-heading" className="sr-only">
+        Questions and answers
       </h2>
 
       <AskQuestionForm
@@ -111,20 +96,18 @@ export async function QaPanel({
       />
 
       {threads.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No questions here yet. Yours would be the first.
-        </p>
+        <p className="text-graphite">No questions here yet. Yours would be the first.</p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col divide-y divide-rule border-y border-rule">
           {threads.map((thread) => (
             <Thread key={thread.id} thread={thread} />
           ))}
         </ul>
       )}
 
-      {total > 0 ? (
-        <p className="text-sm tabular-nums text-muted-foreground">
-          Showing {range.from}–{range.to} of {total}
+      {total > THREAD_PAGE_SIZE ? (
+        <p className="text-sm text-graphite">
+          Showing {range.from} to {range.to} of {total}
         </p>
       ) : null}
       <PageNav
