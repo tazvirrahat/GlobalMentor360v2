@@ -12,7 +12,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { serial } = await params;
   const cert = await getCertificateBySerial(serial);
   if (!cert) notFound();
-  return { title: `Certificate · ${cert.course.title}` };
+  return {
+    title: `Certificate: ${cert.course.title}`,
+    description: `${cert.user.name} completed ${cert.course.title}. Certificate ${cert.serial}.`,
+  };
 }
 
 export const dynamic = "force-dynamic";
@@ -88,7 +91,7 @@ export default async function CertificatePage({ params }: Params) {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Verify anytime at this public URL · GlobalMentor360
+              Anyone can check this certificate at this address.
             </p>
           </div>
         </div>

@@ -10,7 +10,7 @@ import { requireRole } from "@/lib/session";
 import { getOwnedCourse, readinessChecks } from "@/lib/studio";
 import { PublishForm, SettingsForm } from "./settings-form";
 
-export const metadata = { title: "Course settings — Studio" };
+export const metadata = { title: "Course settings | Studio" };
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ courseId: string }> };

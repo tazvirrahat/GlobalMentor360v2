@@ -14,7 +14,7 @@ import { showingRange } from "@/lib/pagination";
 import { requireRole } from "@/lib/session";
 import { Composer } from "./composer";
 
-export const metadata: Metadata = { title: "Announcements · Studio" };
+export const metadata: Metadata = { title: "Announcements | Studio" };
 
 export const dynamic = "force-dynamic";
 

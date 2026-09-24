@@ -12,8 +12,8 @@ import { getMyLearning, type MyLearningEntry } from "@/lib/my-learning";
 import { getUserRoles, requireUser } from "@/lib/session";
 
 export const metadata = {
-  title: "My Learning",
-  description: "Your enrolled courses, progress and certificates.",
+  title: "My learning",
+  description: "Your courses, progress and certificates.",
 };
 
 export const dynamic = "force-dynamic";

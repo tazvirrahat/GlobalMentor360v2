@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { GraduationCap } from "lucide-react";
 import { cartItemCount } from "@/lib/cart";
 import { unreadNotificationCount } from "@/lib/notifications";
 import { getCurrentUser, getUserRoles } from "@/lib/session";
+import { getSite } from "@/lib/site";
 import { HeaderActions, HeaderNav } from "./header-nav";
 
 /**
@@ -31,16 +31,9 @@ export async function SiteHeader() {
       <div className="mx-auto flex min-h-14 max-w-6xl flex-wrap items-center gap-x-2 gap-y-2 px-4 py-2 sm:min-h-16 sm:gap-x-4 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="flex min-h-11 min-w-0 shrink-0 cursor-pointer items-center gap-2 font-heading font-semibold tracking-tight"
+          className="flex min-h-11 min-w-0 shrink-0 cursor-pointer items-center rounded-sm font-heading text-base font-bold text-ink focus-ring sm:text-lg"
         >
-          <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <GraduationCap className="size-4" aria-hidden />
-          </span>
-          <span className="text-base sm:text-lg">
-            <span className="sm:hidden">GM</span>
-            <span className="hidden sm:inline">GlobalMentor</span>
-            <span className="text-primary">360</span>
-          </span>
+          {getSite().name}
         </Link>
 
         <HeaderNav isStaff={isStaff} isAdmin={isAdmin} />

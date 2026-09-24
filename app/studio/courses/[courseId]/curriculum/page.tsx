@@ -7,7 +7,7 @@ import { getOwnedCurriculum } from "@/lib/studio";
 import { tryDrainMediaConvertEventQueue } from "@/lib/video";
 import { AddSectionForm, SectionList } from "./curriculum-editor";
 
-export const metadata = { title: "Curriculum — Studio" };
+export const metadata = { title: "Curriculum | Studio" };
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ courseId: string }> };

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCertificateBySerial } from "@/lib/certificates";
 import { renderCertificatePdf } from "@/lib/pdf";
+import { getSite } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export async function GET(
     return new NextResponse("Certificate not found", { status: 404 });
   }
 
-  const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  const base = getSite().url;
   const pdf = renderCertificatePdf({
     serial: cert.serial,
     learnerName: cert.user.name,

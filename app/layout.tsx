@@ -4,6 +4,7 @@ import { IBM_Plex_Mono, Schibsted_Grotesk } from "next/font/google";
 import { SiteHeader } from "@/components/site/header";
 import { SiteFooter } from "@/components/site/footer";
 import { MotionProvider } from "@/components/site/motion-provider";
+import { getSite } from "@/lib/site";
 import "./globals.css";
 
 // One family for everything; weights come from the variable axis (400–900).
@@ -22,13 +23,22 @@ const plexMono = IBM_Plex_Mono({
   preload: false,
 });
 
+const site = getSite();
+
 export const metadata: Metadata = {
+  metadataBase: new URL(site.url),
+  applicationName: site.name,
   title: {
-    default: "GlobalMentor360",
-    template: "%s — GlobalMentor360",
+    default: `${site.name} | ${site.title}`,
+    template: `%s | ${site.name}`,
   },
-  description:
-    "Structured online courses. Each section ends with a quiz, and every certificate has a serial anyone can verify.",
+  description: site.description,
+  openGraph: {
+    type: "website",
+    siteName: site.name,
+    title: `${site.name} | ${site.title}`,
+    description: site.description,
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

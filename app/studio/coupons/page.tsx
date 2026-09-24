@@ -9,7 +9,7 @@ import { clampPage, pageCount, parsePage, showingRange, skipTake } from "@/lib/p
 import { hasRole, requireRole } from "@/lib/session";
 import { CouponForm } from "./coupon-form";
 
-export const metadata = { title: "Coupons — Studio" };
+export const metadata = { title: "Coupons | Studio" };
 export const dynamic = "force-dynamic";
 
 const COUPON_PAGE_SIZE = 20;

@@ -17,8 +17,9 @@ import type { CourseLevel } from "@/generated/prisma/enums";
 import { CatalogToolbar } from "./catalog-toolbar";
 
 export const metadata = {
-  title: "Courses",
-  description: "Browse the course catalog.",
+  title: "Online Courses",
+  description:
+    "Browse online courses by category, level, price and rating. Learn at your own pace and earn a certificate when you finish.",
 };
 
 // Without this Next prerenders the catalog at build time, which breaks two ways:

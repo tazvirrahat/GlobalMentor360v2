@@ -68,9 +68,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const course = await getCourse(slug);
   if (!course) notFound();
 
+  const description = course.subtitle ?? course.description?.slice(0, 160) ?? undefined;
   return {
     title: course.title,
-    description: course.subtitle ?? undefined,
+    description,
+    openGraph: { type: "website", title: course.title, description },
   };
 }
 

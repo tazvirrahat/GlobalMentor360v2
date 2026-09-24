@@ -11,7 +11,7 @@ import { requireRole } from "@/lib/session";
 import { refundOrderAction } from "../actions";
 import { PageNav } from "@/components/site/page-nav";
 
-export const metadata = { title: "Refunds — Admin" };
+export const metadata = { title: "Refunds | Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminRefundsPage({

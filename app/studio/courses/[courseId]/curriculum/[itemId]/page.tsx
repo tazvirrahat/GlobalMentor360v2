@@ -9,7 +9,7 @@ import { LectureEditor } from "./lecture-editor";
 import { CaptionUpload } from "./caption-upload";
 import { QuizBuilder } from "./quiz-builder";
 
-export const metadata = { title: "Edit item — Studio" };
+export const metadata = { title: "Edit item | Studio" };
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ courseId: string; itemId: string }> };

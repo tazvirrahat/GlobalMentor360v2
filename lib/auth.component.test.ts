@@ -42,7 +42,7 @@ describe("Better Auth config (documented assertions)", () => {
   it("enables change-email with a confirmation mail to the current address", () => {
     expect(source).toMatch(/changeEmail:\s*\{[\s\S]*?enabled:\s*true/);
     expect(source).toContain("sendChangeEmailConfirmation");
-    expect(source).toContain("Confirm your GlobalMentor360 email change");
+    expect(source).toContain("Confirm your ${getSite().name} email change");
     // Confirmation goes to the *current* inbox (`user.email`), not `newEmail`,
     // so a stranger who typed a new address cannot steal the account.
     expect(source).toMatch(
