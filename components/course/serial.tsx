@@ -41,7 +41,7 @@ export function Serial({
 
   return (
     <span className={cn("inline-flex max-w-full items-center gap-1", className)}>
-      <code className={cn("min-w-0 font-mono font-medium break-all text-ink select-all", SIZES[size])}>{value}</code>
+      <code className={cn("min-w-0 font-mono font-medium [overflow-wrap:anywhere] text-ink select-all", SIZES[size])}>{value}</code>
       {copyLabel ? (
         <>
           <Button

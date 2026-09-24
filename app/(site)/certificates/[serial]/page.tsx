@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Award, BadgeCheck, Download } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Download } from "lucide-react";
+import { Certificate } from "@/components/course/certificate";
 import { Button } from "@/components/ui/button";
 import { getCertificateBySerial } from "@/lib/certificates";
-import { formatDateLong } from "@/lib/format";
+import { getSite } from "@/lib/site";
 
 type Params = { params: Promise<{ serial: string }> };
 
@@ -30,70 +30,24 @@ export default async function CertificatePage({ params }: Params) {
   if (!cert) notFound();
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
-      <article className="relative overflow-hidden rounded-lg border border-primary/25 bg-card p-1.5 shadow-sm print:border-primary/40 print:shadow-none">
-        <div className="relative rounded-md border border-primary/15 bg-background px-6 py-10 sm:px-12 sm:py-14">
-          <span
-            className="pointer-events-none absolute left-4 top-4 size-10 border-l-2 border-t-2 border-primary/30"
-            aria-hidden
-          />
-          <span
-            className="pointer-events-none absolute right-4 top-4 size-10 border-r-2 border-t-2 border-primary/30"
-            aria-hidden
-          />
-          <span
-            className="pointer-events-none absolute bottom-4 left-4 size-10 border-b-2 border-l-2 border-primary/30"
-            aria-hidden
-          />
-          <span
-            className="pointer-events-none absolute bottom-4 right-4 size-10 border-b-2 border-r-2 border-primary/30"
-            aria-hidden
-          />
-
-          <div className="flex flex-col items-center gap-5 text-center">
-            <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Award className="size-7" aria-hidden />
-            </span>
-
-            <p className="text-sm font-semibold text-graphite">Certificate of completion</p>
-
-            <h1 className="max-w-full break-words font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-              {cert.course.title}
-            </h1>
-
-            <p className="text-muted-foreground">This certifies that</p>
-            <p className="max-w-full break-words font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
-              {cert.user.name}
-            </p>
-            <p className="max-w-md text-muted-foreground">
-              successfully completed the course on {formatDateLong(cert.issuedAt)}.
-            </p>
-
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
-              <Badge variant="success" className="gap-1.5 px-3 py-1">
-                <BadgeCheck className="size-3.5" aria-hidden />
-                Verified
-              </Badge>
-              <div className="max-w-full rounded-lg border bg-card px-4 py-2">
-                <p className="text-xs text-graphite">Serial</p>
-                <p className="break-all font-mono text-sm font-semibold">{cert.serial}</p>
-              </div>
-            </div>
-
-            <div className="mt-2 print:hidden">
-              <Button asChild>
-                <a href={`/certificates/${cert.serial}/pdf`} className="cursor-pointer">
-                  <Download className="size-4" aria-hidden /> Download PDF
-                </a>
-              </Button>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Anyone can check this certificate at this address.
-            </p>
-          </div>
-        </div>
-      </article>
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-12 sm:px-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
+      <Certificate
+        size="full"
+        siteName={getSite().name}
+        recipient={cert.user.name}
+        course={cert.course.title}
+        issuedAt={cert.issuedAt}
+        serial={cert.serial}
+        courseHeadingLevel={1}
+      />
+      <div className="flex flex-wrap items-center gap-3 print:hidden">
+        <Button asChild size="lg">
+          <a href={`/certificates/${cert.serial}/pdf`}>
+            <Download className="size-4" aria-hidden /> Download PDF
+          </a>
+        </Button>
+        <p className="text-sm text-graphite">Anyone can check this certificate at this address.</p>
+      </div>
     </main>
   );
 }

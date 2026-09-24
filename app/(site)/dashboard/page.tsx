@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/site/empty-state";
 import { courseLevelLabel } from "@/lib/labels";
 import { getMyLearning, type MyLearningEntry } from "@/lib/my-learning";
 import { getUserRoles, requireUser } from "@/lib/session";
+import { CertificateChip } from "@/components/course/certificate";
 
 export const metadata = {
   title: "My learning",
@@ -70,12 +71,7 @@ function EnrolledCourseRow({ entry }: { entry: MyLearningEntry }) {
 
         <div className="flex shrink-0 items-center gap-2">
           {done && entry.certificateSerial ? (
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/certificates/${entry.certificateSerial}` as Route} className="cursor-pointer">
-                <Award aria-hidden />
-                View certificate
-              </Link>
-            </Button>
+            <CertificateChip serial={entry.certificateSerial} />
           ) : null}
           <Button asChild size="sm">
             <Link href={learnHref} className="cursor-pointer">
