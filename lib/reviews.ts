@@ -359,11 +359,12 @@ export type HomeTestimonial = {
 };
 
 /** Recent visible reviews with a body, for the marketing home only. */
-export async function listHomeTestimonials(take = 3): Promise<HomeTestimonial[]> {
+export async function listHomeTestimonials(take = 3, minRating = 1): Promise<HomeTestimonial[]> {
   const rows = await db.review.findMany({
     where: {
       status: "VISIBLE",
       body: { not: null },
+      rating: { gte: minRating },
       course: { status: "PUBLISHED" },
     },
     orderBy: { createdAt: "desc" },
