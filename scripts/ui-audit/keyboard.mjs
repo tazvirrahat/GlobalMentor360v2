@@ -33,8 +33,13 @@ try {
         if (el.closest("nextjs-portal")) return null; // Next's dev overlay, not the app
         const s = getComputedStyle(el);
         const r = el.getBoundingClientRect();
-        const outline = s.outlineStyle !== "none" && parseFloat(s.outlineWidth) > 0;
-        const ring = s.boxShadow && s.boxShadow !== "none";
+        // A stretched link draws its indicator on ::after (course rows), which
+        // is still the focused element's own indicator.
+        const drawn = (style) =>
+          (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0) ||
+          (style.boxShadow && style.boxShadow !== "none");
+        const outline = drawn(s) || drawn(getComputedStyle(el, "::after")) || drawn(getComputedStyle(el, "::before"));
+        const ring = false;
         const top = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 10));
         const obscured = top && top !== el && !el.contains(top) && !top.contains(el);
         return {
