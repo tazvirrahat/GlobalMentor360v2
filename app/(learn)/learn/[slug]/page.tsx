@@ -2,6 +2,7 @@ import type { Route } from "next";
 import { notFound, redirect } from "next/navigation";
 import { canAccessPlayerItem, getPlayerCourse } from "@/lib/progress";
 import { requireUser } from "@/lib/session";
+import { pickResumeItem } from "@/lib/continue-learning";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -15,21 +16,19 @@ export default async function LearnIndexPage({ params }: Params) {
     redirect(`/courses/${slug}` as Route);
   }
 
-  // First incomplete unlocked item, otherwise the first item, otherwise the landing.
+  // First incomplete unlocked item, otherwise the first unlocked one (the same
+  // rule as the Resume button), otherwise the landing page.
   const flat = course.sections.flatMap((section) => section.items);
-  const target =
-    flat.find((item) => !item.locked && !item.completed) ??
-    flat.find((item) => !item.locked) ??
-    flat[0];
+  const targetId = pickResumeItem(flat) ?? flat[0]?.id;
 
-  if (!target) {
+  if (!targetId) {
     redirect(`/courses/${slug}` as Route);
   }
 
   // Double-check access (preview / enrollment) before landing on it.
-  if (!(await canAccessPlayerItem(user.id, course, target.id))) {
+  if (!(await canAccessPlayerItem(user.id, course, targetId))) {
     redirect(`/courses/${slug}` as Route);
   }
 
-  redirect(`/learn/${slug}/${target.id}` as Route);
+  redirect(`/learn/${slug}/${targetId}` as Route);
 }
