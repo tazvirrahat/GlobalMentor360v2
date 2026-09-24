@@ -3,7 +3,17 @@ import nextTypescript from "eslint-config-next/typescript";
 
 const config = [
   {
-    ignores: ["generated/**", ".next/**", "node_modules/**", "globalmentor360/**", ".claude/**"],
+    ignores: [
+      "generated/**",
+      ".next/**",
+      ".next-*/**",
+      "node_modules/**",
+      "globalmentor360/**",
+      ".claude/**",
+      ".cursor/**",
+      ".superpowers/**",
+      "design-review/**",
+    ],
   },
   ...nextCoreWebVitals,
   ...nextTypescript,

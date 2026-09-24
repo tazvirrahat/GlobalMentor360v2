@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { Loader2 } from "lucide-react";
@@ -8,6 +8,16 @@ import { getSignedPlayback, reportWatchProgress } from "./actions";
 
 const SPEED_KEY = "gm360.playbackSpeed";
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
+
+function readStoredSpeed(): number {
+  const stored = Number(window.localStorage.getItem(SPEED_KEY));
+  return SPEEDS.includes(stored) ? stored : 1;
+}
+
+function subscribeToStorage(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
 
 /**
  * HLS player for CloudFront signed URLs.
@@ -44,20 +54,18 @@ export function VideoPlayer({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [captions, setCaptions] = useState<{ id: string; language: string; src: string }[]>([]);
-  const [speed, setSpeed] = useState(1);
+  // The remembered speed is external state (localStorage), so it is read with
+  // useSyncExternalStore; the server snapshot is 1x, which is what SSR renders.
+  const storedSpeed = useSyncExternalStore(subscribeToStorage, readStoredSpeed, () => 1);
+  const [chosenSpeed, setChosenSpeed] = useState<number | null>(null);
+  const speed = chosenSpeed ?? storedSpeed;
   const [advancing, setAdvancing] = useState(false);
   const lastReportRef = useRef(0);
   const seekedRef = useRef(false);
 
   useEffect(() => {
-    const stored = Number(window.localStorage.getItem(SPEED_KEY));
-    if (SPEEDS.includes(stored)) setSpeed(stored);
-  }, []);
-
-  useEffect(() => {
     const el = videoRef.current;
     if (el) el.playbackRate = speed;
-    window.localStorage.setItem(SPEED_KEY, String(speed));
   }, [speed]);
 
   useEffect(() => {
@@ -212,7 +220,11 @@ export function VideoPlayer({
               <select
                 className="h-9 cursor-pointer rounded-md border border-white/20 bg-white/10 px-2 text-white focus-visible:ring-[3px] focus-visible:ring-white/40 focus-visible:outline-none"
                 value={speed}
-                onChange={(event) => setSpeed(Number(event.target.value))}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  setChosenSpeed(next);
+                  window.localStorage.setItem(SPEED_KEY, String(next));
+                }}
               >
                 {SPEEDS.map((value) => (
                   <option key={value} value={value} className="text-foreground">

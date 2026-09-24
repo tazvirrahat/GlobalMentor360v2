@@ -43,7 +43,7 @@ export async function createCouponAction(
   });
   if (!scope.ok) return { status: "error", message: scope.message };
 
-  let courseId = scope.courseId;
+  const courseId = scope.courseId;
   if (courseId) {
     const owned = await db.course.findFirst({
       where: isAdmin ? { id: courseId } : { id: courseId, instructorId: user.id },
