@@ -22,3 +22,5 @@ This is one Next.js 16 App Router app. HTTP APIs are `app/api/` route handlers (
 - Video HTTP webhook (`POST /api/video/webhook`) waits for a public HTTPS domain. Local status uses SQS drain. Do not create an EventBridge Connection until that origin exists.
 
 Owner status: `docs/PRODUCT-STATUS.md`.
+
+UI/UX overhaul in progress (branch `claude/ui-ux-overhaul`): read `docs/superpowers/specs/2026-09-25-ui-ux-overhaul-design.md` first. It is the source of truth for the new design (tokens, type, shells, page plans, WCAG 2.2 AA bar), the phase order, and the progress log. `design-system/MASTER.md` describes the superseded teal/amber system.
