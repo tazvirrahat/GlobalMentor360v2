@@ -59,7 +59,7 @@ test.describe("admin exploratory QA", () => {
   test("learner is redirected away from /admin", async ({ page }) => {
     await signIn(page, SEED.learner, "/admin");
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: /learn with structure/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
   });
 

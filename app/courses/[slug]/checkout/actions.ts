@@ -17,6 +17,7 @@ import {
   stripeRail,
 } from "@/lib/payments";
 import { getCurrentUser, requireUser } from "@/lib/session";
+import { getSite } from "@/lib/site";
 
 export type SubmitState =
   | { status: "idle" }
@@ -163,8 +164,7 @@ export async function startStripeCheckout(formData: FormData): Promise<void> {
     redirect(`${checkoutPath}?status=unavailable` as Route);
   }
 
-  // Same source of truth as Better Auth's base URL — the app's own origin.
-  const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  const base = getSite().url;
 
   let redirectUrl: string;
   try {

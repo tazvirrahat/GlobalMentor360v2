@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
+import { getSite } from "@/lib/site";
 
 /**
  * Certificates are issued once, when CourseProgress hits 100%. The serial is
@@ -11,9 +12,9 @@ import { db } from "@/lib/db";
  */
 
 function mintSerial(): string {
-  // 8 bytes → 16 hex chars → GM360-XXXX-XXXX-XXXX-XXXX
+  // 8 bytes → 16 hex chars → GM360-XXXX-XXXX-XXXX-XXXX (prefix from the site config)
   const hex = randomBytes(8).toString("hex").toUpperCase();
-  return `GM360-${hex.slice(0, 4)}-${hex.slice(4, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}`;
+  return `${getSite().certificatePrefix}-${hex.slice(0, 4)}-${hex.slice(4, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}`;
 }
 
 /**

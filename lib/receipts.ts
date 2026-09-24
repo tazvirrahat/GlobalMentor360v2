@@ -2,6 +2,7 @@ import { formatPrice } from "@/lib/courses";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { notify } from "@/lib/notifications";
+import { getSite } from "@/lib/site";
 
 /**
  * Email + in-app receipt after a bKash payment is approved.
@@ -31,7 +32,7 @@ export async function sendPaymentReceipt(orderId: string): Promise<void> {
 
   const titles = order.items.map((item) => item.course.title);
   const heading = titles.length === 1 ? titles[0] : `${titles.length} courses`;
-  const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  const base = getSite().url;
   const txn = order.payments[0]?.bkashTransactionId;
 
   await notify(order.user.id, "payment", {

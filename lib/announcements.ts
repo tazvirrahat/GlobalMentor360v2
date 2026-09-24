@@ -3,6 +3,7 @@ import { sendEmail } from "@/lib/email";
 import { isEnrolled } from "@/lib/entitlement";
 import { notifyMany } from "@/lib/notifications";
 import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
+import { getSite } from "@/lib/site";
 
 // Re-exported so server callers have one import site; the composer imports from
 // lib/announcement-rules directly (see the note in that file).
@@ -218,7 +219,7 @@ export async function sendAnnouncement(input: {
     },
   );
 
-  const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  const base = getSite().url;
   let emailFailures = 0;
 
   for (let index = 0; index < recipients.length; index += EMAIL_CONCURRENCY) {

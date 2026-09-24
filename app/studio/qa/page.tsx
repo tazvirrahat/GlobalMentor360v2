@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { InboxReplyForm } from "./inbox-reply-form";
 import { PageNav } from "@/components/site/page-nav";
 
-export const metadata: Metadata = { title: "Q&A · Studio" };
+export const metadata: Metadata = { title: "Q&A | Studio" };
 export const dynamic = "force-dynamic";
 
 type Params = {

@@ -12,7 +12,7 @@ import { courseSellabilityWarning } from "@/lib/payments";
 import { requireRole } from "@/lib/session";
 import { publishCourseAction } from "../actions";
 
-export const metadata = { title: "Courses — Admin" };
+export const metadata = { title: "Courses | Admin" };
 
 export default async function AdminCoursesPage({
   searchParams,

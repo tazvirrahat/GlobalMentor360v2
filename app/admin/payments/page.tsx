@@ -8,7 +8,7 @@ import { listPendingManualPayments, MANUAL_PAYMENT_QUEUE_PAGE_SIZE } from "@/lib
 import { requireRole } from "@/lib/session";
 import { ReviewForm } from "./review-form";
 
-export const metadata = { title: "Payment verification" };
+export const metadata = { title: "Payments | Admin" };
 
 // The queue must reflect reality the moment an admin acts on it.
 export const dynamic = "force-dynamic";

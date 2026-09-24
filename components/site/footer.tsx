@@ -1,83 +1,53 @@
 import Link from "next/link";
-import { GraduationCap } from "lucide-react";
+import type { Route } from "next";
+import { getCurrentUser } from "@/lib/session";
+import { getSite } from "@/lib/site";
 
-export function SiteFooter() {
+const LINK =
+  "inline-flex min-h-6 cursor-pointer items-center text-sm text-graphite underline-offset-4 hover:text-ink hover:underline focus-ring rounded-sm";
+
+/**
+ * Slim and state-aware: a signed-in learner is not offered "Sign in", and the
+ * footer does not repeat the home page's pitch.
+ */
+export async function SiteFooter() {
+  const site = getSite();
+  const user = await getCurrentUser();
   const year = new Date().getFullYear();
 
+  const links: { href: Route; label: string }[] = user
+    ? [
+        { href: "/courses", label: "Courses" },
+        { href: "/dashboard", label: "My learning" },
+        { href: "/orders", label: "Orders" },
+        { href: "/account", label: "Account" },
+      ]
+    : [
+        { href: "/courses", label: "Courses" },
+        { href: "/sign-in", label: "Sign in" },
+        { href: "/sign-up", label: "Create account" },
+      ];
+
   return (
-    <footer className="border-t bg-wash">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8 lg:py-16">
-        <div className="sm:col-span-2 lg:col-span-1">
-          <Link
-            href="/"
-            className="inline-flex cursor-pointer items-center gap-2 font-heading text-lg font-semibold tracking-tight"
-          >
-            <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <GraduationCap className="size-4" aria-hidden />
-            </span>
-            GlobalMentor<span className="text-primary">360</span>
-          </Link>
-          <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            A structured online academy for Bangladesh: video lessons, quiz-gated
-            progress, and verifiable certificates. Pay with bKash in BDT.
-          </p>
-        </div>
-
-        <div>
-          <h2 className="font-heading text-sm font-semibold tracking-tight">Learn</h2>
-          <ul className="mt-3 flex flex-col gap-2 text-sm text-muted-foreground">
-            <li>
-              <Link href="/courses" className="cursor-pointer hover:text-foreground hover:underline hover:underline-offset-4">
-                Courses
-              </Link>
-            </li>
-            <li>
-              <Link href="/dashboard" className="cursor-pointer hover:text-foreground hover:underline hover:underline-offset-4">
-                My learning
-              </Link>
-            </li>
-            <li>
-              <Link href="/cart" className="cursor-pointer hover:text-foreground hover:underline hover:underline-offset-4">
-                Cart
-              </Link>
-            </li>
+    <footer className="border-t border-rule bg-surface">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+        <Link href="/" className="w-fit rounded-sm font-heading text-base font-bold text-ink focus-ring">
+          {site.name}
+        </Link>
+        <nav aria-label="Footer">
+          <ul className="flex flex-wrap gap-x-6 gap-y-2">
+            {links.map((link) => (
+              <li key={link.href}>
+                <Link href={link.href} className={LINK}>
+                  {link.label}
+                </Link>
+              </li>
+            ))}
           </ul>
-        </div>
-
-        <div>
-          <h2 className="font-heading text-sm font-semibold tracking-tight">Account</h2>
-          <ul className="mt-3 flex flex-col gap-2 text-sm text-muted-foreground">
-            <li>
-              <Link href="/sign-in" className="cursor-pointer hover:text-foreground hover:underline hover:underline-offset-4">
-                Sign in
-              </Link>
-            </li>
-            <li>
-              <Link href="/sign-up" className="cursor-pointer hover:text-foreground hover:underline hover:underline-offset-4">
-                Create account
-              </Link>
-            </li>
-            <li>
-              <Link href="/account" className="cursor-pointer hover:text-foreground hover:underline hover:underline-offset-4">
-                Account
-              </Link>
-            </li>
-            <li>
-              <Link href="/orders" className="cursor-pointer hover:text-foreground hover:underline hover:underline-offset-4">
-                Orders
-              </Link>
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="font-heading text-sm font-semibold tracking-tight">Academy</h2>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Finish a course and earn a certificate with a public verification link.
-            Checkout is priced in BDT for bKash.
-          </p>
-          <p className="mt-6 text-sm text-muted-foreground">© {year} GlobalMentor360</p>
-        </div>
+        </nav>
+        <p className="text-sm text-graphite">
+          © {year} {site.name}
+        </p>
       </div>
     </footer>
   );

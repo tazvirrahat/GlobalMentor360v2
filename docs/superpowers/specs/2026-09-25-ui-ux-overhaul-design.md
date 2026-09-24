@@ -3,7 +3,7 @@
 **Status:** approved direction, implementation in progress
 **Branch:** `claude/ui-ux-overhaul` (pushed to `origin`)
 **Owner:** Md Tazvir Rahat (git user). Email for attribution only: vasbdnet@gmail.com
-**Written:** 2026-09-25. Update the [progress log](#16-progress-log) as work lands.
+**Written:** 2026-09-25. Update the [progress log](#17-progress-log) as work lands.
 
 > **If you are a future session reading this after context compaction: this file is the source of
 > truth for the current work.** Read it top to bottom before touching code. Then read `AGENTS.md`
@@ -285,16 +285,22 @@ graduation-cap logo tile.
 
 ### Copy voice
 
-Plain, specific, second person, active voice, sentence case. Buttons say exactly what happens
-("Buy course", "Submit transaction ID", "Mark lesson complete", "Verify"). The same action keeps the
-same name through a flow and in its confirmation. Errors say what happened and how to fix it; empty
-states invite the next action. Hero copy from the chosen mockups:
+**Public copy reads like a course marketplace (Udemy, Coursera, 10 Minute School), not like
+product internals.** The user rejected "Learn with structure", "quiz-gated progress" and
+"certificates from one academy" (2026-09-25). Say what a buyer gets: courses, subjects, learning at
+your own pace, a certificate, paying in taka. Mechanics (quiz gates, serial numbers) are shown in
+context on the course and certificate pages, not used as slogans.
 
-- Home: **"Courses in order. You can't skip the part you'd forget."** / "Each section ends with a
-  short quiz. Pass it and the next one opens. Pay once in taka with bKash and keep the course."
-- Certificate section: **"Your certificate has a number. Employers can look it up."** / "Finish
-  every lesson and pass every quiz, and you get a certificate with its own record page. No
-  screenshots to argue over."
+- Document titles: `Page | GlobalMentor360`; home is `GlobalMentor360 | Online Courses with
+  Certificates`. Meta descriptions ≤ 160 characters, plain.
+- Home headline and lede come from `lib/site.ts` (`headline`, `lede`), currently "Build job-ready
+  skills with online courses" / "Practical courses in programming, data, business and careers. Learn
+  at your own pace, earn a certificate when you finish, and pay in taka with bKash."
+- Plain, specific, second person, active voice, sentence case. Buttons say exactly what happens
+  ("Browse courses", "Buy course", "Submit transaction ID", "Mark lesson complete"). The same action
+  keeps the same name through a flow and in its confirmation. Errors say what happened and how to
+  fix it; empty states invite the next action.
+- Never describe the business model ("one academy", "single organization") in public copy.
 
 ---
 
@@ -393,20 +399,20 @@ padding (whole title cell is the link).
 
 ## 6. Page-by-page
 
-**Home `/`**
-1. Hero, two columns (desktop): left headline + lede + "Browse courses"; right a **live course
-   module** rendered from a real published course (title, price, progress bar, 6 curriculum rows with
-   done/current/next/quiz-gate/locked states). Signed-in learners with an in-progress course see
-   *their* course here with a "Resume" action. Phone: headline, CTA, then module (4 rows).
-2. Courses as a **list** (not cards): title, instructor, lessons + duration, rating, price —
-   up to 6, then "All courses".
-3. Certificate section: headline "Your certificate has a number. Employers can look it up.",
-   verify input (Plex Mono) that routes to `/certificates/[serial]`, and a sample **certificate
-   object** (serial, name, course, issue date, seal, hard edge, green offset shadow).
-4. Three plain facts in a row under a rule (quizzes gate sections / one record per certificate /
-   paid once in taka) — text only, no icon tiles.
-5. Reviews only from real reviews ≥ 4 stars with text, max 3, never from fixture/test users.
-Remove: stat tiles, "How it works" numbered cards, final dark CTA band, scroll reveals.
+**Home `/`** — follows the course-marketplace pattern (Udemy, Coursera, 10 Minute School):
+1. Hero: headline + lede from `lib/site.ts`, a course search box, "Browse courses". Signed-in
+   learners with an in-progress course also see a "Continue learning" strip with that course's
+   module (current lesson highlighted) and "Resume".
+2. Categories: the top-level categories as plain links with course counts.
+3. Popular courses as a **list** (not cards): title, instructor, lessons + duration, rating,
+   price. Up to 6, then "All courses".
+4. Certificates: "Get a certificate when you finish", "Share it with employers; anyone can check
+   it on its own page." A sample **certificate object** (name, course, issue date, serial, seal)
+   and a "Check a certificate" input that routes to `/certificates/[serial]`.
+5. Why learn here: three plain facts in a row (learn at your own pace / certificate on completion /
+   pay in taka with bKash), text only, no icon tiles.
+6. Reviews: real reviews ≥ 4 stars with text, max 3.
+Remove: stat tiles, numbered "How it works" cards, the final dark CTA band, scroll reveals.
 
 **Catalog `/courses`**
 - Filters in a single compact toolbar: search, then Level, Price, Rating, Language, Category, Sort
@@ -672,7 +678,24 @@ course `typescript-foundations`, buy course `sql-for-analysts`, studio course
 
 ---
 
-## 16. Progress log
+## 16. Tenancy
+
+Single tenant now; built so a second academy can be added without a rewrite (user, 2026-09-25).
+
+- **Done:** `lib/site.ts` is the only place the storefront's name, title, description, home copy,
+  origin, locale, currency and certificate prefix live. Metadata, header, footer, emails, the
+  certificate PDF, certificate serials and every absolute URL read `getSite()` / `siteUrl()`. A test
+  (`lib/site.test.ts`) keeps tenancy and product-internal wording out of public copy.
+- **When a second tenant arrives:** `getSite()` resolves the tenant from the request host (in
+  `proxy.ts`, Next 16's middleware) and returns that tenant's `SiteConfig` from a `tenants` table;
+  add `tenantId` to `courses`, `categories`, `coupons`, `orders`, `payments`, `certificates`,
+  `announcements` and a `tenant_members` join for users/roles; scope every query by it (a Prisma
+  client extension that injects the filter); per-tenant bKash number and SES sender.
+- **Not done now (YAGNI):** no tenant tables or columns until there is a second tenant.
+
+---
+
+## 17. Progress log
 
 | Date | Phase | What landed | Commit |
 |---|---|---|---|
@@ -683,3 +706,6 @@ course `typescript-foundations`, buy course `sql-for-analysts`, studio course
 | 2026-09-25 | 0 | Lint 0 errors; addToCart double-click race fixed; suites/e2e/volume fixture on `globalmentor360_test` (guarded); e2e on :3100, one worker | `5e206f2` `cfc3d49` `7c78d25` |
 | 2026-09-25 | 0 | Six-course seed with real lessons, reviews, learner journey (Python Basics finished + certificate, TypeScript stopped at first quiz). **Dev DB fully reset with the user's consent** ("Full reset"): their Gmail test account and the Pogash Pro Coder video course are gone | `0a2777c` |
 | 2026-09-25 | 0 | Audit harness in `scripts/ui-audit` (`npm run ui-audit`, `:summary`, `:keyboard`). Baseline on clean data: 56 loads OK; axe `label` ×28 (studio-course objectives inputs), `color-contrast` ×50 (dashboard tab trigger, player curriculum); 12px text on 48 loads; 26 targets < 24px (20px table/nav links, 16px checkboxes, "Forgot password?" 16px); no overflow; one h1 + main everywhere; keyboard: skip link first everywhere, dashboard tab panel focusable without indicator; longest phone page home 5,445px | (this commit) |
+| 2026-09-25 | 1 | Palette as code with contrast proofs; globals.css tokens, 13px floor, Schibsted Grotesk + Plex Mono | `0df80fd` |
+| 2026-09-25 | 1 | Base components restyled; one `focus-ring`; dashboard contrast fixed | `12b039b` |
+| 2026-09-25 | 1 | User feedback: marketplace-style titles/descriptions, no "one academy". `lib/site.ts` tenancy seam; home hero rewritten; footer slim + state-aware | (this commit) |

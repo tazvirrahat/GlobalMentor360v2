@@ -12,7 +12,7 @@ import { requireRole } from "@/lib/session";
 import { updateUserRoleAction } from "../actions";
 import { PageNav } from "@/components/site/page-nav";
 
-export const metadata = { title: "Users — Admin" };
+export const metadata = { title: "Users | Admin" };
 
 export default async function AdminUsersPage({
   searchParams,

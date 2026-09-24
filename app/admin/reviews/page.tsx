@@ -11,7 +11,7 @@ import { requireRole } from "@/lib/session";
 import { moderateReviewAction } from "../actions";
 import { PageNav } from "@/components/site/page-nav";
 
-export const metadata = { title: "Reviews — Admin" };
+export const metadata = { title: "Reviews | Admin" };
 
 export default async function AdminReviewsPage({
   searchParams,

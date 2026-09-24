@@ -5,9 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CourseCard } from "@/components/site/course-card";
 import { Reveal, RevealItem, RevealStagger } from "@/components/site/reveal";
 import { StarRating } from "@/components/site/star-rating";
-import { listPublishedCourses, countPublishedCourses } from "@/lib/courses";
+import { listPublishedCourses } from "@/lib/courses";
 import { availableRails } from "@/lib/payments";
 import { listHomeTestimonials } from "@/lib/reviews";
+import { getSite } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -34,71 +35,30 @@ function howItWorks(cardAvailable: boolean) {
 }
 
 export default async function HomePage() {
-  const [catalog, publishedCount, testimonials] = await Promise.all([
+  const [catalog, testimonials] = await Promise.all([
     listPublishedCourses({ sort: "popular" }),
-    countPublishedCourses(),
     listHomeTestimonials(3),
   ]);
   const featured = catalog.items.slice(0, 3);
   const cardAvailable = availableRails().some((rail) => rail.kind === "automatic");
   const steps = howItWorks(cardAvailable);
 
-  const stats =
-    publishedCount > 0
-      ? [
-          { value: String(publishedCount), label: "Published courses" },
-          { value: "Quiz-gated", label: "Lesson progress" },
-          { value: "Verified", label: "Certificates" },
-        ]
-      : [
-          { value: "Structured", label: "Video courses" },
-          { value: "Quiz-gated", label: "Lesson progress" },
-          { value: "Verified", label: "Certificates" },
-        ];
+  const site = getSite();
 
   return (
     <main>
-      <section className="border-b bg-background">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-16 text-center sm:px-6 sm:py-20 lg:px-8 lg:py-24">
-          <Reveal lcpSafe className="flex flex-col items-center gap-4">
-            <p className="text-sm font-medium tracking-wide text-primary">
-              Online academy · Bangladesh
-            </p>
-            <h1 className="max-w-3xl font-heading text-3xl font-semibold leading-[1.15] tracking-tight sm:text-5xl">
-              Learn with structure. Finish with a certificate.
-            </h1>
-          </Reveal>
-          <Reveal className="flex max-w-2xl flex-col items-center gap-6">
-            <p className="text-lg leading-relaxed text-muted-foreground">
-              Video lessons, quiz-gated progress, and verifiable certificates from one academy.
-              Buy a course once, keep it for life. Pay with bKash in BDT.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button asChild size="lg">
-                <Link href="/courses" className="cursor-pointer">
-                  Explore courses
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/sign-up" className="cursor-pointer">
-                  Create account
-                </Link>
-              </Button>
-            </div>
-          </Reveal>
-
-          <RevealStagger className="mt-6 grid w-full max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-            {stats.map((stat) => (
-              <RevealItem key={stat.label}>
-                <div className="rounded-lg border bg-card px-4 py-5 shadow-xs">
-                  <p className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
-                    {stat.value}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
-                </div>
-              </RevealItem>
-            ))}
-          </RevealStagger>
+      <section className="border-b border-rule bg-surface">
+        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
+          <h1 className="max-w-3xl font-heading text-3xl font-bold sm:text-5xl">{site.headline}</h1>
+          <p className="max-w-2xl text-lg text-graphite">{site.lede}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button asChild size="lg">
+              <Link href="/courses">Browse courses</Link>
+            </Button>
+            <Button asChild size="lg" variant="secondary">
+              <Link href="/sign-up">Create a free account</Link>
+            </Button>
+          </div>
         </div>
       </section>
 
