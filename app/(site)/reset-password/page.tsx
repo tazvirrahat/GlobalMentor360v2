@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthLayout } from "@/components/auth/auth-layout";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ResetPasswordForm } from "./reset-form";
@@ -18,26 +19,20 @@ export default async function ResetPasswordPage({
   const { token, error } = await searchParams;
 
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-6 px-4 py-16 sm:px-6">
-      <div className="text-center">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">Choose a new password</h1>
-      </div>
-
+    <AuthLayout title="Choose a new password">
       {!token || error ? (
-        <Alert variant="destructive" role="alert">
-          <AlertTitle>This reset link is invalid or expired</AlertTitle>
+        <Alert variant="destructive">
+          <AlertTitle>This reset link is invalid or has expired</AlertTitle>
           <AlertDescription>
-            <p>Reset links only work once and expire after an hour.</p>
-            <Button asChild variant="outline" size="sm" className="mt-2">
-              <Link href="/forgot-password" className="cursor-pointer">
-                Request a new link
-              </Link>
+            <p>Reset links work once and expire after an hour. Ask for a new one.</p>
+            <Button asChild variant="secondary" size="sm" className="mt-2">
+              <Link href="/forgot-password">Send a new link</Link>
             </Button>
           </AlertDescription>
         </Alert>
       ) : (
         <ResetPasswordForm token={token} />
       )}
-    </main>
+    </AuthLayout>
   );
 }

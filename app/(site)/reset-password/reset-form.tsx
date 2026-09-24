@@ -6,8 +6,7 @@ import { useState } from "react";
 import { CircleCheck } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/auth/password-input";
 import { Label } from "@/components/ui/label";
 import { resetPassword } from "@/lib/auth-client";
 
@@ -46,12 +45,12 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
   if (done) {
     return (
-      <Alert role="status">
-        <CircleCheck className="size-4 text-primary" />
+      <Alert role="status" variant="verified">
+        <CircleCheck className="size-4" />
         <AlertTitle>Password updated</AlertTitle>
         <AlertDescription>
           You can sign in with your new password now — redirecting you to{" "}
-          <Link href="/sign-in" className="font-semibold text-primary hover:underline">
+          <Link href="/sign-in" className="font-semibold text-ink underline underline-offset-4">
             sign in
           </Link>
           .
@@ -61,49 +60,48 @@ export function ResetPasswordForm({ token }: { token: string }) {
   }
 
   return (
-    <Card>
-      <CardContent className="p-6">
         <form method="post" action="/reset-password" onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="password">New password</Label>
-            <Input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               autoComplete="new-password"
               required
               minLength={12}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              aria-describedby="new-password-hint"
             />
-            <p className="text-xs text-muted-foreground">At least 12 characters.</p>
+            <p id="new-password-hint" className="text-sm text-graphite">
+              At least 12 characters.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="confirm">Confirm new password</Label>
-            <Input
+            <PasswordInput
               id="confirm"
               name="confirm"
-              type="password"
               autoComplete="new-password"
               required
               minLength={12}
               value={confirm}
               onChange={(event) => setConfirm(event.target.value)}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "reset-error" : undefined}
             />
           </div>
 
           {error ? (
-            <p role="alert" className="text-sm font-medium text-destructive">
+            <p id="reset-error" role="alert" className="text-sm font-medium text-seal">
               {error}
             </p>
           ) : null}
 
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" size="lg" disabled={pending}>
             {pending ? "Updating…" : "Update password"}
           </Button>
         </form>
-      </CardContent>
-    </Card>
   );
 }

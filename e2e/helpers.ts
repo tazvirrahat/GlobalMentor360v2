@@ -32,7 +32,7 @@ export async function signIn(
 ) {
   await page.goto(next ? `/sign-in?next=${encodeURIComponent(next)}` : "/sign-in");
   await page.getByLabel("Email").fill(account.email);
-  await page.getByLabel("Password").fill(account.password);
+  await page.getByLabel("Password", { exact: true }).fill(account.password);
   await page.getByRole("button", { name: /sign in/i }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/sign-in"), { timeout: 20_000 });
 }

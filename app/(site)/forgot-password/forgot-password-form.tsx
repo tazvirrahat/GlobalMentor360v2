@@ -6,7 +6,6 @@ import { EmailDeliveryNote } from "@/components/auth/email-delivery-note";
 import { FieldError } from "@/components/site/field-error";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestPasswordReset } from "@/lib/auth-client";
@@ -39,8 +38,8 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <Alert role="status">
-        <MailCheck className="size-4 text-primary" />
+      <Alert role="status" variant="verified">
+        <MailCheck className="size-4" />
         <AlertTitle>Check your email</AlertTitle>
         <AlertDescription>
           If an account exists for <strong>{email}</strong>, a reset link is on its way. It
@@ -52,8 +51,6 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <Card>
-      <CardContent className="p-6">
         <form method="post" action="/forgot-password" onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="email">Email</Label>
@@ -65,16 +62,16 @@ export function ForgotPasswordForm() {
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "forgot-error" : undefined}
             />
           </div>
 
-          {error ? <FieldError message={error} /> : null}
+          {error ? <FieldError id="forgot-error" message={error} /> : null}
 
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" size="lg" disabled={pending}>
             {pending ? "Sending…" : "Send reset link"}
           </Button>
         </form>
-      </CardContent>
-    </Card>
   );
 }
