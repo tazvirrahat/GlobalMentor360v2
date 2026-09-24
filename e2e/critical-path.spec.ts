@@ -27,7 +27,7 @@ test.describe("learner critical path", () => {
   test("sign-in reaches the dashboard", async ({ page }) => {
     await page.goto("/sign-in");
     await page.getByLabel("Email").fill("learner@example.com");
-    await page.getByLabel("Password").fill("dev-password-12345");
+    await page.getByLabel("Password", { exact: true }).fill("dev-password-12345");
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
@@ -36,7 +36,7 @@ test.describe("learner critical path", () => {
   test("enrolled learner can open the player", async ({ page }) => {
     await page.goto("/sign-in?next=/learn/typescript-foundations");
     await page.getByLabel("Email").fill("learner@example.com");
-    await page.getByLabel("Password").fill("dev-password-12345");
+    await page.getByLabel("Password", { exact: true }).fill("dev-password-12345");
     await page.getByRole("button", { name: /sign in/i }).click();
 
     // Index redirects into /learn/[slug]/[itemId] — wait for that, not the index.
@@ -54,7 +54,7 @@ test.describe("learner critical path", () => {
   test("learner can add a course to the cart and open account settings", async ({ page }) => {
     await page.goto("/sign-in?next=/courses/sql-for-analysts");
     await page.getByLabel("Email").fill("learner@example.com");
-    await page.getByLabel("Password").fill("dev-password-12345");
+    await page.getByLabel("Password", { exact: true }).fill("dev-password-12345");
     await page.getByRole("button", { name: /sign in/i }).click();
     await page.waitForURL(/\/courses\/sql-for-analysts/);
 
@@ -76,7 +76,7 @@ test.describe("staff surfaces", () => {
   test("instructor can open studio coupons", async ({ page }) => {
     await page.goto("/sign-in?next=/studio/coupons");
     await page.getByLabel("Email").fill("instructor@example.com");
-    await page.getByLabel("Password").fill("dev-password-12345");
+    await page.getByLabel("Password", { exact: true }).fill("dev-password-12345");
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/studio\/coupons/);
     await expect(page.getByRole("heading", { name: "Coupons" })).toBeVisible();
@@ -86,7 +86,7 @@ test.describe("staff surfaces", () => {
   test("admin can open refunds and is not 404 at /admin", async ({ page }) => {
     await page.goto("/sign-in?next=/admin");
     await page.getByLabel("Email").fill("admin@example.com");
-    await page.getByLabel("Password").fill("dev-password-12345");
+    await page.getByLabel("Password", { exact: true }).fill("dev-password-12345");
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/admin\/payments/);
     await page.goto("/admin/refunds");

@@ -3,13 +3,15 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { MailWarning } from "lucide-react";
 import { EmailDeliveryNote } from "@/components/auth/email-delivery-note";
 import { FieldError } from "@/components/site/field-error";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/auth/password-input";
+import { AUTH_LINK } from "@/components/auth/auth-layout";
 import { Label } from "@/components/ui/label";
 import { signIn } from "@/lib/auth-client";
 
@@ -21,6 +23,7 @@ export function SignInForm({ next }: { next: string | null }) {
   const [error, setError] = useState<string | null>(null);
   const [unverified, setUnverified] = useState(false);
   const [pending, setPending] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,6 +48,7 @@ export function SignInForm({ next }: { next: string | null }) {
         // Deliberately vague: distinguishing "no such account" from "wrong
         // password" tells an attacker which emails are registered.
         setError("Email or password is incorrect.");
+        emailRef.current?.focus();
         return;
       }
       setError("Could not sign in. Try again in a moment.");
@@ -58,8 +62,8 @@ export function SignInForm({ next }: { next: string | null }) {
   return (
     <form method="post" action="/sign-in" onSubmit={onSubmit} className="flex flex-col gap-4">
       {unverified ? (
-        <Alert role="status">
-          <MailWarning className="size-4 text-primary" />
+        <Alert role="status" variant="caution">
+          <MailWarning className="size-4" />
           <AlertTitle>Verify your email first</AlertTitle>
           <AlertDescription>
             Your account exists but the email isn&rsquo;t verified yet, so sign-in is blocked.
@@ -73,6 +77,7 @@ export function SignInForm({ next }: { next: string | null }) {
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
         <Input
+          ref={emailRef}
           id="email"
           name="email"
           type="email"
@@ -80,33 +85,33 @@ export function SignInForm({ next }: { next: string | null }) {
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "sign-in-error" : undefined}
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Password</Label>
-          <Link
-            href="/forgot-password"
-            className="text-xs font-medium text-primary hover:underline"
-          >
+          <Link href="/forgot-password" className={`${AUTH_LINK} text-sm font-medium`}>
             Forgot password?
           </Link>
         </div>
-        <Input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "sign-in-error" : undefined}
         />
       </div>
 
-      {error ? <FieldError message={error} /> : null}
+      {error ? <FieldError id="sign-in-error" message={error} /> : null}
 
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" size="lg" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>
