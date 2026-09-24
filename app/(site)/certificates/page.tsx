@@ -1,8 +1,6 @@
 import type { Metadata, Route } from "next";
 import { redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { VerifyCertificateForm } from "@/components/course/verify-certificate-form";
 import { normalizeSerial } from "@/lib/certificate-serial";
 import { getSite } from "@/lib/site";
 
@@ -42,35 +40,7 @@ export default async function VerifyCertificatePage({ searchParams }: Props) {
         </p>
       </div>
 
-      <form method="get" action="/certificates" className="flex flex-col gap-3" noValidate>
-        <Label htmlFor="serial">Certificate number</Label>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            id="serial"
-            name="serial"
-            defaultValue={typed ?? ""}
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            placeholder={`${site.certificatePrefix}-1A2B-3C4D-5E6F-7A8B`}
-            aria-describedby={error ? "serial-hint serial-error" : "serial-hint"}
-            aria-invalid={error ? true : undefined}
-            autoFocus={Boolean(error)}
-            className="h-11 font-mono text-base sm:flex-1"
-          />
-          <Button type="submit" size="lg">
-            Check certificate
-          </Button>
-        </div>
-        <p id="serial-hint" className="text-sm text-graphite">
-          Capital or small letters both work, and the dashes are optional.
-        </p>
-        {error ? (
-          <p id="serial-error" role="alert" className="text-sm font-medium text-seal">
-            {error}
-          </p>
-        ) : null}
-      </form>
+      <VerifyCertificateForm defaultValue={typed ?? ""} error={error} autoFocus={Boolean(error)} />
     </main>
   );
 }
