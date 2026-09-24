@@ -477,13 +477,13 @@ function PurchasePanel({
                 // silently does nothing is worse than no button.
                 <form action={enrollFree}>
                   <input type="hidden" name="courseId" value={course.id} />
-                  <Button type="submit" size="lg" variant="cta" className="w-full">
+                  <Button type="submit" size="lg" className="w-full">
                     Enrol for free
                   </Button>
                 </form>
               ) : purchasable ? (
                 <>
-                  <Button asChild size="lg" variant="cta">
+                  <Button asChild size="lg">
                     <Link href={`/courses/${course.slug}/checkout`} className="cursor-pointer">
                       Buy this course
                     </Link>

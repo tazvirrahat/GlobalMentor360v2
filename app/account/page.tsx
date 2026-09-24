@@ -267,7 +267,7 @@ export default async function AccountPage() {
                   </ul>
                   {rest.length > 0 ? (
                     <details className="border-t">
-                      <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
+                      <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium text-primary underline-offset-4 hover:underline focus-ring">
                         Show all {ordered.length} sessions
                       </summary>
                       <ul className="border-t">

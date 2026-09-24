@@ -62,7 +62,7 @@ export default async function CartPage({
           title="Your cart is empty."
           message="Browse the catalog and add a course when you are ready."
         >
-          <Button asChild variant="cta">
+          <Button asChild>
             <Link href="/courses" className="cursor-pointer">
               Browse courses
             </Link>

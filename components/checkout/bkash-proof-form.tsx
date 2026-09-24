@@ -146,7 +146,7 @@ export function BkashProofForm({
         <FieldError message={state.message} />
       ) : null}
 
-      <Button type="submit" variant="cta" disabled={pending}>
+      <Button type="submit" disabled={pending}>
         {pending ? "Submitting…" : submitLabel}
       </Button>
       <p className="flex items-center gap-2 text-xs text-muted-foreground">

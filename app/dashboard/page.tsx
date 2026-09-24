@@ -100,7 +100,7 @@ function CourseList({ entries }: { entries: MyLearningEntry[] }) {
       ))}</ul>
       {rest.length > 0 ? (
         <details className="border-t">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-primary underline-offset-4 hover:underline focus-ring">
             Show all {entries.length} courses
           </summary>
           <ul className="divide-y border-t">
