@@ -146,7 +146,7 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
                 <p className="text-sm text-muted-foreground">Your certificate is ready.</p>
               </div>
             </div>
-            <Button asChild variant="cta">
+            <Button asChild>
               <Link href={`/certificates/${course.certificateSerial}` as Route} className="cursor-pointer">
                 <Award className="size-4" aria-hidden /> View certificate
               </Link>
@@ -287,7 +287,7 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
                             href={href}
                             aria-current={active ? "page" : undefined}
                             className={cn(
-                              "flex min-h-11 cursor-pointer items-center rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-muted/70 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+                              "flex min-h-11 cursor-pointer items-center rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-muted/70 focus-ring",
                               active && "bg-muted",
                             )}
                           >

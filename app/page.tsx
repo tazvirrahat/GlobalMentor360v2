@@ -74,7 +74,7 @@ export default async function HomePage() {
               Buy a course once, keep it for life. Pay with bKash in BDT.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button asChild size="lg" variant="cta">
+              <Button asChild size="lg">
                 <Link href="/courses" className="cursor-pointer">
                   Explore courses
                 </Link>
@@ -199,7 +199,7 @@ export default async function HomePage() {
             <p className="max-w-xl text-primary-foreground/85">
               Join learners who chose structured training over guesswork.
             </p>
-            <Button asChild size="lg" variant="cta">
+            <Button asChild size="lg">
               <Link href="/courses" className="cursor-pointer">
                 Explore courses
               </Link>

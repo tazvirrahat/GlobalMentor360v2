@@ -14,7 +14,7 @@ const LINKS = [
 ] as const;
 
 const LINK_BASE =
-  "inline-flex min-h-11 cursor-pointer items-center rounded-md px-3 text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  "inline-flex min-h-11 cursor-pointer items-center rounded-md px-3 text-sm transition-colors duration-150 focus-ring";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);

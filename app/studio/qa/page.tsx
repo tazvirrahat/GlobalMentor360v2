@@ -133,7 +133,7 @@ export default async function StudioQaPage({ searchParams }: Params) {
               id="courseId"
               name="courseId"
               defaultValue={courseId ?? ""}
-              className="h-10 max-w-md min-w-[14rem] cursor-pointer rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className="h-10 max-w-md min-w-[14rem] cursor-pointer rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs focus-ring"
             >
               <option value="">All courses</option>
               {courses.map((course) => (

@@ -82,7 +82,7 @@ export default async function NotificationsPage({
                       <input type="hidden" name="href" value={item.payload.href} />
                       <button
                         type="submit"
-                        className="flex min-h-12 w-full cursor-pointer flex-col justify-center gap-0.5 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                        className="flex min-h-12 w-full cursor-pointer flex-col justify-center gap-0.5 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-muted/50 focus-ring"
                       >
                         <span className="flex min-w-0 flex-wrap items-center gap-2">
                           <span

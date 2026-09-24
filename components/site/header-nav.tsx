@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { NotificationsMenu } from "./notifications-menu";
 
 const LINK_BASE =
-  "inline-flex min-h-11 cursor-pointer items-center rounded-md px-3 text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  "inline-flex min-h-11 cursor-pointer items-center rounded-md px-3 text-sm transition-colors duration-150 focus-ring";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -86,7 +86,7 @@ export function HeaderActions({
             Sign in
           </Link>
         </Button>
-        <Button asChild variant="cta" size="sm" className="min-h-11">
+        <Button asChild size="sm" className="min-h-11">
           <Link href="/sign-up" className="cursor-pointer">
             Get started
           </Link>

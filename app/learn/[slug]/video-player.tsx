@@ -218,7 +218,7 @@ export function VideoPlayer({
             <label className="flex cursor-pointer items-center gap-2">
               Speed
               <select
-                className="h-9 cursor-pointer rounded-md border border-white/20 bg-white/10 px-2 text-white focus-visible:ring-[3px] focus-visible:ring-white/40 focus-visible:outline-none"
+                className="h-9 cursor-pointer rounded-md border border-white/20 bg-white/10 px-2 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                 value={speed}
                 onChange={(event) => {
                   const next = Number(event.target.value);

@@ -191,7 +191,7 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
               <CardContent>
                 <form action={startStripeCheckout}>
                   <input type="hidden" name="courseId" value={course.id} />
-                  <Button type="submit" size="lg" variant="cta" className="w-full">
+                  <Button type="submit" size="lg" className="w-full">
                     Continue to Stripe
                   </Button>
                 </form>

@@ -176,7 +176,7 @@ export default async function CoursesPage({
               <Link
                 key={chip.key}
                 href={chip.href}
-                className="inline-flex min-h-8 max-w-full cursor-pointer items-center gap-1 rounded-full border border-border bg-secondary px-2.5 text-sm text-secondary-foreground transition-colors duration-150 hover:border-primary hover:text-primary focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="inline-flex min-h-8 max-w-full cursor-pointer items-center gap-1 rounded-full border border-border bg-secondary px-2.5 text-sm text-secondary-foreground transition-colors duration-150 hover:border-primary hover:text-primary focus-ring"
                 aria-label={`Clear ${chip.label} filter`}
               >
                 <span className="min-w-0 truncate">{chip.label}</span>

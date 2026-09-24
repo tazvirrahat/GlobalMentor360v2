@@ -7,7 +7,7 @@ import { COURSE_LEVELS } from "@/lib/labels";
 import type { CatalogSort } from "@/lib/courses";
 
 const SELECT_CLASS =
-  "h-10 w-full min-w-0 cursor-pointer rounded-md border border-input bg-card px-2.5 text-sm shadow-xs outline-none transition-[color,box-shadow] duration-150 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 lg:w-[8.25rem]";
+  "h-10 w-full min-w-0 cursor-pointer rounded-md border border-input bg-card px-2.5 text-sm shadow-xs transition-[color,box-shadow] duration-150 lg:w-[8.25rem] focus-ring";
 
 const SORTS: { value: CatalogSort; label: string }[] = [
   { value: "relevance", label: "Relevance" },
