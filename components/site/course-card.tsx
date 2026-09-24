@@ -26,11 +26,11 @@ export type CourseCardData = {
 /** Brand-adjacent cover pairs (existing palette tokens only). */
 const COVER_TONES = [
   "bg-linear-to-br from-primary-active to-primary",
-  "bg-linear-to-br from-brand-ink to-primary",
+  "bg-linear-to-br from-ink to-primary",
   "bg-linear-to-br from-foreground to-primary-hover",
   "bg-linear-to-br from-primary-hover to-primary-active",
-  "bg-linear-to-br from-brand-ink via-primary-active to-primary",
-  "bg-linear-to-br from-primary to-brand-ink",
+  "bg-linear-to-br from-ink via-primary-active to-primary",
+  "bg-linear-to-br from-primary to-ink",
 ] as const;
 
 function coverToneClass(slug: string) {
@@ -56,7 +56,7 @@ export function CourseCard({ course }: { course: CourseCardData }) {
 
   return (
     <Link href={`/courses/${course.slug}`} className="group block h-full cursor-pointer">
-      <Card className="h-full gap-0 overflow-hidden rounded-lg py-0 transition-shadow duration-200 group-hover:shadow-brand">
+      <Card className="h-full gap-0 overflow-hidden rounded-lg py-0 transition-shadow duration-200">
         <div
           className={cn(
             "relative flex h-44 items-end overflow-hidden p-4",
