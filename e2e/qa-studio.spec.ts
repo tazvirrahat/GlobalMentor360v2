@@ -51,8 +51,10 @@ test.describe("studio exploratory QA", () => {
     await expect(page.getByRole("heading", { name: "Studio", exact: true })).toBeVisible();
     await paginateUntilVisible(page, page.getByRole("link", { name: /typescript foundations/i }));
 
-    await page.goto("/studio/qa");
-    await page.getByRole("banner").getByRole("link", { name: "Studio" }).click();
+    // From the public site, Studio lives in the account menu.
+    await page.goto("/");
+    await page.getByRole("button", { name: /account menu/i }).click();
+    await page.getByRole("menuitem", { name: "Studio" }).click();
     await expect(page).toHaveURL(/\/studio$/);
     await expect(page.getByRole("heading", { name: "Studio", exact: true })).toBeVisible();
   });
