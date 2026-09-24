@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CurriculumList, type CurriculumSection } from "./curriculum-list";
+import { CourseModule, type ModuleSection } from "@/components/course/course-module";
 import { CurriculumSheet } from "./curriculum-sheet";
 import { LearnRail } from "./learn-rail";
 import { LearnTopBar } from "./learn-top-bar";
@@ -12,7 +12,7 @@ export type LearnShellProps = {
     percent: number;
     done: number;
     total: number;
-    sections: CurriculumSection[];
+    sections: ModuleSection[];
   };
   currentId: string;
   /** Only when the next lesson is already open to this learner. */
@@ -27,7 +27,13 @@ export type LearnShellProps = {
  */
 export function LearnShell({ course, currentId, next, children }: LearnShellProps) {
   const list = (prefix: string) => (
-    <CurriculumList sections={course.sections} slug={course.slug} currentId={currentId} idPrefix={prefix} />
+    <CourseModule
+      variant="player"
+      sections={course.sections}
+      slug={course.slug}
+      currentId={currentId}
+      idPrefix={prefix}
+    />
   );
 
   return (
