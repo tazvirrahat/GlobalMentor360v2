@@ -34,7 +34,7 @@ export function StarRating({
           className={cn(
             "size-4",
             starClassName,
-            star <= filled ? "fill-current" : "text-muted-foreground/40",
+            star <= filled ? "fill-current" : "text-control",
           )}
         />
       ))}

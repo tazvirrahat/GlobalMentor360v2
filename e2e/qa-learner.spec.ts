@@ -144,7 +144,7 @@ test.describe("learner QA — public catalog", () => {
     await page.goto("/courses/sql-for-analysts");
     await expect(page.getByRole("heading", { name: "SQL for Analysts" })).toBeVisible();
     await expect(page.getByRole("link", { name: /preview: why sql still matters/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /buy this course/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /buy course/i })).toBeVisible();
 
     await diag.assertClean();
   });
@@ -341,7 +341,7 @@ test.describe("learner QA — cart and checkout", () => {
       return;
     }
 
-    const buy = page.getByRole("link", { name: /buy this course/i });
+    const buy = page.getByRole("link", { name: /buy course/i });
     if ((await buy.count()) === 0) {
       test.skip(true, "postgres course is not offered for sale");
       return;

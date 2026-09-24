@@ -39,7 +39,7 @@ export function ReviewList({ reviews }: { reviews: CourseReview[] }) {
             </span>
           </div>
           {review.body ? (
-            <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+            <p className="whitespace-pre-line text-base text-ink">
               {review.body}
             </p>
           ) : null}

@@ -172,7 +172,15 @@ function OutlineModule({ sections, slug, playableIds = [], openSectionIds }: Out
     <div className="flex flex-col overflow-hidden rounded-lg border border-rule bg-surface">
       {sections.map((section, sectionIndex) => {
         const minutes = sectionMinutes(section);
-        const lessons = `${section.items.length} ${section.items.length === 1 ? "lesson" : "lessons"}`;
+        const quizzes = section.items.filter((item) => isQuizType(item.type)).length;
+        const lectures = section.items.length - quizzes;
+        const counts = [
+          lectures > 0 ? `${lectures} ${lectures === 1 ? "lesson" : "lessons"}` : null,
+          quizzes > 0 ? `${quizzes} ${quizzes === 1 ? "quiz" : "quizzes"}` : null,
+          minutes > 0 ? `${minutes} min` : null,
+        ]
+          .filter(Boolean)
+          .join(", ");
         return (
           <details
             key={section.id}
@@ -188,10 +196,7 @@ function OutlineModule({ sections, slug, playableIds = [], openSectionIds }: Out
                 <span className="sr-only">Section {sectionIndex + 1}: </span>
                 {section.title}
               </span>
-              <span className="shrink-0 text-sm text-graphite">
-                {lessons}
-                {minutes > 0 ? `, ${minutes} min` : ""}
-              </span>
+              <span className="shrink-0 text-sm text-graphite">{counts}</span>
             </summary>
             <ol className="flex flex-col border-t border-rule py-1">
               {section.items.map((row) => {

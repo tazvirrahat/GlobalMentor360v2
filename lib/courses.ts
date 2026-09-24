@@ -444,6 +444,7 @@ export async function getPublishedCourseBySlug(slug: string) {
       ratingCount: true,
       enrollmentCount: true,
       publishedAt: true,
+      updatedAt: true,
       instructor: { select: { name: true, headline: true, bio: true } },
       primaryCategory: { select: { name: true, slug: true } },
       objectives: { orderBy: { position: "asc" }, select: { text: true } },

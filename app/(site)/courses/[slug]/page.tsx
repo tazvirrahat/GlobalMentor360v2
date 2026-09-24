@@ -2,41 +2,39 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { cache, type ReactNode } from "react";
 import { notFound } from "next/navigation";
-import {
-  BookOpen,
-  Check,
-  ChevronRight,
-  Clock,
-  Globe,
-  MessageSquare,
-  Users,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Award, BookOpen, Check, ChevronRight, Clock, FileQuestion, Infinity as InfinityIcon } from "lucide-react";
+import { CourseModule } from "@/components/course/course-module";
+import { CoursePrice } from "@/components/course/price";
+import { PageNav } from "@/components/site/page-nav";
 import { RatingHistogram } from "@/components/site/rating-histogram";
 import { ReviewList } from "@/components/site/review-list";
-import { CompactRating, StarRating } from "@/components/site/star-rating";
-import { isEnrolled } from "@/lib/entitlement";
+import { StarRating } from "@/components/site/star-rating";
+import { Button } from "@/components/ui/button";
+import { addCourseToCart } from "@/app/(site)/cart/actions";
 import { getPublishedCourseBySlug } from "@/lib/courses";
+import { isEnrolled } from "@/lib/entitlement";
 import { courseLevelLabel } from "@/lib/labels";
-import { CoursePrice } from "@/components/course/price";
-import { CourseModule } from "@/components/course/course-module";
+import { initials } from "@/lib/nav";
+import { showingRange } from "@/lib/pagination";
 import { getPlayerLockedItemIds } from "@/lib/progress";
 import { getCourseReviewPanel, REVIEW_PAGE_SIZE } from "@/lib/reviews";
-import { showingRange } from "@/lib/pagination";
 import { getCurrentUser } from "@/lib/session";
 import { enrollFree } from "./enroll-free-action";
+import { PurchaseBar } from "./purchase-bar";
 import { ReviewForm } from "./review-form";
-import { addCourseToCart } from "@/app/(site)/cart/actions";
-import { PageNav } from "@/components/site/page-nav";
 
 type Params = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
+type Course = NonNullable<Awaited<ReturnType<typeof getPublishedCourseBySlug>>>;
+
 const getCourse = cache(getPublishedCourseBySlug);
+
+const LANGUAGE = new Intl.DisplayNames(["en"], { type: "language" });
+const MONTH_YEAR = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
+const PANEL_ID = "purchase-panel";
 
 function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -55,6 +53,10 @@ function preservedSearchParams(
   return out;
 }
 
+function plural(count: number, one: string, many = `${one}s`) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
   const course = await getCourse(slug);
@@ -68,16 +70,16 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   };
 }
 
-function instructorInitials(name: string) {
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  return parts.map((part) => part[0] ?? "").join("").toUpperCase() || "?";
-}
+const LINK = "rounded-sm underline decoration-control underline-offset-4 hover:decoration-ink focus-ring";
 
+/**
+ * The course landing page (spec §6): what the course is, what it costs and how
+ * to get it, what is in it, and what learners said.
+ */
 export default async function CourseLandingPage({ params, searchParams }: Params) {
   const { slug } = await params;
   const query = await searchParams;
   const course = await getCourse(slug);
-
   if (!course) notFound();
 
   // Signed-out visitors see the page; entitlement decides only what is playable.
@@ -86,197 +88,194 @@ export default async function CourseLandingPage({ params, searchParams }: Params
 
   // Same rule as the player: preview items are always linked; enrolled learners
   // only get /learn links for items sequential unlock has actually opened.
-  const lockedIds =
-    enrolled && user ? await getPlayerLockedItemIds(user.id, course.id) : new Set<string>();
-  const playable = new Set(
-    course.sections
-      .flatMap((section) => section.items)
-      .filter((item) => {
-        if (item.isPreview) return true;
-        if (!enrolled) return false;
-        return !lockedIds.has(item.id);
-      })
-      .map((item) => item.id),
-  );
+  const lockedIds = enrolled && user ? await getPlayerLockedItemIds(user.id, course.id) : new Set<string>();
+  const items = course.sections.flatMap((section) => section.items);
+  const playable = items
+    .filter((item) => item.isPreview || (enrolled && !lockedIds.has(item.id)))
+    .map((item) => item.id);
 
-  // Three queries whatever the review count, fetched alongside nothing else the
-  // page needs — the N+1 the playable set above was fixed to remove came from
-  // the same instinct, one round trip per rendered row.
-  const { summary, reviews, ownReview, page: reviewPage, pageCount: reviewPageCount } =
-    await getCourseReviewPanel(course.id, user?.id ?? null, firstParam(query.reviewPage));
+  // `summary`, not course.ratingAverage: this page renders the histogram from
+  // the same rows, and the denormalised copy is the one that goes stale when a
+  // review is hidden or a user is deleted.
+  const { summary, reviews, ownReview, page: reviewPage, pageCount: reviewPageCount } = await getCourseReviewPanel(
+    course.id,
+    user?.id ?? null,
+    firstParam(query.reviewPage),
+  );
   const reviewRange = showingRange(reviewPage, REVIEW_PAGE_SIZE, summary.count);
 
-  const free = course.isFree;
-  const purchasable = course.price !== null;
-  const firstPreview = course.sections
-    .flatMap((section) => section.items)
-    .find((item) => item.isPreview);
+  const firstPreview = items.find((item) => item.isPreview);
   const previewSectionIds = course.sections
     .filter((section) => section.items.some((item) => item.isPreview))
     .map((section) => section.id);
+  const lectureCount = items.filter((item) => item.lecture).length;
+  const quizCount = items.filter((item) => item.type === "QUIZ" || item.type === "PRACTICE_TEST").length;
+  const languageName = LANGUAGE.of(course.language) ?? course.language;
 
-  const purchase = (
-    <PurchasePanel
-      course={course}
-      enrolled={enrolled}
-      free={free}
-      purchasable={purchasable}
-      firstPreview={firstPreview}
-      signedIn={Boolean(user)}
-    />
-  );
+  const primary = <PrimaryAction course={course} enrolled={enrolled} />;
 
   return (
-    <main>
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-[1fr_20rem] lg:items-start lg:px-8">
-        <header className="min-w-0">
-          <div className="flex min-w-0 flex-col gap-4">
+    <main className="pb-24 lg:pb-0">
+      <div className="mx-auto grid max-w-6xl gap-x-12 gap-y-10 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:px-8">
+          <header className="flex min-w-0 flex-col gap-4 lg:col-start-1">
             <nav aria-label="Breadcrumb">
-              <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+              <ol className="flex flex-wrap items-center gap-1 text-sm text-graphite">
                 <li>
-                  <Link
-                    href="/courses"
-                    className="cursor-pointer hover:text-foreground hover:underline"
-                  >
+                  <Link href="/courses" className={`${LINK} inline-flex min-h-6 items-center`}>
                     Courses
                   </Link>
                 </li>
-                <li>
-                  <ChevronRight className="size-3.5" aria-hidden />
-                </li>
-                <li className="min-w-0 truncate text-foreground" aria-current="page">
-                  {course.title}
-                </li>
+                {course.primaryCategory ? (
+                  <>
+                    <li aria-hidden>
+                      <ChevronRight className="size-3.5" />
+                    </li>
+                    <li>
+                      <Link
+                        href={`/courses?category=${course.primaryCategory.slug}` as Route}
+                        className={`${LINK} inline-flex min-h-6 items-center`}
+                      >
+                        {course.primaryCategory.name}
+                      </Link>
+                    </li>
+                  </>
+                ) : null}
               </ol>
             </nav>
 
-            {course.primaryCategory ? (
-              <Badge variant="secondary" className="w-fit">
-                {course.primaryCategory.name}
-              </Badge>
-            ) : null}
+            <h1 className="max-w-3xl text-3xl font-bold sm:text-4xl">{course.title}</h1>
+            {course.subtitle ? <p className="max-w-2xl text-lg text-graphite">{course.subtitle}</p> : null}
 
-            <h1 className="max-w-3xl font-heading text-3xl font-semibold leading-[1.15] tracking-tight sm:text-4xl">
-              {course.title}
-            </h1>
-            {course.subtitle ? (
-              <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">
-                {course.subtitle}
-              </p>
-            ) : null}
+            <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink">
+              <li>
+                {summary.count > 0 ? (
+                  <a href="#reviews" className="inline-flex min-h-6 items-center gap-1.5 rounded-sm hover:underline focus-ring">
+                    <StarRating value={summary.average} starClassName="size-3.5" />
+                    <span className="font-semibold">{summary.average.toFixed(1)}</span>
+                    <span className="text-graphite">({plural(summary.count, "rating")})</span>
+                  </a>
+                ) : (
+                  <span className="text-graphite">No ratings yet</span>
+                )}
+              </li>
+              <li>{plural(course.enrollmentCount, "learner")}</li>
+              <li>{courseLevelLabel(course.level)}</li>
+              <li>{languageName}</li>
+              <li className="text-graphite">Last updated {MONTH_YEAR.format(course.updatedAt)}</li>
+            </ul>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-              {/* `summary`, not course.ratingAverage. This page renders the
-                  histogram computed from the rows a few sections down, so the
-                  denormalised copy up here is a second answer to the same
-                  question — and it is the answer that goes stale, because
-                  nothing rewrites it when a cascaded User delete removes reviews
-                  or a moderator hides one. The panel query is already paid for,
-                  so the true number costs nothing extra here. The copy stays
-                  authoritative on the catalog card, which cannot afford a query
-                  per card; being one moderation action behind is invisible
-                  there and self-contradictory here. */}
-              {summary.count > 0 ? (
-                <CompactRating
-                  average={summary.average}
-                  count={summary.count}
-                  showRatingsWord
-                  className="text-star"
-                  countClassName="text-muted-foreground"
-                />
-              ) : (
-                <span>No ratings yet</span>
-              )}
-              <span className="flex items-center gap-1">
-                <Users className="size-4" aria-hidden />
-                {course.enrollmentCount} enrolled
-              </span>
-              <span>{courseLevelLabel(course.level)}</span>
-              <span className="flex items-center gap-1">
-                <Globe className="size-4" aria-hidden />
-                {course.language}
-              </span>
+            <p className="text-sm text-graphite">
+              Created by <span className="font-medium text-ink">{course.instructor.name}</span>
+            </p>
+          </header>
+
+          <aside
+            id={PANEL_ID}
+            aria-label="Get this course"
+            className="flex h-fit flex-col gap-5 self-start rounded-lg border border-rule bg-surface p-5 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1"
+          >
+            <CoursePrice isFree={course.isFree} price={course.price} className="text-3xl" />
+            <div className="flex flex-col gap-2">
+              {primary}
+              {!enrolled && !course.isFree && course.price ? (
+                user ? (
+                  <form action={addCourseToCart}>
+                    <input type="hidden" name="courseId" value={course.id} />
+                    <input type="hidden" name="slug" value={course.slug} />
+                    <Button type="submit" variant="secondary" size="lg" className="w-full">
+                      Add to cart
+                    </Button>
+                  </form>
+                ) : (
+                  <Button asChild variant="secondary" size="lg">
+                    <Link href={`/sign-in?next=${encodeURIComponent(`/courses/${course.slug}`)}` as Route}>
+                      Sign in to add to cart
+                    </Link>
+                  </Button>
+                )
+              ) : null}
+              {!enrolled && firstPreview ? (
+                <Link
+                  href={`/learn/${course.slug}/${firstPreview.id}` as Route}
+                  className={`${LINK} mt-1 inline-flex min-h-6 items-center self-center text-sm font-medium text-ink`}
+                >
+                  Watch free preview
+                </Link>
+              ) : null}
             </div>
+            <div className="flex flex-col gap-3 border-t border-rule pt-4">
+              <h2 className="text-sm font-semibold">This course includes</h2>
+              <ul className="flex flex-col gap-2.5 text-sm text-ink">
+                <Include icon={<BookOpen />}>{plural(lectureCount, "lesson")}</Include>
+                <Include icon={<Clock />}>{course.totalDuration} to watch and read</Include>
+                {quizCount > 0 ? (
+                  <Include icon={<FileQuestion />}>{plural(quizCount, "quiz", "quizzes")}</Include>
+                ) : null}
+                <Include icon={<Award />}>Certificate of completion</Include>
+                <Include icon={<InfinityIcon />}>Lifetime access</Include>
+              </ul>
+            </div>
+          </aside>
 
-            <p className="text-sm text-muted-foreground">Created by {course.instructor.name}</p>
-          </div>
-        </header>
-
-        <aside className="flex flex-col gap-6 lg:sticky lg:top-24 lg:row-span-2">
-          {purchase}
-          <InstructorCard course={course} />
-        </aside>
-
-        <div className="flex min-w-0 flex-col gap-10">
+        <div className="flex min-w-0 flex-col gap-12 lg:col-start-1">
           {course.objectives.length > 0 ? (
-            <div>
-              <section>
-                <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
-                  What you&rsquo;ll learn
-                </h2>
-                <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {course.objectives.map((objective, index) => (
-                    <li key={index} className="flex items-start gap-2 text-sm leading-relaxed">
-                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <Check className="size-3" aria-hidden />
-                      </span>
-                      {objective.text}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </div>
+            <section aria-labelledby="learn-heading" className="rounded-lg border border-rule bg-surface p-5 sm:p-6">
+              <h2 id="learn-heading" className="text-2xl font-semibold">
+                What you&rsquo;ll learn
+              </h2>
+              <ul className="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+                {course.objectives.map((objective, index) => (
+                  <li key={index} className="flex items-start gap-3 text-base">
+                    <Check className="mt-1 size-4 shrink-0 text-ink" strokeWidth={2} aria-hidden />
+                    {objective.text}
+                  </li>
+                ))}
+              </ul>
+            </section>
           ) : null}
 
-          <section>
-            <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
-              Course content
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {course.sections.length} sections · {course.itemCount} items · {course.totalDuration}
-            </p>
-
+          <section aria-labelledby="content-heading" className="flex flex-col gap-4">
+            <div>
+              <h2 id="content-heading" className="text-2xl font-semibold">
+                Course content
+              </h2>
+              <p className="mt-1 text-sm text-graphite">
+                {plural(course.sections.length, "section")}, {plural(lectureCount, "lesson")}
+                {quizCount > 0 ? `, ${plural(quizCount, "quiz", "quizzes")}` : ""}, {course.totalDuration}
+              </p>
+            </div>
             {course.sections.length === 0 ? (
-              <div className="mt-4 flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-muted/40 px-6 py-12 text-center">
-                <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <BookOpen className="size-6" aria-hidden />
-                </span>
-                <p className="font-heading font-semibold tracking-tight">No lessons published yet</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Curriculum appears here when the instructor adds sections.
-                </p>
-              </div>
+              <p className="rounded-lg border border-rule bg-surface p-5 text-graphite">
+                The lessons appear here when the instructor publishes them.
+              </p>
             ) : (
-              <div className="mt-4">
-                <CourseModule
-                  variant="outline"
-                  slug={course.slug}
-                  playableIds={[...playable]}
-                  openSectionIds={previewSectionIds.length > 0 ? previewSectionIds : undefined}
-                  sections={course.sections.map((section) => ({
-                    id: section.id,
-                    title: section.title,
-                    items: section.items.map((item) => ({
-                      id: item.id,
-                      title: item.title,
-                      type: item.type,
-                      isPreview: item.isPreview,
-                      contentType: item.lecture?.contentType ?? null,
-                      durationSeconds: item.lecture?.durationSeconds || null,
-                      locked: enrolled ? lockedIds.has(item.id) : undefined,
-                    })),
-                  }))}
-                />
-              </div>
+              <CourseModule
+                variant="outline"
+                slug={course.slug}
+                playableIds={playable}
+                openSectionIds={previewSectionIds.length > 0 ? previewSectionIds : undefined}
+                sections={course.sections.map((section) => ({
+                  id: section.id,
+                  title: section.title,
+                  items: section.items.map((item) => ({
+                    id: item.id,
+                    title: item.title,
+                    type: item.type,
+                    isPreview: item.isPreview,
+                    contentType: item.lecture?.contentType ?? null,
+                    durationSeconds: item.lecture?.durationSeconds || null,
+                  })),
+                }))}
+              />
             )}
           </section>
 
           {course.requirements.length > 0 ? (
-            <section>
-              <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+            <section aria-labelledby="requirements-heading">
+              <h2 id="requirements-heading" className="text-2xl font-semibold">
                 Requirements
               </h2>
-              <ul className="mt-4 list-disc space-y-1 pl-5 text-sm leading-relaxed">
+              <ul className="mt-4 flex list-disc flex-col gap-1.5 pl-5 text-base">
                 {course.requirements.map((requirement, index) => (
                   <li key={index}>{requirement.text}</li>
                 ))}
@@ -285,22 +284,20 @@ export default async function CourseLandingPage({ params, searchParams }: Params
           ) : null}
 
           {course.description ? (
-            <section>
-              <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+            <section aria-labelledby="description-heading">
+              <h2 id="description-heading" className="text-2xl font-semibold">
                 Description
               </h2>
-              <p className="mt-4 max-w-2xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-                {course.description}
-              </p>
+              <p className="mt-4 max-w-[68ch] text-base whitespace-pre-line text-ink">{course.description}</p>
             </section>
           ) : null}
 
           {course.targetAudience.length > 0 ? (
-            <section>
-              <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+            <section aria-labelledby="audience-heading">
+              <h2 id="audience-heading" className="text-2xl font-semibold">
                 Who this course is for
               </h2>
-              <ul className="mt-4 list-disc space-y-1 pl-5 text-sm leading-relaxed">
+              <ul className="mt-4 flex list-disc flex-col gap-1.5 pl-5 text-base">
                 {course.targetAudience.map((audience, index) => (
                   <li key={index}>{audience.text}</li>
                 ))}
@@ -308,51 +305,55 @@ export default async function CourseLandingPage({ params, searchParams }: Params
             </section>
           ) : null}
 
-          <section id="reviews" className="flex flex-col gap-6">
-            <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+          <section aria-labelledby="instructor-heading" className="flex flex-col gap-4">
+            <h2 id="instructor-heading" className="text-2xl font-semibold">
+              Instructor
+            </h2>
+            <div className="flex items-start gap-4">
+              <span
+                aria-hidden
+                className="flex size-14 shrink-0 items-center justify-center rounded-full bg-ink text-lg font-semibold text-white"
+              >
+                {initials(course.instructor.name, "?")}
+              </span>
+              <div className="flex min-w-0 flex-col gap-1">
+                <p className="text-lg font-semibold">{course.instructor.name}</p>
+                {course.instructor.headline ? <p className="text-graphite">{course.instructor.headline}</p> : null}
+                {course.instructor.bio ? (
+                  <p className="mt-2 max-w-[68ch] text-base whitespace-pre-line">{course.instructor.bio}</p>
+                ) : null}
+              </div>
+            </div>
+          </section>
+
+          <section id="reviews" aria-labelledby="reviews-heading" className="flex flex-col gap-6">
+            <h2 id="reviews-heading" className="text-2xl font-semibold">
               Learner reviews
             </h2>
 
-            <div className="grid items-center gap-6 rounded-lg border bg-card p-5 shadow-sm sm:grid-cols-[auto_1fr] sm:p-6">
-              <div className="flex flex-col items-center gap-1 sm:pr-6">
-                <span className="font-heading text-4xl font-semibold tabular-nums text-star">
-                  {summary.average.toFixed(1)}
-                </span>
-                <StarRating value={summary.average} />
-                <span className="text-xs text-muted-foreground">
-                  {summary.count} {summary.count === 1 ? "rating" : "ratings"}
-                </span>
+            {summary.count > 0 ? (
+              <div className="grid items-center gap-6 rounded-lg border border-rule bg-surface p-5 sm:grid-cols-[auto_1fr] sm:p-6">
+                <div className="flex flex-col items-center gap-1 sm:pr-6">
+                  <span className="text-4xl font-bold">{summary.average.toFixed(1)}</span>
+                  <StarRating value={summary.average} />
+                  <span className="text-sm text-graphite">{plural(summary.count, "rating")}</span>
+                </div>
+                <RatingHistogram distribution={summary.distribution} />
               </div>
-              <RatingHistogram distribution={summary.distribution} />
-            </div>
-
-            {summary.count === 0 ? (
-              <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-muted/40 px-6 py-10 text-center">
-                <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <MessageSquare className="size-6" aria-hidden />
-                </span>
-                <p className="text-sm text-muted-foreground">
-                  No ratings yet — enrolled learners can be the first to review this course.
-                </p>
-              </div>
-            ) : null}
+            ) : (
+              <p className="text-graphite">No ratings yet. Learners on the course can be the first to review it.</p>
+            )}
 
             {/* Rendering the form is a convenience, not the authorisation:
-                submitReview re-checks the enrollment server-side (invariant 4). */}
-            {enrolled ? (
-              // ownReview.status goes through as-is. A hidden review is still
-              // returned by getCourseReviewPanel but is filtered out of
-              // `reviews`, so dropping the status here is what produced a form
-              // that says "your review is live" above a list the learner cannot
-              // find themselves in.
-              <ReviewForm courseId={course.id} existing={ownReview} />
-            ) : null}
+                submitReview re-checks the enrollment server-side. ownReview
+                goes through with its status, so a hidden review says so. */}
+            {enrolled ? <ReviewForm courseId={course.id} existing={ownReview} /> : null}
 
             <ReviewList reviews={reviews} />
 
-            {summary.count > 0 ? (
-              <p className="text-sm tabular-nums text-muted-foreground">
-                Showing {reviewRange.from}–{reviewRange.to} of {summary.count}
+            {summary.count > REVIEW_PAGE_SIZE ? (
+              <p className="text-sm text-graphite">
+                Showing {reviewRange.from} to {reviewRange.to} of {summary.count}
               </p>
             ) : null}
             <PageNav
@@ -365,117 +366,19 @@ export default async function CourseLandingPage({ params, searchParams }: Params
           </section>
         </div>
       </div>
+
+      <PurchaseBar panelId={PANEL_ID}>
+        <CoursePrice isFree={course.isFree} price={course.price} className="text-xl" />
+        <div className="w-44">{primary}</div>
+      </PurchaseBar>
     </main>
   );
 }
 
-function PurchasePanel({
-  course,
-  enrolled,
-  free,
-  purchasable,
-  firstPreview,
-  signedIn,
-}: {
-  course: NonNullable<Awaited<ReturnType<typeof getCourse>>>;
-  enrolled: boolean;
-  free: boolean;
-  purchasable: boolean;
-  firstPreview:
-    | NonNullable<Awaited<ReturnType<typeof getCourse>>>["sections"][number]["items"][number]
-    | undefined;
-  signedIn: boolean;
-}) {
+function Include({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <Card className="h-fit">
-      <CardContent className="flex flex-col gap-4 p-5 sm:p-6">
-        <p className="font-heading text-3xl font-semibold tabular-nums text-primary">
-          <CoursePrice isFree={free} price={course.price} />
-        </p>
-
-        <div className="flex flex-col gap-2">
-          {enrolled ? (
-            <Button asChild size="lg">
-              <Link href={`/learn/${course.slug}` as Route} className="cursor-pointer">
-                Continue learning <ChevronRight className="size-4" aria-hidden />
-              </Link>
-            </Button>
-          ) : (
-            <>
-              {firstPreview ? (
-                <Button asChild size="lg" variant={free || purchasable ? "outline" : "default"}>
-                  <Link
-                    href={`/learn/${course.slug}/${firstPreview.id}` as Route}
-                    className="cursor-pointer"
-                  >
-                    Watch free preview
-                  </Link>
-                </Button>
-              ) : null}
-              {free ? (
-                // Offered only when enrollFree would actually accept it — the
-                // action requires every active price to be 0, and a button that
-                // silently does nothing is worse than no button.
-                <form action={enrollFree}>
-                  <input type="hidden" name="courseId" value={course.id} />
-                  <Button type="submit" size="lg" className="w-full">
-                    Enrol for free
-                  </Button>
-                </form>
-              ) : purchasable ? (
-                <>
-                  <Button asChild size="lg">
-                    <Link href={`/courses/${course.slug}/checkout`} className="cursor-pointer">
-                      Buy this course
-                    </Link>
-                  </Button>
-                  {signedIn ? (
-                    <form action={addCourseToCart}>
-                      <input type="hidden" name="courseId" value={course.id} />
-                      <input type="hidden" name="slug" value={course.slug} />
-                      <Button type="submit" variant="outline" size="lg" className="w-full">
-                        Add to cart
-                      </Button>
-                    </form>
-                  ) : (
-                    <Button asChild variant="outline" size="lg">
-                      <Link
-                        href={`/sign-in?next=${encodeURIComponent(`/courses/${course.slug}`)}`}
-                        className="cursor-pointer"
-                      >
-                        Sign in to add to cart
-                      </Link>
-                    </Button>
-                  )}
-                </>
-              ) : firstPreview ? null : (
-                <p className="text-sm text-muted-foreground">
-                  This course has no price set, so it can&rsquo;t be bought right now. Check back
-                  soon.
-                </p>
-              )}
-            </>
-          )}
-        </div>
-
-        <ul className="flex flex-col gap-2.5 text-sm text-muted-foreground">
-          <IncludeRow icon={<BookOpen className="size-4" aria-hidden />}>
-            {course.itemCount} lessons across {course.sections.length} sections
-          </IncludeRow>
-          <IncludeRow icon={<Clock className="size-4" aria-hidden />}>
-            {course.totalDuration} of content
-          </IncludeRow>
-          <IncludeRow icon={<Check className="size-4" aria-hidden />}>Lifetime access</IncludeRow>
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
-function IncludeRow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <li className="flex items-center gap-2.5">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+    <li className="flex items-center gap-3">
+      <span aria-hidden className="text-graphite [&_svg]:size-4 [&_svg]:stroke-[1.75]">
         {icon}
       </span>
       {children}
@@ -483,33 +386,32 @@ function IncludeRow({ icon, children }: { icon: ReactNode; children: ReactNode }
   );
 }
 
-function InstructorCard({
-  course,
-}: {
-  course: NonNullable<Awaited<ReturnType<typeof getCourse>>>;
-}) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 p-5 sm:p-6">
-        <h2 className="text-sm font-semibold text-ink">Instructor</h2>
-        <div className="flex items-center gap-3">
-          <span
-            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted font-heading text-sm font-semibold"
-            aria-hidden
-          >
-            {instructorInitials(course.instructor.name)}
-          </span>
-          <p className="font-heading text-lg font-semibold tracking-tight">
-            {course.instructor.name}
-          </p>
-        </div>
-        {course.instructor.headline ? (
-          <p className="text-sm text-muted-foreground">{course.instructor.headline}</p>
-        ) : null}
-        {course.instructor.bio ? (
-          <p className="text-sm leading-relaxed text-muted-foreground">{course.instructor.bio}</p>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
+/** The one main action: go to the course, enrol for free, or buy it. */
+function PrimaryAction({ course, enrolled }: { course: Course; enrolled: boolean }) {
+  if (enrolled) {
+    return (
+      <Button asChild size="lg" className="w-full">
+        <Link href={`/learn/${course.slug}` as Route}>Go to course</Link>
+      </Button>
+    );
+  }
+  if (course.isFree) {
+    // Offered only when enrollFree would accept it: every active price is 0.
+    return (
+      <form action={enrollFree}>
+        <input type="hidden" name="courseId" value={course.id} />
+        <Button type="submit" size="lg" className="w-full">
+          Enrol for free
+        </Button>
+      </form>
+    );
+  }
+  if (course.price) {
+    return (
+      <Button asChild size="lg" className="w-full">
+        <Link href={`/courses/${course.slug}/checkout` as Route}>Buy course</Link>
+      </Button>
+    );
+  }
+  return <p className="text-sm text-graphite">This course is not on sale right now.</p>;
 }
