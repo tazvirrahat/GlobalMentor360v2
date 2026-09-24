@@ -11,10 +11,10 @@ function read(rel: string) {
 
 describe("auth forms do not GET credentials into the URL", () => {
   it.each([
-    "app/sign-in/sign-in-form.tsx",
-    "app/sign-up/sign-up-form.tsx",
-    "app/forgot-password/forgot-password-form.tsx",
-    "app/reset-password/reset-form.tsx",
+    "app/(site)/sign-in/sign-in-form.tsx",
+    "app/(site)/sign-up/sign-up-form.tsx",
+    "app/(site)/forgot-password/forgot-password-form.tsx",
+    "app/(site)/reset-password/reset-form.tsx",
   ])("%s posts instead of the HTML GET default", (rel) => {
     const source = read(rel);
     expect(source).toMatch(/<form[^>]*method="post"/);
@@ -31,8 +31,8 @@ describe("email delivery copy vs SES sandbox", () => {
   });
 
   it("is mounted on sign-up, unverified sign-in, and forgot-password", () => {
-    expect(read("app/sign-up/sign-up-form.tsx")).toContain("EmailDeliveryNote");
-    expect(read("app/sign-in/sign-in-form.tsx")).toContain("EmailDeliveryNote");
-    expect(read("app/forgot-password/forgot-password-form.tsx")).toContain("EmailDeliveryNote");
+    expect(read("app/(site)/sign-up/sign-up-form.tsx")).toContain("EmailDeliveryNote");
+    expect(read("app/(site)/sign-in/sign-in-form.tsx")).toContain("EmailDeliveryNote");
+    expect(read("app/(site)/forgot-password/forgot-password-form.tsx")).toContain("EmailDeliveryNote");
   });
 });

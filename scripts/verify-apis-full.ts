@@ -371,7 +371,7 @@ function buildChecks(input: {
         path: "/certificates/not-a-real-serial/pdf",
         expected: method === "GET" || method === "HEAD" ? 404 : method === "OPTIONS" ? 204 : 405,
         cookie,
-        cause: "app/certificates/[serial]/pdf/route.ts:7 (GET only)",
+        cause: "app/(site)/certificates/[serial]/pdf/route.ts:7 (GET only)",
       });
     }
 
@@ -955,7 +955,7 @@ function buildChecks(input: {
     scenario: "nonexistent serial",
     path: `/certificates/${FAKE_CUID}/pdf`,
     expected: 404,
-    cause: "app/certificates/[serial]/pdf/route.ts:13",
+    cause: "app/(site)/certificates/[serial]/pdf/route.ts:13",
   });
   if (certSerial) {
     add({
@@ -965,7 +965,7 @@ function buildChecks(input: {
       scenario: "public existing serial",
       path: `/certificates/${certSerial}/pdf`,
       expected: 200,
-      cause: "app/certificates/[serial]/pdf/route.ts:26",
+      cause: "app/(site)/certificates/[serial]/pdf/route.ts:26",
       assert: (res) => {
         if (res.status === 200 && res.contentType && !res.contentType.includes("pdf")) {
           return `expected application/pdf, got ${res.contentType}`;
