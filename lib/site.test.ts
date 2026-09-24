@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getSite, siteUrl } from "./site";
+import { getSite, siteToday, siteUrl } from "./site";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -36,5 +36,13 @@ describe("siteUrl", () => {
     vi.stubEnv("BETTER_AUTH_URL", "https://learn.example.com");
     expect(siteUrl("/courses")).toBe("https://learn.example.com/courses");
     expect(siteUrl("orders/1")).toBe("https://learn.example.com/orders/1");
+  });
+});
+
+describe("siteToday", () => {
+  it("is the date in Dhaka, not UTC", () => {
+    // 20:30 UTC on 1 Aug is already 2 Aug in Dhaka (UTC+6).
+    expect(siteToday(new Date("2026-08-01T20:30:00Z"))).toBe("2026-08-02");
+    expect(siteToday(new Date("2026-08-01T10:00:00Z"))).toBe("2026-08-01");
   });
 });

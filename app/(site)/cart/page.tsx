@@ -1,27 +1,28 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { ShoppingBag, Trash2 } from "lucide-react";
-import { BkashProofForm } from "@/components/checkout/bkash-proof-form";
-import { BkashQuoteCard } from "@/components/checkout/bkash-quote";
-import { EmptyState } from "@/components/site/empty-state";
+import { CoverMark } from "@/components/course/cover-mark";
+import { Price } from "@/components/course/price";
+import { BkashCheckout } from "@/components/checkout/bkash-checkout";
+import { BkashReview } from "@/components/checkout/bkash-quote";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { formatPrice } from "@/lib/courses";
 import { getCart, partitionCheckoutLines } from "@/lib/cart";
 import { bkashAmountDue, quoteBkashCourses, quotedBkashCouponCode } from "@/lib/checkout";
+import { formatPrice } from "@/lib/format";
 import { BKASH_CURRENCY, getBkashMerchantNumber } from "@/lib/payments";
 import { requireUser } from "@/lib/session";
+import { siteToday } from "@/lib/site";
 import { removeCourseFromCart, submitCartBkash } from "./actions";
 import { EnrollFreeCartButton } from "./cart-forms";
 
 export const metadata = { title: "Cart" };
 export const dynamic = "force-dynamic";
 
-export default async function CartPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ coupon?: string }>;
-}) {
+/**
+ * The cart: the courses, what each costs, and one bKash checkout for all of
+ * them. Courses already owned or without a bKash price are called out rather
+ * than silently dropped.
+ */
+export default async function CartPage({ searchParams }: { searchParams: Promise<{ coupon?: string }> }) {
   const user = await requireUser("/cart");
   const { coupon: couponParam } = await searchParams;
   const appliedCoupon = couponParam?.trim() || undefined;
@@ -47,126 +48,110 @@ export default async function CartPage({
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="font-heading text-3xl font-semibold tracking-tight">Cart</h1>
-      {items.length > 0 ? (
-        <p className="mt-1 text-muted-foreground">
-          {`${items.length} ${items.length === 1 ? "course" : "courses"}`}
-        </p>
-      ) : null}
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-semibold">Cart</h1>
+        {items.length > 0 ? (
+          <p className="text-lg text-graphite">
+            {items.length} {items.length === 1 ? "course" : "courses"}
+          </p>
+        ) : null}
+      </div>
 
       {items.length === 0 ? (
-        <EmptyState
-          className="mt-8"
-          icon={<ShoppingBag className="size-6" aria-hidden />}
-          title="Your cart is empty."
-          message="Browse the catalog and add a course when you are ready."
-        >
+        <div className="flex flex-col items-start gap-3 rounded-lg border border-rule bg-surface p-6">
+          <h2 className="text-lg font-semibold">Your cart is empty.</h2>
+          <p className="text-graphite">Add a course from its page when you are ready to buy it.</p>
           <Button asChild>
-            <Link href="/courses" className="cursor-pointer">
-              Browse courses
-            </Link>
+            <Link href="/courses">Browse courses</Link>
           </Button>
-        </EmptyState>
+        </div>
       ) : (
-        <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
-          <div className="flex min-w-0 flex-col gap-4">
-            <ul className="flex flex-col gap-3">
-              {items.map((item) => (
-                <li key={item.courseId}>
-                  <Card>
-                    <CardContent className="flex flex-wrap items-center gap-3 p-5">
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          href={`/courses/${item.slug}` as Route}
-                          className="cursor-pointer font-heading font-semibold hover:text-primary"
-                        >
-                          {item.title}
-                        </Link>
-                        <p className="text-sm tabular-nums text-muted-foreground">
-                          {item.enrolled
-                            ? "Already in your library"
-                            : item.isFree
-                              ? "Free"
-                              : item.prices.find((price) => price.currency === BKASH_CURRENCY)
-                                ? formatPrice(
-                                    item.prices.find((price) => price.currency === BKASH_CURRENCY)!
-                                      .amount,
-                                    BKASH_CURRENCY,
-                                  )
-                                : "No bKash price"}
-                        </p>
-                      </div>
-                      <form action={removeCourseFromCart}>
-                        <input type="hidden" name="courseId" value={item.courseId} />
-                        <Button type="submit" variant="ghost" size="sm">
-                          <Trash2 className="size-4" aria-hidden /> Remove
-                        </Button>
-                      </form>
-                    </CardContent>
-                  </Card>
+        <>
+          <ul className="flex flex-col divide-y divide-rule border-y border-rule">
+            {items.map((item) => {
+              const bdt = item.prices.find((price) => price.currency === BKASH_CURRENCY);
+              return (
+                <li key={item.courseId} className="flex items-center gap-4 py-4">
+                  <CoverMark title={item.title} slug={item.slug} size={40} />
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <Link
+                      href={`/courses/${item.slug}` as Route}
+                      className="w-fit rounded-sm font-semibold text-ink hover:underline focus-ring"
+                    >
+                      {item.title}
+                    </Link>
+                    <span className="text-sm text-graphite">
+                      {item.enrolled ? (
+                        "Already in your courses"
+                      ) : item.isFree ? (
+                        "Free"
+                      ) : bdt ? (
+                        <Price amount={bdt.amount} currency={BKASH_CURRENCY} className="text-ink" />
+                      ) : (
+                        "Not sold in taka"
+                      )}
+                    </span>
+                  </div>
+                  <form action={removeCourseFromCart}>
+                    <input type="hidden" name="courseId" value={item.courseId} />
+                    <Button type="submit" variant="ghost" size="sm" aria-label={`Remove ${item.title} from cart`}>
+                      Remove
+                    </Button>
+                  </form>
                 </li>
-              ))}
-            </ul>
+              );
+            })}
+          </ul>
 
-            {owned.length > 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Remove courses you already own before checkout — they will not be charged.
-              </p>
-            ) : null}
+          {owned.length > 0 ? (
+            <p className="text-sm text-graphite">
+              You already have {owned.length === 1 ? "one of these courses" : "some of these courses"}. Remove{" "}
+              {owned.length === 1 ? "it" : "them"} before paying; {owned.length === 1 ? "it is" : "they are"} not
+              charged.
+            </p>
+          ) : null}
 
-            {unpriced.length > 0 ? (
-              <p className="text-sm text-destructive">
-                {unpriced.map((item) => item.title).join(", ")}{" "}
-                {unpriced.length === 1 ? "has" : "have"} no bKash price, so{" "}
-                {unpriced.length === 1 ? "it" : "they"} cannot be checked out until an instructor
-                sets one.
-              </p>
-            ) : null}
+          {unpriced.length > 0 ? (
+            <p className="text-sm font-medium text-seal">
+              {new Intl.ListFormat("en").format(unpriced.map((item) => item.title))}{" "}
+              {unpriced.length === 1 ? "has" : "have"} no price in taka, so {unpriced.length === 1 ? "it" : "they"}{" "}
+              cannot be paid for with bKash yet.
+            </p>
+          ) : null}
 
-            {free.length > 0 ? (
-              <div>
-                <EnrollFreeCartButton />
-              </div>
-            ) : null}
+          {free.length > 0 ? <EnrollFreeCartButton /> : null}
 
-            {payable.length > 0 && quote && !quote.ok ? (
-              <p className="text-sm text-destructive" role="alert">
-                {quote.message}
-              </p>
-            ) : null}
-          </div>
+          {payable.length > 0 && quote && !quote.ok ? (
+            <p className="text-sm font-medium text-seal" role="alert">
+              {quote.message}
+            </p>
+          ) : null}
 
           {payable.length > 0 && quote?.ok ? (
-            <aside className="lg:sticky lg:top-24">
-              <BkashQuoteCard
-                title="Checkout with bKash"
-                quote={quote}
-                appliedCoupon={appliedCoupon}
-                couponAction={"/cart" as Route}
-                couponFieldsClassName="flex min-w-0 flex-col gap-2 sm:flex-row"
-                couponMessage={couponMessage}
-              >
-                <BkashProofForm
-                  action={submitCartBkash}
-                  hiddenFields={
-                    quotedBkashCouponCode(quote) ? (
-                      <input type="hidden" name="couponCode" value={quotedBkashCouponCode(quote)} />
-                    ) : null
-                  }
-                  amountLabel={formatPrice(bkashAmountDue(quote), BKASH_CURRENCY)}
-                  merchantNumber={getBkashMerchantNumber()}
-                  successDescription={
-                    <>
-                      Your payment is awaiting verification. An admin will confirm it, usually
-                      within a few hours. Access unlocks as soon as it&rsquo;s approved.
-                    </>
-                  }
+            <BkashCheckout
+              action={submitCartBkash}
+              review={
+                <BkashReview
+                  quote={quote}
+                  appliedCoupon={appliedCoupon}
+                  couponAction={"/cart" as Route}
+                  couponMessage={couponMessage}
                 />
-              </BkashQuoteCard>
-            </aside>
+              }
+              amount={<Price amount={bkashAmountDue(quote)} currency={BKASH_CURRENCY} />}
+              amountText={formatPrice(bkashAmountDue(quote), BKASH_CURRENCY)}
+              merchantNumber={getBkashMerchantNumber()}
+              today={siteToday()}
+              zeroTotal={bkashAmountDue(quote) === 0}
+              hiddenFields={
+                quotedBkashCouponCode(quote) ? (
+                  <input type="hidden" name="couponCode" value={quotedBkashCouponCode(quote)} />
+                ) : null
+              }
+            />
           ) : null}
-        </div>
+        </>
       )}
     </main>
   );
