@@ -24,7 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { RatingHistogram } from "@/components/site/rating-histogram";
-import { Reveal } from "@/components/site/reveal";
 import { ReviewList } from "@/components/site/review-list";
 import { CompactRating, StarRating } from "@/components/site/star-rating";
 import { isEnrolled } from "@/lib/entitlement";
@@ -146,7 +145,7 @@ export default async function CourseLandingPage({ params, searchParams }: Params
     <main>
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-[1fr_20rem] lg:items-start lg:px-8">
         <header className="min-w-0">
-          <Reveal lcpSafe className="flex min-w-0 flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-4">
             <nav aria-label="Breadcrumb">
               <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
                 <li>
@@ -215,7 +214,7 @@ export default async function CourseLandingPage({ params, searchParams }: Params
             </div>
 
             <p className="text-sm text-muted-foreground">Created by {course.instructor.name}</p>
-          </Reveal>
+          </div>
         </header>
 
         <aside className="flex flex-col gap-6 lg:sticky lg:top-24 lg:row-span-2">
@@ -225,7 +224,7 @@ export default async function CourseLandingPage({ params, searchParams }: Params
 
         <div className="flex min-w-0 flex-col gap-10">
           {course.objectives.length > 0 ? (
-            <Reveal>
+            <div>
               <section>
                 <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
                   What you&rsquo;ll learn
@@ -241,7 +240,7 @@ export default async function CourseLandingPage({ params, searchParams }: Params
                   ))}
                 </ul>
               </section>
-            </Reveal>
+            </div>
           ) : null}
 
           <section>
@@ -552,9 +551,7 @@ function InstructorCard({
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-5 sm:p-6">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Instructor
-        </h2>
+        <h2 className="text-sm font-semibold text-ink">Instructor</h2>
         <div className="flex items-center gap-3">
           <span
             className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted font-heading text-sm font-semibold"

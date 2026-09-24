@@ -254,7 +254,7 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
           <nav aria-label="Curriculum" className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
             {course.sections.map((section) => (
               <div key={section.id}>
-                <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                <p className="mb-1 text-sm font-semibold text-ink">
                   {section.title}
                 </p>
                 <ul className="flex flex-col">

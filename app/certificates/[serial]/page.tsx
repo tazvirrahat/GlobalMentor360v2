@@ -55,9 +55,7 @@ export default async function CertificatePage({ params }: Params) {
               <Award className="size-7" aria-hidden />
             </span>
 
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">
-              Certificate of completion
-            </p>
+            <p className="text-sm font-semibold text-graphite">Certificate of completion</p>
 
             <h1 className="max-w-full break-words font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
               {cert.course.title}
@@ -77,7 +75,7 @@ export default async function CertificatePage({ params }: Params) {
                 Verified
               </Badge>
               <div className="max-w-full rounded-lg border bg-card px-4 py-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Serial</p>
+                <p className="text-xs text-graphite">Serial</p>
                 <p className="break-all font-mono text-sm font-semibold">{cert.serial}</p>
               </div>
             </div>

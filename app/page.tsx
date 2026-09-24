@@ -3,7 +3,6 @@ import { Award, BookOpen, PlayCircle, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CourseCard } from "@/components/site/course-card";
-import { Reveal, RevealItem, RevealStagger } from "@/components/site/reveal";
 import { StarRating } from "@/components/site/star-rating";
 import { listPublishedCourses } from "@/lib/courses";
 import { availableRails } from "@/lib/payments";
@@ -96,9 +95,9 @@ export default async function HomePage() {
           From enrolment to certificate, in three steps.
         </p>
 
-        <RevealStagger className="mt-12 grid gap-6 sm:grid-cols-3">
+        <div className="mt-12 grid gap-6 sm:grid-cols-3">
           {steps.map((step, index) => (
-            <RevealItem key={step.title}>
+            <div key={step.title}>
               <article className="flex h-full flex-col gap-4 rounded-lg border bg-card p-6 shadow-xs">
                 <div className="flex items-center gap-3">
                   <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -111,9 +110,9 @@ export default async function HomePage() {
                 <h3 className="font-heading text-lg font-semibold tracking-tight">{step.title}</h3>
                 <p className="text-base leading-relaxed text-muted-foreground">{step.body}</p>
               </article>
-            </RevealItem>
+            </div>
           ))}
-        </RevealStagger>
+        </div>
       </section>
 
       {testimonials.length > 0 ? (
@@ -150,7 +149,7 @@ export default async function HomePage() {
         </section>
       ) : null}
 
-      <Reveal>
+      <div>
         <section className="bg-primary text-primary-foreground">
           <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 px-4 py-16 text-center sm:px-6 lg:px-8">
             <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -166,7 +165,7 @@ export default async function HomePage() {
             </Button>
           </div>
         </section>
-      </Reveal>
+      </div>
     </main>
   );
 }
