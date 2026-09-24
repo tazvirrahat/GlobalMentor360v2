@@ -204,6 +204,43 @@
   }
 }
 
+/*
+ * First tab stop in every shell (WCAG 2.4.1). Hidden until focused, then an ink
+ * pill above the sticky bars.
+ */
+@utility skip-link {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+  &:focus {
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 60;
+    width: auto;
+    height: auto;
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 1rem;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    border-radius: var(--radius-md);
+    background: var(--ink);
+    color: #ffffff;
+    font-weight: 600;
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+}
+
 /* Only the certificate gets a hard offset shadow. */
 @utility shadow-certificate {
   box-shadow: 10px 10px 0 var(--verified);

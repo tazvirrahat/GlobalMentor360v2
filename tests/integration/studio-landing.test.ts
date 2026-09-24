@@ -19,7 +19,7 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { updateCourse } = await import("@/app/studio/actions");
+const { updateCourse } = await import("@/app/(app)/studio/actions");
 const { db } = await import("@/lib/db");
 
 const run = randomUUID().slice(0, 8);

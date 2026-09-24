@@ -22,12 +22,6 @@ export async function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur-sm">
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
-      >
-        Skip to content
-      </a>
       <div className="mx-auto flex min-h-14 max-w-6xl flex-wrap items-center gap-x-2 gap-y-2 px-4 py-2 sm:min-h-16 sm:gap-x-4 sm:px-6 lg:px-8">
         <Link
           href="/"

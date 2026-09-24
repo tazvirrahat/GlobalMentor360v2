@@ -41,8 +41,8 @@ vi.mock("stripe", () => ({
   },
 }));
 
-const { submitCartBkash } = await import("@/app/cart/actions");
-const { startStripeCheckout } = await import("@/app/courses/[slug]/checkout/actions");
+const { submitCartBkash } = await import("@/app/(site)/cart/actions");
+const { startStripeCheckout } = await import("@/app/(site)/courses/[slug]/checkout/actions");
 const { addToCart } = await import("@/lib/cart");
 const { createCoupon } = await import("@/lib/coupons");
 const { db } = await import("@/lib/db");

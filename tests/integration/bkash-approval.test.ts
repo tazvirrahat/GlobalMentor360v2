@@ -31,7 +31,7 @@ vi.mock("@/lib/session", () => ({
 // revalidatePath throws outside a request scope; the cache is not under test.
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { approvePayment, rejectPayment } = await import("@/app/admin/payments/actions");
+const { approvePayment, rejectPayment } = await import("@/app/(app)/admin/payments/actions");
 const { db } = await import("@/lib/db");
 const { bkashManualRail } = await import("@/lib/payments/bkash-manual");
 const { stripeRail } = await import("@/lib/payments/stripe");

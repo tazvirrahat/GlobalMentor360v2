@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { IBM_Plex_Mono, Schibsted_Grotesk } from "next/font/google";
-import { SiteHeader } from "@/components/site/header";
-import { SiteFooter } from "@/components/site/footer";
 import { MotionProvider } from "@/components/site/motion-provider";
 import { getSite } from "@/lib/site";
 import "./globals.css";
@@ -47,14 +45,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       lang="en"
       className={`min-w-0 overflow-x-clip ${schibsted.variable} ${plexMono.variable}`}
     >
-      <body className="flex min-h-screen min-w-0 flex-col overflow-x-clip font-sans">
-        <MotionProvider>
-          <SiteHeader />
-          <div id="main" className="min-w-0 flex-1">
-            {children}
-          </div>
-          <SiteFooter />
-        </MotionProvider>
+      <body className="flex min-h-dvh min-w-0 flex-col overflow-x-clip font-sans">
+        {/* Chrome lives in the route groups: (site) top bar + footer, (learn)
+            focus mode, (app) sidebar. See the spec, section 5. */}
+        <MotionProvider>{children}</MotionProvider>
       </body>
     </html>
   );
