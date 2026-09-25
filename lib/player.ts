@@ -34,3 +34,22 @@ export function parseClock(text: string): number | null {
   if (secs > 59 || (h !== undefined && minutes > 59)) return null;
   return Number(h ?? 0) * 3600 + minutes * 60 + secs;
 }
+
+export type QualityOption = { value: number; label: string };
+
+/**
+ * The Quality menu from hls.js's levels: "Auto" (-1, adaptive) then one entry
+ * per height, highest first. Levels sharing a height (bitrate variants) keep
+ * the first; a level without a height is left out rather than labelled "0p".
+ */
+export function qualityOptions(levels: readonly { height: number }[]): QualityOption[] {
+  const seen = new Set<number>();
+  const picked: QualityOption[] = [];
+  levels.forEach((level, index) => {
+    if (!(level.height > 0) || seen.has(level.height)) return;
+    seen.add(level.height);
+    picked.push({ value: index, label: `${level.height}p` });
+  });
+  picked.sort((a, b) => Number.parseInt(b.label, 10) - Number.parseInt(a.label, 10));
+  return [{ value: -1, label: "Auto" }, ...picked];
+}
