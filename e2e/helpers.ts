@@ -21,7 +21,7 @@ export function expectHonestBkashMerchantCopy(body: string) {
       "copy that names 'our bKash number' must show the configured digits",
     ).toMatch(/to our bKash number[\s\S]{0,80}?01\d{9}/i);
   } else {
-    expect(body).toMatch(/shared by the academy/i);
+    expect(body).toMatch(/bKash number isn.t on this page yet/i);
   }
 }
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cache, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { Award, BookOpen, Check, ChevronRight, Clock, FileQuestion, Infinity as InfinityIcon } from "lucide-react";
+import { CodeText } from "@/components/course/code-text";
 import { CourseModule } from "@/components/course/course-module";
 import { CoursePrice } from "@/components/course/price";
 import { PageNav } from "@/components/site/page-nav";
@@ -288,7 +289,9 @@ export default async function CourseLandingPage({ params, searchParams }: Params
               <h2 id="description-heading" className="text-2xl font-semibold">
                 Description
               </h2>
-              <p className="mt-4 max-w-[68ch] text-base whitespace-pre-line text-ink">{course.description}</p>
+              <p className="mt-4 max-w-[68ch] text-base whitespace-pre-line text-ink">
+                <CodeText text={course.description} />
+              </p>
             </section>
           ) : null}
 

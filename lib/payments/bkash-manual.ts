@@ -45,10 +45,10 @@ export function isBkashTransactionConflict(error: unknown): boolean {
 }
 
 /**
- * The academy's bKash number learners send money to, or null when it has not
- * been configured. Checkout copy branches on this: with a number it says where
- * to send, without one it must say the number will be shared by the academy —
- * never reference "our bKash number" as if the page had shown it.
+ * The bKash number learners send money to, or null when it has not been
+ * configured. Checkout copy branches on this: with a number it says where to
+ * send, without one it says the number isn't on the page and to ask support —
+ * never "send to our bKash number" as if the page had shown it.
  *
  * Deliberately not part of isConfigured(): the manual rail predates this env var
  * and works without it (the number can be communicated out of band), so an empty

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CheckCircle2, ChevronRight, Download } from "lucide-react";
 import { Certificate } from "@/components/course/certificate";
+import { CodeText } from "@/components/course/code-text";
 import { LearnShell } from "@/components/learn/learn-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,19 +51,6 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-/** `code` spans are things to type exactly, so they get the monospace. */
-function withCode(text: string) {
-  return text.split(/(`[^`\n]+`)/g).map((part, index) =>
-    part.startsWith("`") && part.endsWith("`") && part.length > 2 ? (
-      <code key={index} className="rounded-sm bg-wash px-1 font-mono text-[0.9em] text-ink">
-        {part.slice(1, -1)}
-      </code>
-    ) : (
-      part
-    ),
-  );
-}
-
 /** Article text as paragraphs: blank lines split them, single newlines stay. */
 function Article({ body }: { body: string }) {
   const paragraphs = body.split(/\n\s*\n/).filter((part) => part.trim());
@@ -70,7 +58,7 @@ function Article({ body }: { body: string }) {
     <article className="flex max-w-[68ch] flex-col gap-4 text-lg leading-[1.7] text-ink">
       {paragraphs.map((paragraph, index) => (
         <p key={index} className="whitespace-pre-line">
-          {withCode(paragraph.trim())}
+          <CodeText text={paragraph.trim()} />
         </p>
       ))}
     </article>

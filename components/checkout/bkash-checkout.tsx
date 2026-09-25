@@ -171,8 +171,8 @@ export function BkashCheckout({
                 </li>
               ) : (
                 <li>
-                  Send <strong>{amountText}</strong> via bKash. Our payment number will be shared by the academy;
-                  contact support if you don&rsquo;t have it yet.
+                  Send <strong>{amountText}</strong> via bKash. Our bKash number isn&rsquo;t on this page yet, so
+                  contact support for it before you send.
                 </li>
               )}
               <li>Keep the confirmation SMS: it has the transaction ID you need next.</li>
