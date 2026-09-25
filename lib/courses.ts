@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { CourseLevel } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { durationBucket, type DurationBucket } from "@/lib/catalog-duration";
 import { formatHoursMinutes } from "@/lib/format";
 import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
 import { BKASH_CURRENCY, STRIPE_CURRENCY } from "@/lib/payments";
@@ -83,6 +84,8 @@ export type CatalogFilters = {
   price?: "free" | "paid";
   /** Minimum star rating, 1-5. Reads the denormalised aggregate. */
   minRating?: number;
+  /** Course length bucket, from the summed lecture durations. */
+  duration?: DurationBucket;
   sort?: CatalogSort;
   page?: string | number;
 };
@@ -158,6 +161,7 @@ function catalogFilterSql(input: {
   language?: string;
   price?: "free" | "paid";
   minRating?: number;
+  duration?: DurationBucket;
 }): Prisma.Sql {
   const parts: Prisma.Sql[] = [Prisma.sql`c.status = 'PUBLISHED'`];
 
@@ -196,6 +200,19 @@ function catalogFilterSql(input: {
         WHERE p."courseId" = c.id AND p."isActive" = true AND p.amount > 0
       )`,
     );
+  }
+  if (input.duration) {
+    // The same total the course row shows: every lecture's duration summed.
+    const { minSeconds, maxSeconds } = durationBucket(input.duration);
+    const total = Prisma.sql`(
+      SELECT COALESCE(SUM(l."durationSeconds"), 0)
+      FROM sections s
+      JOIN curriculum_items ci ON ci."sectionId" = s.id
+      JOIN lectures l ON l."curriculumItemId" = ci.id
+      WHERE s."courseId" = c.id
+    )`;
+    parts.push(Prisma.sql`${total} >= ${minSeconds}`);
+    if (maxSeconds !== null) parts.push(Prisma.sql`${total} < ${maxSeconds}`);
   }
   if (input.search) {
     const pattern = ilikePattern(input.search);
@@ -308,6 +325,7 @@ async function searchPublishedCourseTotal(input: {
   language?: string;
   price?: "free" | "paid";
   minRating?: number;
+  duration?: DurationBucket;
 }): Promise<number> {
   const whereSql = catalogFilterSql(input);
   const countRows = await db.$queryRaw<{ total: number }[]>`
@@ -326,6 +344,7 @@ async function searchPublishedCourseIds(input: {
   language?: string;
   price?: "free" | "paid";
   minRating?: number;
+  duration?: DurationBucket;
   sort: CatalogSort;
   skip: number;
   take: number;
@@ -344,13 +363,16 @@ async function searchPublishedCourseIds(input: {
 }
 
 export async function listPublishedCourses(filters: CatalogFilters = {}): Promise<CatalogPage> {
-  const { query, level, categorySlug, language, price, minRating } = filters;
+  const { query, level, categorySlug, language, price, minRating, duration } = filters;
   const search = query ? sanitizeSearchQuery(query) : "";
   const sort = filters.sort ?? (search ? "relevance" : "newest");
   const prismaWhere = catalogPrismaWhere({ level, categorySlug, language, price, minRating });
-  const searchFilters = { search, level, categorySlug, language, price, minRating };
+  const searchFilters = { search, level, categorySlug, language, price, minRating, duration };
+  // Prisma cannot filter on a summed child column, so a duration filter takes
+  // the raw-SQL path, which already carries every other filter.
+  const useSql = Boolean(search) || Boolean(duration);
 
-  const total = search
+  const total = useSql
     ? await searchPublishedCourseTotal(searchFilters)
     : await db.course.count({ where: prismaWhere });
   const current = clampPage(filters.page ?? 1, total, CATALOG_PAGE_SIZE);
@@ -367,7 +389,7 @@ export async function listPublishedCourses(filters: CatalogFilters = {}): Promis
     sort === "price-low" || sort === "price-high" || sort === "relevance" ? "newest" : sort;
 
   let ordered;
-  if (search) {
+  if (useSql) {
     const ids = await searchPublishedCourseIds({ ...searchFilters, sort, skip, take });
     if (ids.length === 0) return empty;
     const courses = await db.course.findMany({

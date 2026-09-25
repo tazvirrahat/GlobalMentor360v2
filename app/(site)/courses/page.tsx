@@ -12,6 +12,7 @@ import {
   type CatalogSort,
 } from "@/lib/courses";
 import { COURSE_LEVELS } from "@/lib/labels";
+import { DURATION_BUCKETS, durationBucket, parseDurationBucket } from "@/lib/catalog-duration";
 import { showingRange } from "@/lib/pagination";
 import type { CourseLevel } from "@/generated/prisma/enums";
 import { CatalogBrowser, type CatalogValues, type FilterDef } from "./catalog-browser";
@@ -79,6 +80,7 @@ export default async function CoursesPage({
   const language = first(params.language) || undefined;
   const rawPrice = first(params.price);
   const price = rawPrice === "free" || rawPrice === "paid" ? rawPrice : undefined;
+  const duration = parseDurationBucket(first(params.duration));
   const rawRating = Number(first(params.rating));
   const minRating = rawRating >= 1 && rawRating <= 5 ? rawRating : undefined;
   const rawSort = first(params.sort);
@@ -95,6 +97,7 @@ export default async function CoursesPage({
     language,
     price,
     rating: minRating ? String(minRating) : undefined,
+    duration,
     sort,
   };
 
@@ -106,6 +109,7 @@ export default async function CoursesPage({
       language,
       price,
       minRating,
+      duration,
       sort,
       page: first(params.page),
     }),
@@ -140,6 +144,12 @@ export default async function CoursesPage({
       options: COURSE_LEVELS.map((entry) => ({ value: entry.value, label: entry.label })),
     },
     { key: "price", label: "Price", anyLabel: "Any price", options: PRICES },
+    {
+      key: "duration",
+      label: "Length",
+      anyLabel: "Any length",
+      options: DURATION_BUCKETS.map(({ value, label }) => ({ value, label })),
+    },
     { key: "rating", label: "Rating", anyLabel: "Any rating", options: RATINGS },
     {
       key: "language",
@@ -168,6 +178,7 @@ export default async function CoursesPage({
   if (category) chips.push({ key: "category", label: categoryName.get(category) ?? category });
   if (level) chips.push({ key: "level", label: COURSE_LEVELS.find((entry) => entry.value === level)?.label ?? level });
   if (price) chips.push({ key: "price", label: price === "free" ? "Free" : "Paid" });
+  if (duration) chips.push({ key: "duration", label: durationBucket(duration).label });
   if (minRating) chips.push({ key: "rating", label: `${minRating} stars and up` });
   if (language) chips.push({ key: "language", label: LANGUAGE_LABEL.of(language) ?? language });
   const filtered = chips.length > 0;

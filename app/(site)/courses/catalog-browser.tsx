@@ -13,6 +13,7 @@ export type CatalogValues = {
   level?: string;
   price?: string;
   rating?: string;
+  duration?: string;
   language?: string;
   category?: string;
   sort?: string;
