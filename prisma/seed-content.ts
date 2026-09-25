@@ -31,6 +31,7 @@ export type SeedCourse = {
   objectives: string[];
   requirements: string[];
   audience: string[];
+  faqs?: { question: string; answer: string }[];
   sections: { title: string; lessons: SeedLesson[] }[];
 };
 
@@ -84,6 +85,20 @@ export const SEED_COURSES: SeedCourse[] = [
     audience: [
       "JavaScript developers moving a project to TypeScript.",
       "Students who know JavaScript and keep seeing TypeScript in job posts.",
+    ],
+    faqs: [
+      {
+        question: "Do I need to install anything?",
+        answer: "Node.js and a code editor. The second lesson walks through installing TypeScript and running `tsc`.",
+      },
+      {
+        question: "Is this course for complete beginners?",
+        answer: "It assumes you already write JavaScript. If you are new to programming, start with Python Basics.",
+      },
+      {
+        question: "How long do I have access?",
+        answer: "For as long as the course is available. Pay once and come back to any lesson whenever you like.",
+      },
     ],
     sections: [
       {

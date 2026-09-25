@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { COURSE_EDITOR_LABELS, type CourseEditorTab } from "@/lib/course-editor";
 import { COURSE_LEVELS } from "@/lib/labels";
 import { updateCourse, type ActionState } from "../../actions";
+import { FaqEditor } from "./faq-editor";
 import { ListEditor } from "./list-editor";
 
 const initial: ActionState = { status: "idle" };
@@ -27,6 +28,7 @@ export type EditableCourse = {
   objectives: { text: string }[];
   requirements: { text: string }[];
   targetAudience: { text: string }[];
+  faqs: { question: string; answer: string }[];
 };
 
 function Panel({
@@ -228,6 +230,7 @@ export function CourseEditor({
             addLabel="Add an audience"
             defaults={course.targetAudience.map((row) => row.text)}
           />
+          <FaqEditor defaults={course.faqs} />
         </Panel>
 
         <Panel tab="pricing" current={tab} description="What the course costs. Enter 0 to make it free.">

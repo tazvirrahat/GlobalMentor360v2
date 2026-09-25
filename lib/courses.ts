@@ -450,6 +450,7 @@ export async function getPublishedCourseBySlug(slug: string) {
       objectives: { orderBy: { position: "asc" }, select: { text: true } },
       requirements: { orderBy: { position: "asc" }, select: { text: true } },
       targetAudience: { orderBy: { position: "asc" }, select: { text: true } },
+      faqs: { orderBy: { position: "asc" }, select: { id: true, question: true, answer: true } },
       prices: {
         where: { isActive: true },
         orderBy: { currency: "asc" },

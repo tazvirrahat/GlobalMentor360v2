@@ -239,6 +239,7 @@ model Course {
   objectives      CourseObjective[]
   requirements    CourseRequirement[]
   targetAudience  CourseTargetAudience[]
+  faqs            CourseFaq[]
   topics          CourseTopic[]
   skills          CourseSkill[]
   sections        Section[]
@@ -280,6 +281,19 @@ model CourseRequirement {
 
   @@index([courseId])
   @@map("course_requirements")
+}
+
+/// A question and answer on the course page's FAQ, written in the studio.
+model CourseFaq {
+  id       String @id @default(uuid(7))
+  courseId String
+  question String
+  answer   String @db.Text
+  position Int
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, position])
+  @@map("course_faqs")
 }
 
 model CourseTargetAudience {

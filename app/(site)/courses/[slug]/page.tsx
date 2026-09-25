@@ -2,7 +2,7 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { cache, type ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { Award, BookOpen, Check, ChevronRight, Clock, FileQuestion, Infinity as InfinityIcon } from "lucide-react";
+import { Award, BookOpen, Check, ChevronDown, ChevronRight, Clock, FileQuestion, Infinity as InfinityIcon } from "lucide-react";
 import { CodeText } from "@/components/course/code-text";
 import { CourseModule } from "@/components/course/course-module";
 import { CoursePrice } from "@/components/course/price";
@@ -367,6 +367,30 @@ export default async function CourseLandingPage({ params, searchParams }: Params
               pageParam="reviewPage"
             />
           </section>
+
+          {course.faqs.length > 0 ? (
+            <section aria-labelledby="faq-heading" className="flex flex-col gap-4">
+              <h2 id="faq-heading" className="text-2xl font-semibold">
+                Frequently asked questions
+              </h2>
+              <div className="overflow-hidden rounded-lg border border-rule bg-surface">
+                {course.faqs.map((faq) => (
+                  <details key={faq.id} className="group border-rule [&:not(:first-child)]:border-t">
+                    <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 hover:bg-wash focus-ring-inset [&::-webkit-details-marker]:hidden">
+                      <ChevronDown
+                        className="size-4 shrink-0 text-graphite transition-transform duration-150 group-open:rotate-180"
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 text-base font-semibold text-ink">{faq.question}</span>
+                    </summary>
+                    <p className="max-w-[68ch] border-t border-rule px-4 py-3 pl-11 text-base whitespace-pre-line text-ink">
+                      <CodeText text={faq.answer} />
+                    </p>
+                  </details>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       </div>
 
