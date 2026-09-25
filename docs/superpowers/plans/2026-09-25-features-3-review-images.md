@@ -48,25 +48,25 @@ export async function returnReview(adminId: string, courseId: string, note: stri
 export async function listReviewQueue(): Promise<{ id: string; title: string; slug: string; instructorName: string; reviewRequestedAt: Date | null }[]>;
 ```
 
-- [ ] Migration: two nullable columns.
-- [ ] `submitForReview`: owner only; status DRAFT or UNPUBLISHED; readiness passes; sets IN_REVIEW, `reviewRequestedAt`, clears `reviewNote`; audit; notifies admins.
-- [ ] `approveReview`: IN_REVIEW only; readiness passes; PUBLISHED (+ `publishedAt` once); audit; notifies the instructor.
-- [ ] `returnReview`: IN_REVIEW only; note required (≤ 1000); DRAFT + note; audit; notifies the instructor with the note.
-- [ ] Studio: `setPublished(publish=true)` for a non-admin calls `submitForReview`; Publish tab shows "Submit for review" (ready), "In review since …" with "Withdraw" (back to Draft), or a caution alert with the returned note above the checklist.
-- [ ] Admin Courses: a "Waiting for review" table above the full list (Course + instructor, Submitted, Approve and publish, Return…). Return opens a dialog with a required note.
-- [ ] Integration tests; e2e: instructor submits, admin returns with a note, instructor sees it.
-- [ ] Commit `Send instructors' courses through review before they go live`.
+- [x] Migration: two nullable columns.
+- [x] `submitForReview`: owner only; status DRAFT or UNPUBLISHED; readiness passes; sets IN_REVIEW, `reviewRequestedAt`, clears `reviewNote`; audit; notifies admins.
+- [x] `approveReview`: IN_REVIEW only; readiness passes; PUBLISHED (+ `publishedAt` once); audit; notifies the instructor.
+- [x] `returnReview`: IN_REVIEW only; note required (≤ 1000); DRAFT + note; audit; notifies the instructor with the note.
+- [x] Studio: `setPublished(publish=true)` for a non-admin calls `submitForReview`; Publish tab shows "Submit for review" (ready), "In review since …" with "Withdraw" (back to Draft), or a caution alert with the returned note above the checklist.
+- [x] Admin Courses: a "Waiting for review" table above the full list (Course + instructor, Submitted, Approve and publish, Return…). Return opens a dialog with a required note.
+- [x] Integration tests; e2e: instructor submits, admin returns with a note, instructor sees it.
+- [x] Commit `Send instructors' courses through review before they go live`.
 
 ### Task 2: Course images
 
-- [ ] `lib/course-image.ts`: allowed types, 5 MB cap, `courseImageKey(courseId, id, type)`, `isCourseImageKey(key, courseId)`; unit tests.
-- [ ] Actions (owner-scoped): `startCourseImageUpload`, `finishCourseImageUpload` (HEAD; stores key in `thumbnailUrl`; deletes the previous object), `removeCourseImage`.
-- [ ] Details tab: "Course image" field showing the current image or the letter tile, Upload / Remove; with storage unset, the same plain note as resources.
-- [ ] `/api/course-images/[courseId]`: published courses for everyone, drafts for their owner; 404 otherwise; redirect to a presigned GET, `Cache-Control: public, max-age=300` for published.
-- [ ] `CoverMark` takes `imageUrl`; course rows, the course page, My learning and the continue card pass it when `thumbnailUrl` is set.
-- [ ] Commit `Let instructors give a course an image`.
+- [x] `lib/course-image.ts`: allowed types, 5 MB cap, `courseImageKey(courseId, id, type)`, `isCourseImageKey(key, courseId)`; unit tests.
+- [x] Actions (owner-scoped): `startCourseImageUpload`, `finishCourseImageUpload` (HEAD; stores key in `thumbnailUrl`; deletes the previous object), `removeCourseImage`.
+- [x] Details tab: "Course image" field showing the current image or the letter tile, Upload / Remove; with storage unset, the same plain note as resources.
+- [x] `/api/course-images/[courseId]`: published courses for everyone, drafts for their owner; 404 otherwise; redirect to a presigned GET, `Cache-Control: public, max-age=300` for published.
+- [x] `CoverMark` takes `imageUrl`; course rows, the course page, My learning and the continue card pass it when `thumbnailUrl` is set.
+- [x] Commit `Let instructors give a course an image`.
 
 ### Task 3: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
-- [ ] Progress log row; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
+- [x] Progress log row; commit; push.
