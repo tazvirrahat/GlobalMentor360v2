@@ -80,7 +80,7 @@ describe("Auth UI (password must never land in the query string)", () => {
     const note = readApp("components/auth/email-delivery-note.tsx");
     expect(note).toMatch(/SES sandbox/);
     expect(note).toMatch(/server terminal/);
-    expect(note).toMatch(/fully enabled/);
+    expect(note).toMatch(/receive our email yet/);
     expect(readApp("app/(site)/sign-up/sign-up-form.tsx")).toContain("EmailDeliveryNote");
     expect(readApp("app/(site)/forgot-password/forgot-password-form.tsx")).toContain("EmailDeliveryNote");
     expect(readApp("app/(site)/sign-in/sign-in-form.tsx")).toContain("EmailDeliveryNote");

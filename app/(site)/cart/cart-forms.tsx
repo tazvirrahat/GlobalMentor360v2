@@ -18,7 +18,7 @@ export function EnrollFreeCartButton() {
         {pending ? "Enrolling…" : "Enrol free courses"}
       </Button>
       {state.status === "error" ? (
-        <p role="alert" className="text-sm font-medium text-destructive">
+        <p role="alert" className="text-sm font-medium text-seal">
           {state.message}
         </p>
       ) : null}

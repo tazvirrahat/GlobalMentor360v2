@@ -67,7 +67,7 @@ export function SiteHeaderBar({
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="mr-2 inline-flex min-h-11 shrink-0 items-center rounded-sm text-lg font-bold tracking-tight text-ink focus-ring"
+          className="mr-2 inline-flex min-h-11 shrink-0 items-center rounded-sm text-lg font-bold text-ink focus-ring"
         >
           {siteName}
         </Link>

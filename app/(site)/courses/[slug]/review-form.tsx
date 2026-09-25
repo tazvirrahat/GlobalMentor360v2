@@ -49,29 +49,29 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
   const notice = existing ? MODERATION_NOTICE[existing.status] : undefined;
 
   return (
-    <form action={action} className="flex flex-col gap-4 rounded-lg border bg-card p-5 shadow-sm">
+    <form action={action} className="flex flex-col gap-4 rounded-lg border border-rule bg-surface p-5">
       <input type="hidden" name="courseId" value={courseId} />
 
       <div className="flex flex-col gap-1.5">
-        <h3 className="font-heading font-semibold tracking-tight">{existing ? "Edit your review" : "Write a review"}</h3>
-        <p className="text-sm text-muted-foreground">
+        <h3 className="text-lg font-semibold">{existing ? "Edit your review" : "Write a review"}</h3>
+        <p className="text-sm text-graphite">
           Only learners enrolled in this course can review it.
         </p>
       </div>
 
       {notice ? (
-        <p className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
+        <p className="rounded-md border border-caution/30 bg-caution-wash p-3 text-sm text-ink">
           {notice}
         </p>
       ) : null}
 
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-sm font-medium">Your rating</legend>
+        <legend className="text-sm font-medium text-ink">Your rating</legend>
         {/* Real radios rather than buttons: they carry the value without
             JavaScript, and arrow keys move between them for free. */}
         <div className="flex items-center gap-1" onMouseLeave={() => setHovered(0)}>
           {STARS.map((star) => (
-              <label
+            <label
               key={star}
               className="flex size-11 cursor-pointer items-center justify-center"
               onMouseEnter={() => setHovered(star)}
@@ -95,8 +95,8 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
               <Star
                 aria-hidden
                 className={cn(
-                  "size-7 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring",
-                  star <= lit ? "fill-current text-star" : "text-muted-foreground/40",
+                  "size-7 rounded-sm transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink peer-focus-visible:outline-solid",
+                  star <= lit ? "fill-current text-star" : "text-control",
                 )}
               />
               <span className="sr-only">
@@ -132,7 +132,7 @@ export function ReviewForm({ courseId, existing }: ReviewFormProps) {
       ) : null}
 
       {state.status === "saved" ? (
-        <p role="status" className="text-sm font-medium text-primary">
+        <p role="status" className="text-sm font-medium text-ink">
           {notice ? "Saved. Your review is still not shown below." : "Thanks — your review is live."}
         </p>
       ) : null}
