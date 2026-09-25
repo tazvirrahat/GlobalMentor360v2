@@ -247,6 +247,7 @@ test.describe("admin exploratory QA", () => {
     await expect(dialog.getByText(/learner sees this reason on their receipt/i)).toBeVisible();
     await reason.fill("QA reject — coupon should release.");
     await dialog.getByRole("button", { name: "Reject payment" }).click();
+    await expect(dialog).toBeHidden({ timeout: 20_000 });
     await expect(page.getByText(SEED.learner.email)).toHaveCount(0, { timeout: 20_000 });
 
     await context.clearCookies();
@@ -309,6 +310,9 @@ test.describe("admin exploratory QA", () => {
     const refund = page.getByRole("dialog", { name: /refund this order/i });
     await refund.getByLabel("Reason").fill("QA refund — revoke access.");
     await refund.getByRole("button", { name: "Refund and revoke access" }).click();
+    // While the dialog is open Radix hides the page from the accessibility tree,
+    // so the row count reads 0 before the refund lands. Wait for the dialog to go.
+    await expect(refund).toBeHidden({ timeout: 20_000 });
     await expect(order).toHaveCount(0, { timeout: 20_000 });
 
     await page.goto("/dashboard");
