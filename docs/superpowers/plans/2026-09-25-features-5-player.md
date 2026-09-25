@@ -42,30 +42,30 @@
 
 ### Task 1: Quality and auto-advance
 
-- [ ] `qualityOptions(levels: { height: number }[])` → `[{ value: -1, label: "Auto" }, { value: i, label: "720p" }, …]`, highest first, one per height; unit tests.
-- [ ] Control bar: Speed, Quality (only when there are two or more levels), "Play the next lesson automatically" checkbox. Remembered in localStorage (`gm360.quality` as a height, `gm360.autoplayNext`).
-- [ ] Ended + completed: auto-advance on → `role="status"` countdown "Next lesson in 5 s" with Cancel; off → `router.refresh()` so "Next lesson" shows.
-- [ ] Commit `Add quality and auto-advance controls to the video player`.
+- [x] `qualityOptions(levels: { height: number }[])` → `[{ value: -1, label: "Auto" }, { value: i, label: "720p" }, …]`, highest first, one per height; unit tests.
+- [x] Control bar: Speed, Quality (only when there are two or more levels), "Play the next lesson automatically" checkbox. Remembered in localStorage (`gm360.quality` as a height, `gm360.autoplayNext`).
+- [x] Ended + completed: auto-advance on → `role="status"` countdown "Next lesson in 5 s" with Cancel; off → `router.refresh()` so "Next lesson" shows.
+- [x] Commit `Add quality and auto-advance controls to the video player`.
 
 ### Task 2: Transcript
 
-- [ ] `parseVtt`: cue timings `hh:mm:ss.mmm` or `mm:ss.mmm`, optional cue ids, multi-line text joined, tags stripped, `NOTE`/`STYLE`/`REGION` blocks skipped, at most 5,000 cues; unit tests.
-- [ ] `attachUploadedCaption` upserts the transcript for that asset and language; `getTranscriptForAsset(assetId)` prefers `en`.
-- [ ] `activeCueIndex(cues, seconds)`; Transcript tab (video lectures with a transcript): buttons "0:12 text", seek on activate, current cue `bg-mark` + `aria-current="time"`.
-- [ ] Integration test: attaching a caption (storage stubbed) stores the cues; unit tests for the parser and `activeCueIndex`.
-- [ ] Commit `Show an interactive transcript from a lecture's captions`.
+- [x] `parseVtt`: cue timings `hh:mm:ss.mmm` or `mm:ss.mmm`, optional cue ids, multi-line text joined, tags stripped, `NOTE`/`STYLE`/`REGION` blocks skipped, at most 5,000 cues; unit tests.
+- [x] `attachUploadedCaption` upserts the transcript for that asset and language; `getTranscriptForAsset(assetId)` prefers `en`.
+- [x] `activeCueIndex(cues, seconds)`; Transcript tab (video lectures with a transcript): buttons "0:12 text", seek on activate, current cue `bg-mark` + `aria-current="time"`.
+- [x] Integration test: attaching a caption (storage stubbed) stores the cues; unit tests for the parser and `activeCueIndex`.
+- [x] Commit `Show an interactive transcript from a lecture's captions`.
 
 ### Task 3: Audio and PDF lectures
 
-- [ ] `lib/lecture-files.ts`: types, caps, keys; unit tests.
-- [ ] Studio actions (owner-scoped): `startLectureFileUpload`, `finishLectureFileUpload` (HEAD size and type; MediaAsset `file`; lecture → AUDIO/FILE; previous asset released), `removeLectureFile` (back to Article).
-- [ ] Lecture editor "Audio or PDF" panel: current file (type, size or length), Upload / Replace / Remove; storage unset → plain note. Curriculum rows and outlines label Audio and PDF with their own icons.
-- [ ] `/api/lecture-file/[itemId]`: `canAccessItemMedia`, then a 5-minute presigned GET (inline for audio and PDF, `private, no-store`); 404 otherwise.
-- [ ] Player: `<audio controls preload="metadata">` with the title as its name; PDF in an `<iframe title="PDF: …">` (min height 70vh) with Open in a new tab and Download.
-- [ ] Integration tests: owner-scoped writes, key checks, access decisions; Admin › Videos counts only `provider <> 'file'`.
-- [ ] Commit `Let lectures be audio or a PDF`.
+- [x] `lib/lecture-files.ts`: types, caps, keys; unit tests.
+- [x] Studio actions (owner-scoped): `startLectureFileUpload`, `finishLectureFileUpload` (HEAD size and type; MediaAsset `file`; lecture → AUDIO/FILE; previous asset released), `removeLectureFile` (back to Article).
+- [x] Lecture editor "Audio or PDF" panel: current file (type, size or length), Upload / Replace / Remove; storage unset → plain note. Curriculum rows and outlines label Audio and PDF with their own icons.
+- [x] `/api/lecture-file/[itemId]`: `canAccessItemMedia`, then a 5-minute presigned GET (inline for audio and PDF, `private, no-store`); 404 otherwise.
+- [x] Player: `<audio controls preload="metadata">` with the title as its name; PDF in an `<iframe title="PDF: …">` (min height 70vh) with Open in a new tab and Download.
+- [x] Integration tests: owner-scoped writes, key checks, access decisions; Admin › Videos counts only `provider <> 'file'`.
+- [x] Commit `Let lectures be audio or a PDF`.
 
 ### Task 4: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
-- [ ] Progress log row; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
+- [x] Progress log row; commit; push.
