@@ -170,11 +170,24 @@ export async function adminSetCoursePublished(
   return { ok: true };
 }
 
-export async function listAdminReviews(page?: string | number) {
-  const total = await db.review.count();
+/** Every review, newest first. `query` matches the course title, the learner's name or email, or the text. */
+export async function listAdminReviews(query?: string, page?: string | number) {
+  const q = query?.trim();
+  const where = q
+    ? {
+        OR: [
+          { course: { title: { contains: q, mode: "insensitive" as const } } },
+          { user: { name: { contains: q, mode: "insensitive" as const } } },
+          { user: { email: { contains: q, mode: "insensitive" as const } } },
+          { body: { contains: q, mode: "insensitive" as const } },
+        ],
+      }
+    : {};
+  const total = await db.review.count({ where });
   const current = clampPage(page, total, ADMIN_PAGE_SIZE);
   const { skip, take } = skipTake(current, ADMIN_PAGE_SIZE);
   const items = await db.review.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     skip,
     take,

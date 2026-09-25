@@ -73,7 +73,7 @@ export async function paginateUntilVisible(page: Page, target: Locator, maxPages
 
 export async function adminSearch(page: Page, query: string) {
   const search = page.getByRole("search");
-  await search.getByRole("textbox").fill(query);
+  await search.getByRole("searchbox").fill(query);
   await search.getByRole("button", { name: "Search" }).click();
   await page.waitForURL(/[?&]q=/, { timeout: 20_000 });
 }
@@ -82,7 +82,7 @@ export async function adminSearch(page: Page, query: string) {
 export async function ensureSeedLearnerIsNotInstructor(page: Page) {
   await signIn(page, SEED.admin, "/admin/users");
   await adminSearch(page, SEED.learner.email);
-  const row = page.locator("li").filter({ hasText: `· ${SEED.learner.email}` });
+  const row = page.getByRole("row").filter({ has: page.getByText(SEED.learner.email, { exact: true }) });
   await expect(row).toBeVisible();
   const remove = row.getByRole("button", { name: /remove instructor/i });
   if (await remove.isVisible()) {

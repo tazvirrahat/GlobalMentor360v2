@@ -1,11 +1,23 @@
+import type { Route } from "next";
 import Link from "next/link";
-import { TriangleAlert } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ExternalLink, TriangleAlert } from "lucide-react";
+import { ListFooter } from "@/components/app/list-footer";
+import { PageHeader } from "@/components/app/page-header";
+import { SearchBox } from "@/components/app/search-box";
+import { StatusBadge } from "@/components/course/status-badge";
+import { ConfirmSubmit } from "@/components/site/confirm-submit";
 import { EmptyState } from "@/components/site/empty-state";
 import { FlashAlert } from "@/components/site/flash-alert";
-import { PageNav } from "@/components/site/page-nav";
-import { StatusBadge } from "@/components/course/status-badge";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ADMIN_PAGE_SIZE, listAdminCourses } from "@/lib/admin";
 import { showingRange } from "@/lib/pagination";
 import { courseSellabilityWarning } from "@/lib/payments";
@@ -21,115 +33,123 @@ export default async function AdminCoursesPage({
 }) {
   await requireRole("ADMIN");
   const { q, error, page: rawPage } = await searchParams;
-  const { items: courses, total, page, pageCount } = await listAdminCourses(q?.trim(), rawPage);
+  const query = q?.trim() || undefined;
+  const { items: courses, total, page, pageCount } = await listAdminCourses(query, rawPage);
   const range = showingRange(page, ADMIN_PAGE_SIZE, total);
 
-  const pager = (
-    <>
-      {courses.length > 0 ? (
-        <p className="text-sm tabular-nums text-muted-foreground">
-          Showing {range.from}–{range.to} of {total}
-        </p>
-      ) : null}
-      <PageNav pathname="/admin/courses" params={{ q }} page={page} pageCount={pageCount} />
-    </>
-  );
-
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="font-heading text-3xl font-semibold tracking-tight">Courses</h1>
+    <main className="flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <PageHeader title="Courses" description="Every course on the site, from every instructor. Publish or take one down." />
       {error ? <FlashAlert title="Could not update course">{error}</FlashAlert> : null}
-      <form
-        className="mt-4 flex min-w-0 max-w-md flex-col gap-2 sm:flex-row"
-        action="/admin/courses"
-        role="search"
-      >
-        <Input
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder="Search title or slug"
-          aria-label="Search courses"
-        />
-        <Button type="submit" variant="outline">
-          Search
-        </Button>
-      </form>
+
+      <SearchBox
+        action={"/admin/courses" as Route}
+        label="Search courses"
+        placeholder="Search title or slug"
+        value={query}
+      />
 
       {courses.length === 0 ? (
-        q?.trim() ? (
-          <EmptyState
-            className="mt-8"
-            title="No courses match"
-            message={`No courses match “${q.trim()}”. Try a different search.`}
-          >
-            <Button asChild>
-              <Link href="/admin/courses" className="cursor-pointer">
-                Clear search
-              </Link>
-            </Button>
-          </EmptyState>
+        query ? (
+          <EmptyState title="No courses match" message={`No course matches “${query}”. Try another search.`} />
         ) : (
-          <EmptyState
-            className="mt-8"
-            title="No courses yet"
-            message="Courses appear here when instructors create them."
-          />
+          <EmptyState title="No courses yet" message="Courses appear here when instructors create them." />
         )
       ) : (
-        <div className="mt-4 min-w-0 space-y-2">
-          {pager}
-          <div className="w-0 min-w-full overflow-x-auto rounded-lg border bg-card shadow-sm">
-            <ul>
+        <>
+          <Table className="md:min-w-[50rem]">
+            <TableCaption>Courses</TableCaption>
+            <colgroup>
+              <col />
+              <col className="hidden w-28 md:table-column" />
+              <col className="hidden w-32 md:table-column" />
+              <col className="hidden w-40 md:table-column" />
+              <col className="w-36 md:w-48" />
+            </colgroup>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Course</TableHead>
+                <TableHead className="hidden text-right md:table-cell">Learners</TableHead>
+                <TableHead className="hidden md:table-cell">Status</TableHead>
+                <TableHead className="hidden md:table-cell">
+                  <span className="sr-only">Course page</span>
+                </TableHead>
+                <TableHead>
+                  <span className="sr-only">Publish</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {courses.map((course) => {
                 const published = course.status === "PUBLISHED";
                 const warning = published ? courseSellabilityWarning(course.prices) : null;
                 return (
-                  <li
-                    key={course.id}
-                    className="flex min-w-[36rem] flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className="truncate"
-                        title={`${course.title} · ${course.instructor.name}`}
-                      >
-                        <span className="font-medium">{course.title}</span>
-                        <span className="text-muted-foreground">
-                          {" "}
-                          · {course.instructor.name} ·{" "}
-                          <span className="tabular-nums">{course.enrollmentCount}</span> enrolled
+                  <TableRow key={course.id}>
+                    <TableCell>
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="font-medium text-ink">{course.title}</span>
+                        <span className="text-sm text-graphite">{course.instructor.name}</span>
+                        <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 md:hidden">
+                          <StatusBadge kind="course" status={course.status} />
+                          <span className="text-sm text-graphite">
+                            {course.enrollmentCount} {course.enrollmentCount === 1 ? "learner" : "learners"}
+                          </span>
                         </span>
-                      </p>
-                      {warning ? (
-                        <p className="mt-0.5 flex items-start gap-1 text-xs font-medium text-destructive">
-                          <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                          {warning}
-                        </p>
+                        {warning ? (
+                          <span className="flex items-start gap-1 text-sm font-medium text-seal">
+                            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                            {warning}
+                          </span>
+                        ) : null}
+                      </span>
+                    </TableCell>
+                    <TableCell className="hidden text-right tabular-nums md:table-cell">{course.enrollmentCount}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <StatusBadge kind="course" status={course.status} />
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {published ? (
+                        <Link
+                          href={`/courses/${course.slug}` as Route}
+                          className="inline-flex min-h-8 items-center gap-1 rounded-sm text-sm font-medium text-ink underline decoration-control underline-offset-4 hover:decoration-ink focus-ring"
+                        >
+                          Course page <ExternalLink className="size-3.5" aria-hidden />
+                          <span className="sr-only">for {course.title}</span>
+                        </Link>
                       ) : null}
-                    </div>
-                    <StatusBadge kind="course" status={course.status} />
-                    {published ? (
-                      <Link
-                        href={`/courses/${course.slug}`}
-                        className="cursor-pointer text-sm text-primary hover:underline"
-                      >
-                        View
-                      </Link>
-                    ) : null}
-                    <form action={publishCourseAction}>
-                      <input type="hidden" name="courseId" value={course.id} />
-                      <input type="hidden" name="publish" value={published ? "false" : "true"} />
-                      <Button type="submit" size="sm" variant="outline">
-                        {published ? "Unpublish" : "Publish"}
-                      </Button>
-                    </form>
-                  </li>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <form action={publishCourseAction} className="flex justify-end">
+                        <input type="hidden" name="courseId" value={course.id} />
+                        <input type="hidden" name="publish" value={published ? "false" : "true"} />
+                        {published ? (
+                          <ConfirmSubmit
+                            label="Unpublish"
+                            question="Take it off the catalog?"
+                            confirmLabel="Yes, unpublish"
+                            variant="secondary"
+                          />
+                        ) : (
+                          <Button type="submit" size="sm" variant="secondary">
+                            Publish
+                          </Button>
+                        )}
+                      </form>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </ul>
-          </div>
-          {pager}
-        </div>
+            </TableBody>
+          </Table>
+          <ListFooter
+            range={range}
+            total={total}
+            pathname="/admin/courses"
+            params={{ q: query }}
+            page={page}
+            pageCount={pageCount}
+          />
+        </>
       )}
     </main>
   );

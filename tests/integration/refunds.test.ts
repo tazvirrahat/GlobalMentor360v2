@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { grantEnrollment } from "@/lib/enrollment";
 import { isEnrolled } from "@/lib/entitlement";
-import { processAdminRefund } from "@/lib/refunds";
+import { listRefundableOrders, processAdminRefund } from "@/lib/refunds";
 
 /**
  * An admin refund records the Refund row and revokes access. It does not move
@@ -160,5 +160,17 @@ describe("processAdminRefund", () => {
     const result = await processAdminRefund(adminId, order.id, "Too soon");
     expect(result).toEqual({ ok: false, message: "Only a paid order can be refunded." });
     expect(await isEnrolled(learnerId, courseId)).toBe(false);
+  });
+});
+
+describe("listRefundableOrders search", () => {
+  it("finds a paid order by learner email, learner name or course title", async () => {
+    const orderId = await paidOrder();
+    for (const query of [`refund-learner-${run}`, `REFUND LEARNER ${run}`, `refund course ${run}`]) {
+      const { items } = await listRefundableOrders(query);
+      expect(items.map((order) => order.id)).toContain(orderId);
+    }
+    const { items } = await listRefundableOrders(`no-such-learner-${run}`);
+    expect(items).toHaveLength(0);
   });
 });

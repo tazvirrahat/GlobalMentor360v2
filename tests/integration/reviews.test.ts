@@ -20,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const { db } = await import("@/lib/db");
 const { saveReview, recomputeCourseRating, getCourseReviewPanel } = await import("@/lib/reviews");
 const { grantEnrollment, revokeEnrollment } = await import("@/lib/enrollment");
+const { listAdminReviews } = await import("@/lib/admin");
 
 const run = randomUUID().slice(0, 8);
 const courseIds: string[] = [];
@@ -271,5 +272,20 @@ describe("getCourseReviewPanel", () => {
     expect(second.page).toBe(2);
     expect(second.reviews[0]?.body).toBe("Pager body 20");
     expect(first.reviews.map((row) => row.id)).not.toContain(second.reviews[0]?.id);
+  });
+});
+
+describe("listAdminReviews search", () => {
+  it("finds a review by course title, learner email or its text", async () => {
+    const courseId = await newCourse("search");
+    await grantEnrollment(learnerBId, courseId, "GRANT");
+    const saved = await saveReview({ userId: learnerBId, courseId, rating: 5, body: `Needle ${run} in the text` });
+    expect(saved.ok).toBe(true);
+
+    for (const query of [`review search ${run}`, `review-learner-b-${run}`, `needle ${run}`]) {
+      const { items } = await listAdminReviews(query);
+      expect(items.map((review) => review.courseId)).toContain(courseId);
+    }
+    expect((await listAdminReviews(`nothing-like-this-${run}`)).items).toHaveLength(0);
   });
 });
