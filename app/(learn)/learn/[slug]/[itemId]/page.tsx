@@ -1,7 +1,7 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { CheckCircle2, ChevronRight, Download } from "lucide-react";
+import { CheckCircle2, ChevronRight, Download, ExternalLink } from "lucide-react";
 import { Certificate } from "@/components/course/certificate";
 import { CodeText } from "@/components/course/code-text";
 import { LearnShell } from "@/components/learn/learn-shell";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { getLearnerAnnouncements } from "@/lib/announcements";
 import { getCertificateBySerial } from "@/lib/certificates";
 import { db } from "@/lib/db";
+import { formatFileSize } from "@/lib/lecture-resources";
 import { isBookmarked, listNotes } from "@/lib/notes";
 import { pickTab, type PlayerTab } from "@/lib/player";
 import {
@@ -99,7 +100,7 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
 
   const enrolled = Boolean(user && course.enrolled);
   const qaPage = first(query.qaPage);
-  const [announcements, notesPage, bookmarked, qaPanel, certificate] = await Promise.all([
+  const [announcements, notesPage, bookmarked, qaPanel, certificate, resources] = await Promise.all([
     // getLearnerAnnouncements and getCourseQaPanel re-check the enrollment
     // themselves; these conditions are cost guards, not the access guard.
     enrolled ? getLearnerAnnouncements(user!.id, course.id) : Promise.resolve([]),
@@ -111,6 +112,15 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
     course.percent >= 100 && course.certificateSerial
       ? getCertificateBySerial(course.certificateSerial)
       : Promise.resolve(null),
+    // This page only renders for someone allowed to open the lecture, and the
+    // download route checks again before it hands out a file.
+    current.lecture
+      ? db.lectureResource.findMany({
+          where: { lectureId: current.lecture.id },
+          orderBy: { id: "asc" },
+          select: { id: true, filename: true, sizeBytes: true, externalUrl: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const nextId = continueTargetId(flat.map(sequentialItemFromPlayer), itemId);
@@ -163,6 +173,46 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
             {section ? `Section ${sectionIndex + 1}: ${section.title}. ` : ""}
             Lesson {flat.indexOf(current) + 1} of {flat.length} in {course.title}.
           </p>
+          {resources.length > 0 ? (
+            <section aria-labelledby="resources-heading" className="mt-3 flex flex-col gap-2">
+              <h3 id="resources-heading" className="text-base font-semibold text-ink">
+                Resources
+              </h3>
+              <ul className="flex flex-col divide-y divide-rule border-y border-rule">
+                {resources.map((resource) => (
+                  <li key={resource.id}>
+                    {resource.externalUrl ? (
+                      <a
+                        href={resource.externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-h-12 items-center gap-3 py-2 text-ink hover:underline focus-ring-inset"
+                      >
+                        <ExternalLink className="size-4 shrink-0 text-graphite" aria-hidden />
+                        <span className="min-w-0 flex-1">{resource.filename}</span>
+                        <span className="shrink-0 text-sm text-graphite">
+                          {new URL(resource.externalUrl).host}
+                          <span className="sr-only"> (opens in a new tab)</span>
+                        </span>
+                      </a>
+                    ) : (
+                      <a
+                        href={`/api/resources/${resource.id}`}
+                        className="flex min-h-12 items-center gap-3 py-2 text-ink hover:underline focus-ring-inset"
+                      >
+                        <Download className="size-4 shrink-0 text-graphite" aria-hidden />
+                        <span className="min-w-0 flex-1">{resource.filename}</span>
+                        <span className="shrink-0 text-sm text-graphite">
+                          <span className="sr-only">Download, </span>
+                          {formatFileSize(resource.sizeBytes)}
+                        </span>
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </div>
       ),
     },

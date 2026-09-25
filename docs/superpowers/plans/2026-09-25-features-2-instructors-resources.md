@@ -36,8 +36,8 @@
 | `lib/storage.ts` | create | S3 presign PUT/GET + HEAD for resources, `isStorageConfigured()` |
 | `app/(app)/studio/resource-actions.ts` | create | add link, start upload, finish upload, delete |
 | `app/(app)/studio/courses/[courseId]/curriculum/[itemId]/resources-panel.tsx` | create | studio list + forms |
-| `app/(learn)/learn/[slug]/resources/[resourceId]/route.ts` | create | access-checked download redirect |
-| `lib/progress.ts` | modify | player item carries its resources |
+| `app/api/resources/[resourceId]/route.ts` + `lib/resource-access.ts` | create | access-checked download redirect (beside `/api/captions`, same `canAccessItemMedia` gate) |
+| `app/(learn)/learn/[slug]/[itemId]/page.tsx` | modify | loads the lecture's resources (the page already enforces access) |
 | `app/(learn)/learn/[slug]/[itemId]/page.tsx` | modify | Resources in the Overview tab |
 | `tests/integration/lecture-resources.test.ts` | create | ownership on writes, access on downloads |
 

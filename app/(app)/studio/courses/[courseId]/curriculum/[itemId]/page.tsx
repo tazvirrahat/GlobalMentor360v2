@@ -1,12 +1,15 @@
 import type { Route } from "next";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app/page-header";
+import { db } from "@/lib/db";
 import { requireRole } from "@/lib/session";
+import { isStorageConfigured } from "@/lib/storage";
 import { getOwnedItemForEditing } from "@/lib/studio";
 import { tryDrainMediaConvertEventQueue } from "@/lib/video";
 import { LectureEditor } from "./lecture-editor";
 import { CaptionUpload } from "./caption-upload";
 import { QuizBuilder } from "./quiz-builder";
+import { ResourcesPanel } from "./resources-panel";
 
 export const metadata = { title: "Edit item | Studio" };
 export const dynamic = "force-dynamic";
@@ -22,6 +25,14 @@ export default async function ItemEditorPage({ params }: Params) {
   const item = await getOwnedItemForEditing(courseId, itemId, user.id);
   if (!item) notFound();
 
+  const resources = item.lecture
+    ? await db.lectureResource.findMany({
+        where: { lectureId: item.lecture.id },
+        orderBy: { id: "asc" },
+        select: { id: true, filename: true, sizeBytes: true, externalUrl: true },
+      })
+    : [];
+
   return (
     <main className="flex w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       <PageHeader
@@ -33,6 +44,7 @@ export default async function ItemEditorPage({ params }: Params) {
       {item.type === "LECTURE" && item.lecture ? (
         <div className="flex flex-col gap-6">
           <LectureEditor itemId={item.id} title={item.title} lecture={item.lecture} />
+          <ResourcesPanel itemId={item.id} resources={resources} storageReady={isStorageConfigured()} />
           {item.lecture.asset ? (
             <CaptionUpload itemId={item.id} captions={item.lecture.asset.captions} />
           ) : null}
