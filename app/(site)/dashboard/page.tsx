@@ -52,9 +52,8 @@ function CourseEntry({ entry, archived }: { entry: MyLearningEntry; archived: bo
         <form action={archiveCourseAction}>
           <input type="hidden" name="courseId" value={entry.courseId} />
           <input type="hidden" name="archived" value={archived ? "false" : "true"} />
-          <Button type="submit" variant="ghost">
+          <Button type="submit" variant="ghost" aria-label={`${archived ? "Unarchive" : "Archive"} ${entry.title}`}>
             {archived ? "Unarchive" : "Archive"}
-            <span className="sr-only"> {entry.title}</span>
           </Button>
         </form>
       </div>

@@ -48,12 +48,12 @@
 export async function setCourseArchived(userId: string, courseId: string, archived: boolean): Promise<boolean>; // false when no live enrollment
 ```
 
-- [ ] `setCourseArchived`: `updateMany({ where: { userId, courseId, revokedAt: null }, data: { archivedAt: archived ? new Date() : null } })`, returns `count > 0`.
-- [ ] `getContinueLearning` ignores archived enrollments.
-- [ ] Action reads `courseId` + `archived`, calls it for the current user, revalidates `/dashboard`.
-- [ ] Row button: ghost sm "Archive" (in progress / completed) or "Unarchive" (archived), accessible name includes the course title.
-- [ ] Integration test: archive → the course is in `archived` only; unarchive → back; another user's call changes nothing.
-- [ ] Commit `Let learners archive and unarchive courses in My learning`.
+- [x] `setCourseArchived`: `updateMany({ where: { userId, courseId, revokedAt: null }, data: { archivedAt: archived ? new Date() : null } })`, returns `count > 0`.
+- [x] `getContinueLearning` ignores archived enrollments.
+- [x] Action reads `courseId` + `archived`, calls it for the current user, revalidates `/dashboard`.
+- [x] Row button: ghost sm "Archive" (in progress / completed) or "Unarchive" (archived), accessible name includes the course title.
+- [x] Integration test: archive → the course is in `archived` only; unarchive → back; another user's call changes nothing.
+- [x] Commit `Let learners archive and unarchive courses in My learning`.
 
 ### Task 2: Course FAQ
 
@@ -66,13 +66,13 @@ export type FaqRow = { question: string; answer: string };
 export function readFaqRows(questions: string[], answers: string[]): { ok: true; rows: FaqRow[] } | { ok: false; message: string };
 ```
 
-- [ ] Schema `CourseFaq { id, courseId, question (≤300), answer Text (≤2000), position }`, `@@index([courseId, position])`, cascade on course delete; migration as above.
-- [ ] `readFaqRows`: trims, drops rows where both are blank, refuses a row with only one side ("Each question needs an answer, and each answer a question."), caps at `FAQ_MAX`. Unit tests.
-- [ ] `updateCourse` validates FAQ rows before any write and replaces them inside the existing transaction.
-- [ ] Studio Landing page tab: `FaqEditor` after the three lists.
-- [ ] Course page: "Frequently asked questions" after "Who this course is for", each a `<details>` with the question as summary (≥ 44px), answer as text with `CodeText`.
-- [ ] Integration tests in `studio-landing.test.ts`.
-- [ ] Commit `Add a course FAQ that instructors write and learners read`.
+- [x] Schema `CourseFaq { id, courseId, question (≤300), answer Text (≤2000), position }`, `@@index([courseId, position])`, cascade on course delete; migration as above.
+- [x] `readFaqRows`: trims, drops rows where both are blank, refuses a row with only one side ("Each question needs an answer, and each answer a question."), caps at `FAQ_MAX`. Unit tests.
+- [x] `updateCourse` validates FAQ rows before any write and replaces them inside the existing transaction.
+- [x] Studio Landing page tab: `FaqEditor` after the three lists.
+- [x] Course page: "Frequently asked questions" after "Who this course is for", each a `<details>` with the question as summary (≥ 44px), answer as text with `CodeText`.
+- [x] Integration tests in `studio-landing.test.ts`.
+- [x] Commit `Add a course FAQ that instructors write and learners read`.
 
 ### Task 3: Duration filter
 
@@ -85,13 +85,13 @@ export type DurationBucket = (typeof DURATION_BUCKETS)[number]["value"];
 export function parseDurationBucket(raw: string | undefined): DurationBucket | undefined;
 ```
 
-- [ ] Buckets: Under 1 hour, 1 to 3 hours, 3 to 6 hours, Over 6 hours (min inclusive, max exclusive).
-- [ ] `catalogFilterSql` adds the summed-lecture-seconds condition; `listPublishedCourses` takes the SQL path when `search || duration`.
-- [ ] Catalog: Duration select between Price and Rating; chip "Under 1 hour" etc.
-- [ ] Integration test: a 30-minute and a 2-hour course land in the right buckets.
-- [ ] Commit `Filter the catalog by course length`.
+- [x] Buckets: Under 1 hour, 1 to 3 hours, 3 to 6 hours, Over 6 hours (min inclusive, max exclusive).
+- [x] `catalogFilterSql` adds the summed-lecture-seconds condition; `listPublishedCourses` takes the SQL path when `search || duration`.
+- [x] Catalog: Duration select between Price and Rating; chip "Under 1 hour" etc.
+- [x] Integration test: a 30-minute and a 2-hour course land in the right buckets.
+- [x] Commit `Filter the catalog by course length`.
 
 ### Task 4: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
-- [ ] Progress log row; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
+- [x] Progress log row; commit; push.
