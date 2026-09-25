@@ -69,16 +69,21 @@ test.describe("studio exploratory QA", () => {
 
     await expect(page.getByRole("heading", { name: title })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Draft", { exact: true })).toBeVisible();
-    await expect(page.getByText("Settings", { exact: true })).toBeVisible();
+    const editorNav = page.getByRole("navigation", { name: "Course editor" });
+    await expect(editorNav.getByRole("link", { name: "Details" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByLabel("Subtitle")).toBeVisible();
     await expect(page.getByLabel("Description")).toBeVisible();
+    await editorNav.getByRole("link", { name: "Landing page" }).click();
+    await expect(page).toHaveURL(/tab=landing/);
     await expect(page.getByText("What you'll learn")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Objective 1" })).toBeVisible();
+    await editorNav.getByRole("link", { name: "Details" }).click();
 
     await page.getByLabel("Subtitle").fill("QA landing editor subtitle");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByRole("status")).toHaveText(/saved/i, { timeout: 15_000 });
 
-    await page.getByRole("link", { name: /edit curriculum/i }).click();
+    await editorNav.getByRole("link", { name: "Curriculum" }).click();
     await expect(page.getByRole("heading", { name: "Curriculum" })).toBeVisible();
     await page.getByLabel("New section title").fill("QA section");
     await page.getByRole("button", { name: "Add section" }).click();
@@ -113,7 +118,7 @@ test.describe("studio exploratory QA", () => {
     await page.goto("/studio");
     await paginateUntilVisible(page, page.getByRole("link", { name: /typescript foundations/i }));
     await page.getByRole("link", { name: /typescript foundations/i }).click();
-    await page.getByRole("link", { name: /edit curriculum/i }).click();
+    await page.getByRole("navigation", { name: "Course editor" }).getByRole("link", { name: "Curriculum" }).click();
     await expect(page.getByRole("button", { name: /add video|replace video/i }).first()).toBeVisible();
     const checkStatus = page.getByRole("button", { name: "Check status" });
     test.info().annotations.push({

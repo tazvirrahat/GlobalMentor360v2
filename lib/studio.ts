@@ -308,12 +308,12 @@ export async function readinessChecks(courseId: string): Promise<ReadinessCheck[
     {
       label: "Has at least one section",
       ok: course.sections.length > 0,
-      hint: "Add a section in the curriculum builder.",
+      hint: "Add a section on the Curriculum tab.",
     },
     {
       label: "Has at least one lecture",
       ok: itemCount > 0,
-      hint: "Add a lecture to a section.",
+      hint: "Add a lecture to a section on the Curriculum tab.",
     },
     {
       label: "Every quiz has questions",
