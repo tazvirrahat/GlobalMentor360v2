@@ -7,6 +7,7 @@ import {
   Banknote,
   BookOpen,
   ExternalLink,
+  Film,
   Library,
   Megaphone,
   MessagesSquare,
@@ -39,6 +40,7 @@ const ADMIN: Item[] = [
   { href: "/admin/courses", label: "Courses", icon: Library },
   { href: "/admin/reviews", label: "Reviews", icon: Star },
   { href: "/admin/taxonomy", label: "Taxonomy", icon: Tags },
+  { href: "/admin/videos", label: "Videos", icon: Film },
 ];
 
 function active(href: string, pathname: string) {

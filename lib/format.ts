@@ -75,3 +75,13 @@ export function formatDateLong(date: Date): string {
 export function formatLessonMinutes(totalSeconds: number): string {
   return `${Math.max(1, Math.round(totalSeconds / 60))} min`;
 }
+
+/** How long something has been in a state: "12 minutes", "3 hours", "2 days". Floors; under a minute is "1 minute". */
+export function formatDuration(from: Date, now: Date = new Date()): string {
+  const minutes = Math.max(1, Math.floor((now.getTime() - from.getTime()) / 60_000));
+  const unit = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
+  if (minutes < 60) return unit(minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return unit(hours, "hour");
+  return unit(Math.floor(hours / 24), "day");
+}

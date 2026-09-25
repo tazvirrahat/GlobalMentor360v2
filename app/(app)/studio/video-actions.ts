@@ -6,7 +6,8 @@ import { attachUploadedCaption } from "@/lib/captions";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/session";
 import { getOwnedLectureItem } from "@/lib/studio";
-import { drainMediaConvertEventQueue, releaseOrphanedLectureAsset, video, VideoProviderError } from "@/lib/video";
+import { reconcileVideoAsset } from "@/lib/video-jobs";
+import { releaseOrphanedLectureAsset, video, VideoProviderError } from "@/lib/video";
 import { mediaAssetMatchesUpload } from "@/lib/video/upload-bind";
 
 /**
@@ -178,67 +179,15 @@ export async function refreshVideoStatus(
     return { status: "error", message: "No video on this lecture yet." };
   }
 
-  try {
-    await drainMediaConvertEventQueue();
-  } catch (error) {
-    // S3 still tells us READY; FAILED only arrives via SQS/webhook, so surface
-    // a queue error only when we cannot even reach the provider next.
-    if (!(error instanceof VideoProviderError)) throw error;
-  }
-
-  const assetAfterEvents = await db.mediaAsset.findUnique({
-    where: { id: asset.id },
-    select: { status: true },
+  const result = await reconcileVideoAsset({
+    id: asset.id,
+    providerAssetId: asset.providerAssetId,
+    status: asset.status,
+    lectureId: item.lecture?.id ?? null,
   });
-  const currentStatus = assetAfterEvents?.status ?? asset.status;
-
-  let remote;
-  try {
-    remote = await video.getAsset(asset.providerAssetId);
-  } catch (error) {
-    return { status: "error", message: providerMessage(error, "Could not reach the video provider.") };
-  }
-
-  // S3 reconciliation can't observe FAILED, and HeadObject can lag a COMPLETE
-  // event already applied from SQS — never regress a terminal row.
-  if (currentStatus === "FAILED" && remote.status !== "READY") {
-    revalidatePath(`/studio/courses/${item.section.courseId}/curriculum`);
-    return { status: "done", message: "Video failed — re-upload to try again." };
-  }
-  if (currentStatus === "READY" && remote.status !== "READY") {
-    revalidatePath(`/studio/courses/${item.section.courseId}/curriculum`);
-    return { status: "done", message: "Video is ready." };
-  }
-
-  await db.mediaAsset.update({
-    where: { id: asset.id },
-    data: {
-      status: remote.status,
-      ...(remote.durationSeconds !== null ? { durationSeconds: remote.durationSeconds } : {}),
-      ...(remote.thumbnailUrl !== null ? { thumbnailUrl: remote.thumbnailUrl } : {}),
-      failureReason: remote.failureReason,
-    },
-  });
-
-  if (remote.status === "READY" && remote.durationSeconds !== null && item.lecture) {
-    await db.lecture.update({
-      where: { id: item.lecture.id },
-      data: { durationSeconds: remote.durationSeconds },
-    });
-  }
-
+  if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/studio/courses/${item.section.courseId}/curriculum`);
-
-  const message =
-    remote.status === "READY"
-      ? "Video is ready."
-      : remote.status === "PROCESSING"
-        ? "Still transcoding — check again in a minute."
-        : remote.status === "FAILED"
-          ? "Transcoding failed."
-          : "Waiting for the upload to finish.";
-
-  return { status: "done", message };
+  return { status: "done", message: result.message };
 }
 
 export async function attachCaptionAction(

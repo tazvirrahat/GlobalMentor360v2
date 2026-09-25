@@ -94,6 +94,14 @@ test.describe("admin exploratory QA", () => {
     await expect(page).toHaveURL(/\/admin\/refunds/);
     await expect(page.getByRole("heading", { level: 1, name: "Refunds" })).toBeVisible();
 
+    await adminNav.getByRole("link", { name: "Taxonomy" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Taxonomy" })).toBeVisible();
+
+    await adminNav.getByRole("link", { name: "Videos" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Videos" })).toBeVisible();
+    await expect(page.getByRole("term").filter({ hasText: "Failed" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();
+
     await adminNav.locator('a[href="/admin/payments"]').click();
     await expect(page).toHaveURL(/\/admin\/payments/);
     await expect(page.getByRole("heading", { name: "Payment verification" })).toBeVisible();
@@ -358,7 +366,7 @@ test.describe("admin exploratory QA", () => {
 
     for (const width of [375, 1280]) {
       await page.setViewportSize({ width, height: 800 });
-      for (const path of ["/admin/payments", "/admin/users", "/admin/courses", "/admin/refunds", "/admin/reviews", "/admin/taxonomy"]) {
+      for (const path of ["/admin/payments", "/admin/users", "/admin/courses", "/admin/refunds", "/admin/reviews", "/admin/taxonomy", "/admin/videos"]) {
         await page.goto(path);
         await page.locator("h1").first().waitFor({ state: "visible", timeout: 20_000 });
         const metrics = await page.evaluate(() => ({
