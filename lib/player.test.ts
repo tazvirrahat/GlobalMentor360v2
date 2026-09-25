@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClock, parseClock, pickTab } from "./player";
+import { formatClock, parseClock, pickTab, qualityOptions } from "./player";
 
 describe("pickTab", () => {
   it("keeps a known, available tab and falls back to the first", () => {
@@ -33,5 +33,20 @@ describe("parseClock", () => {
     expect(parseClock("1:75")).toBeNull();
     expect(parseClock("-3")).toBeNull();
     expect(parseClock("1::2")).toBeNull();
+  });
+});
+
+describe("qualityOptions", () => {
+  it("offers Auto, then one entry per height, highest first", () => {
+    const levels = [{ height: 480 }, { height: 720 }, { height: 720 }, { height: 0 }];
+    expect(qualityOptions(levels)).toEqual([
+      { value: -1, label: "Auto" },
+      { value: 1, label: "720p" },
+      { value: 0, label: "480p" },
+    ]);
+  });
+
+  it("is just Auto with no usable levels", () => {
+    expect(qualityOptions([])).toEqual([{ value: -1, label: "Auto" }]);
   });
 });
