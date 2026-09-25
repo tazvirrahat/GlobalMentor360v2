@@ -4,7 +4,8 @@ import { useActionState, useCallback, useEffect, useId, useState } from "react";
 import { ArrowDown, ArrowUp, CircleCheck, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel } from "@/components/app/panel";
+import { ConfirmSubmit } from "@/components/site/confirm-submit";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -100,7 +101,7 @@ function StatusLine({ state }: { state: AssessmentState }) {
   if (state.status === "idle") return null;
   if (state.status === "error") return <FieldError message={state.message} />;
   return (
-    <p role="status" className="text-sm font-medium">
+    <p role="status" className="text-sm font-medium text-ink">
       {state.message}
     </p>
   );
@@ -167,32 +168,32 @@ function SettingsForm({
         </div>
       </div>
 
-      <fieldset className="flex flex-col gap-2 rounded-lg border border-border p-4">
-        <legend className="px-1 text-sm font-medium">Behaviour</legend>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-1 text-sm font-semibold text-ink">Options</legend>
 
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
+        <label className="flex min-h-8 w-fit cursor-pointer items-center gap-2.5 text-sm text-ink">
           <input
             type="checkbox"
             name="allowRetakes"
             defaultChecked={assessment.allowRetakes}
-            className="size-4 cursor-pointer accent-primary"
+            className="size-5 cursor-pointer accent-ink"
           />
           Allow retakes after a pass
         </label>
 
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
+        <label className="flex min-h-8 w-fit cursor-pointer items-center gap-2.5 text-sm text-ink">
           <input
             type="checkbox"
             name="shuffleQuestions"
             defaultChecked={assessment.shuffleQuestions}
-            className="size-4 cursor-pointer accent-primary"
+            className="size-5 cursor-pointer accent-ink"
           />
           Shuffle questions
         </label>
 
-        <p className="text-xs text-muted-foreground">
-          The pass mark and retake rule are applied when an attempt is graded. The time limit and
-          shuffle are stored but the player does not act on them yet.
+        <p className="text-sm text-graphite">
+          Learners are held to the pass mark and the retake rule. The time limit and shuffling are saved but not yet
+          applied in the lesson player.
         </p>
       </fieldset>
 
@@ -280,7 +281,7 @@ function QuestionEditorForm({
   const multi = type === "MULTI_SELECT";
 
   return (
-    <form action={action} className="flex flex-col gap-4 rounded-lg border border-border p-4">
+    <form action={action} className="flex flex-col gap-4 rounded-lg border border-control bg-surface p-4">
       <input type="hidden" name="itemId" value={itemId} />
       <input type="hidden" name="questionId" value={question?.id ?? ""} />
 
@@ -325,16 +326,14 @@ function QuestionEditorForm({
       </div>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-semibold">
-          Answers{" "}
-          <span className="font-normal text-muted-foreground">
-            {trueFalse
-              ? "— pick the correct side"
-              : multi
-                ? "— tick every correct option"
-                : "— pick the one correct option"}
-          </span>
-        </legend>
+        <legend className="text-sm font-semibold text-ink">Answers</legend>
+        <p className="-mt-1 text-sm text-graphite">
+          {trueFalse
+            ? "Choose the correct one."
+            : multi
+              ? "Tick every correct answer."
+              : "Choose the one correct answer."}
+        </p>
 
         <ul className="flex flex-col gap-3">
           {rows.map((row, index) => (
@@ -348,13 +347,13 @@ function QuestionEditorForm({
                   checked={row.correct}
                   onChange={(event) => setCorrect(row.key, event.target.checked)}
                   aria-label={`Mark answer ${index + 1} correct`}
-                  className="size-4 cursor-pointer accent-primary"
+                  className="size-5 shrink-0 cursor-pointer accent-ink"
                 />
 
                 {trueFalse ? (
                   <>
                     <input type="hidden" name="optionText" value={row.text} />
-                    <span className="text-sm">{row.text}</span>
+                    <span className="text-sm text-ink">{row.text}</span>
                   </>
                 ) : (
                   <>
@@ -371,7 +370,6 @@ function QuestionEditorForm({
                       size="icon-sm"
                       disabled={rows.length <= 2}
                       aria-label={`Remove answer ${index + 1}`}
-                      className="text-destructive hover:text-destructive"
                       onClick={() =>
                         setRows((current) => current.filter((item) => item.key !== row.key))
                       }
@@ -397,7 +395,7 @@ function QuestionEditorForm({
                 aria-label={`Explanation for answer ${index + 1}`}
                 placeholder="Why this answer is right or wrong (optional)"
                 maxLength={2000}
-                className="ml-6 h-8 text-xs"
+                className="ml-7 w-auto"
               />
             </li>
           ))}
@@ -406,9 +404,9 @@ function QuestionEditorForm({
         {trueFalse ? null : (
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
-            className="w-fit"
+            className="ml-7 w-fit"
             disabled={rows.length >= MAX_OPTIONS}
             onClick={() => setRows((current) => [...current, blankRow()])}
           >
@@ -416,9 +414,9 @@ function QuestionEditorForm({
           </Button>
         )}
 
-        <p className="text-xs text-muted-foreground">
-          Shown to the learner beside this answer after they submit — never before,
-          since a note on the correct option gives the question away.
+        <p className="text-sm text-graphite">
+          Each answer&apos;s note is shown to the learner after they submit, never before: a note on the right answer would
+          give the question away.
         </p>
       </fieldset>
 
@@ -431,9 +429,7 @@ function QuestionEditorForm({
           rows={2}
           maxLength={2000}
         />
-        <p className="text-xs text-muted-foreground">
-          Shown to a learner who gets this question wrong.
-        </p>
+        <p className="text-sm text-graphite">Shown to a learner who gets this question wrong.</p>
       </div>
 
       <StatusLine state={state} />
@@ -442,7 +438,7 @@ function QuestionEditorForm({
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : question ? "Save question" : "Add question"}
         </Button>
-        <Button type="button" variant="ghost" onClick={onClose}>
+        <Button type="button" variant="secondary" onClick={onClose}>
           Cancel
         </Button>
       </div>
@@ -452,11 +448,13 @@ function QuestionEditorForm({
 
 function QuestionControls({
   question,
+  number,
   isFirst,
   isLast,
   onEdit,
 }: {
   question: Question;
+  number: number;
   isFirst: boolean;
   isLast: boolean;
   onEdit: () => void;
@@ -479,7 +477,7 @@ function QuestionControls({
             variant="ghost"
             size="icon-sm"
             disabled={moving || isFirst}
-            aria-label="Move question up"
+            aria-label={`Move question ${number} up`}
           >
             <ArrowUp aria-hidden />
           </Button>
@@ -493,7 +491,7 @@ function QuestionControls({
             variant="ghost"
             size="icon-sm"
             disabled={moving || isLast}
-            aria-label="Move question down"
+            aria-label={`Move question ${number} down`}
           >
             <ArrowDown aria-hidden />
           </Button>
@@ -504,23 +502,20 @@ function QuestionControls({
           variant="ghost"
           size="icon-sm"
           onClick={onEdit}
-          aria-label="Edit question"
+          aria-label={`Edit question ${number}`}
         >
           <Pencil aria-hidden />
         </Button>
 
         <form action={remove}>
           <input type="hidden" name="questionId" value={question.id} />
-          <Button
-            type="submit"
-            variant="ghost"
-            size="icon-sm"
+          <ConfirmSubmit
+            label={`Delete question ${number}`}
+            question={`Delete question ${number}?`}
+            confirmLabel="Delete"
+            icon={<Trash2 aria-hidden />}
             disabled={removing}
-            aria-label="Delete question"
-            className="text-destructive hover:text-destructive"
-          >
-            <Trash2 aria-hidden />
-          </Button>
+          />
         </form>
       </span>
 
@@ -546,13 +541,14 @@ function QuestionCard({
   const label = isQuestionType(question.type) ? TYPE_LABELS[question.type] : question.type;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border p-4">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-semibold">
-          {index + 1}. {question.prompt}
-        </p>
+    <div className="flex flex-col gap-3 rounded-lg border border-rule p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h3 className="min-w-0 flex-1 basis-60 font-semibold text-ink">
+          <span className="text-graphite">{index + 1}.</span> {question.prompt}
+        </h3>
         <QuestionControls
           question={question}
+          number={index + 1}
           isFirst={isFirst}
           isLast={isLast}
           onEdit={onEdit}
@@ -570,16 +566,16 @@ function QuestionCard({
         {question.options.map((option) => (
           <li key={option.id} className="flex items-start gap-2">
             {option.isCorrect ? (
-              <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-label="Correct" />
+              <CircleCheck className="mt-0.5 size-4 shrink-0 text-verified" aria-label="Correct" />
             ) : (
               <span className="mt-0.5 size-4 shrink-0" />
             )}
             <span className="flex flex-col">
-              <span className={option.isCorrect ? "font-medium" : "text-muted-foreground"}>
+              <span className={option.isCorrect ? "font-medium text-ink" : "text-graphite"}>
                 {option.text}
               </span>
               {option.explanation ? (
-                <span className="text-xs text-muted-foreground">{option.explanation}</span>
+                <span className="text-sm text-graphite">{option.explanation}</span>
               ) : null}
             </span>
           </li>
@@ -587,7 +583,7 @@ function QuestionCard({
       </ul>
 
       {question.explanation ? (
-        <p className="text-xs text-muted-foreground">{question.explanation}</p>
+        <p className="text-sm text-graphite">{question.explanation}</p>
       ) : null}
     </div>
   );
@@ -609,33 +605,23 @@ export function QuizBuilder({
   const closeAdd = useCallback(() => setAdding(false), []);
 
   return (
-    <div className="flex flex-col gap-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Quiz settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SettingsForm itemId={itemId} title={title} assessment={assessment} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <CardTitle>Questions ({assessment.questions.length})</CardTitle>
-          {adding ? null : (
+    <div className="flex flex-col gap-6">
+      <Panel
+        title={`Questions (${assessment.questions.length})`}
+        actions={
+          adding ? null : (
             <Button type="button" size="sm" onClick={() => setAdding(true)}>
               <Plus aria-hidden /> Add question
             </Button>
-          )}
-        </CardHeader>
-
-        <CardContent className="flex flex-col gap-4">
+          )
+        }
+      >
+        <div className="flex flex-col gap-4">
           {assessment.questions.length === 0 ? (
-            <p className="flex items-start gap-2 text-sm text-destructive">
+            <p className="flex items-start gap-2 text-sm font-medium text-seal">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-              This quiz has no questions, so every learner passes it by submitting an empty form —
-              the next item unlocks and it counts toward their certificate. Add a question before
-              publishing.
+              This quiz has no questions, so every learner passes it by submitting nothing: the next item opens and it
+              counts toward their certificate. Add questions before publishing.
             </p>
           ) : (
             <ol className="flex flex-col gap-4">
@@ -665,8 +651,12 @@ export function QuizBuilder({
           {adding ? (
             <QuestionEditorForm key="new" itemId={itemId} question={null} onClose={closeAdd} />
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
+
+      <Panel title="Quiz settings">
+        <SettingsForm itemId={itemId} title={title} assessment={assessment} />
+      </Panel>
     </div>
   );
 }

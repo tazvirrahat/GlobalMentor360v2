@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel } from "@/components/app/panel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,65 +31,55 @@ export function LectureEditor({
   const isVideo = lecture.contentType === "VIDEO";
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Lecture</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form action={action} className="flex flex-col gap-4">
-          <input type="hidden" name="itemId" value={itemId} />
+    <Panel title="Lecture">
+      <form action={action} className="flex flex-col gap-4">
+        <input type="hidden" name="itemId" value={itemId} />
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" name="title" defaultValue={title} required maxLength={200} />
-          </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="title">Title</Label>
+          <Input id="title" name="title" defaultValue={title} required maxLength={200} />
+        </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              name="description"
-              defaultValue={lecture.description ?? ""}
-              rows={3}
-              maxLength={2000}
-            />
-            <p className="text-xs text-muted-foreground">
-              A short summary of what this lecture covers.
-            </p>
-          </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="description">Description</Label>
+          <Textarea
+            id="description"
+            name="description"
+            defaultValue={lecture.description ?? ""}
+            rows={3}
+            maxLength={2000}
+          />
+          <p className="text-sm text-graphite">A short summary, shown under the lesson in the player.</p>
+        </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="articleBody">Article body</Label>
-            <Textarea
-              id="articleBody"
-              name="articleBody"
-              defaultValue={lecture.articleBody ?? ""}
-              rows={14}
-              maxLength={50000}
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              {isVideo
-                ? "This lecture plays a video, so the player does not show the article body. It is kept in case the video is removed."
-                : "Plain text. Line breaks are preserved in the player; there is no markup."}
-            </p>
-          </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="articleBody">Article body</Label>
+          <Textarea
+            id="articleBody"
+            name="articleBody"
+            defaultValue={lecture.articleBody ?? ""}
+            rows={16}
+            maxLength={50000}
+            aria-describedby="article-hint"
+          />
+          <p id="article-hint" className="text-sm text-graphite">
+            {isVideo
+              ? "This lecture plays a video, so learners don't see this text. It is kept in case the video is removed."
+              : "Leave a blank line between paragraphs. Put code in backticks, like `npm install`, to show it in a code font."}
+          </p>
+        </div>
 
-          {state.status === "error" ? <FieldError message={state.message} /> : null}
-          {state.status === "done" ? (
-            <p
-              role="status"
-              className="text-sm font-medium"
-            >
-              {state.message}
-            </p>
-          ) : null}
+        {state.status === "error" ? <FieldError message={state.message} /> : null}
+        {state.status === "done" ? (
+          <p role="status" className="text-sm font-medium text-ink">
+            {state.message}
+          </p>
+        ) : null}
 
-          <Button type="submit" disabled={pending} className="w-fit">
-            {pending ? "Saving…" : "Save"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        <Button type="submit" disabled={pending} className="w-fit">
+          {pending ? "Saving…" : "Save"}
+        </Button>
+      </form>
+    </Panel>
   );
 }
