@@ -33,7 +33,7 @@ test.describe("studio exploratory QA", () => {
 
     await nav.getByRole("link", { name: "Questions" }).click();
     await expect(page).toHaveURL(/\/studio\/qa/);
-    await expect(page.getByRole("heading", { name: "Questions" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Questions" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Needs my answer" })).toBeVisible();
 
     await nav.getByRole("link", { name: "Coupons" }).click();

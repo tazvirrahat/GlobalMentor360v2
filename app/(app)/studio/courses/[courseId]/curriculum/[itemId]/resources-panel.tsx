@@ -81,9 +81,11 @@ function AddLinkForm({ itemId }: { itemId: string }) {
         <Button type="submit" variant="secondary" disabled={pending}>
           <Link2 aria-hidden /> {pending ? "Adding…" : "Add link"}
         </Button>
-        <p role="status" className="text-sm font-medium text-ink">
-          {state.status === "done" ? state.message : ""}
-        </p>
+        {state.status === "done" ? (
+          <p role="status" className="text-sm font-medium text-ink">
+            {state.message}
+          </p>
+        ) : null}
       </div>
       {state.status === "error" ? <FieldError message={state.message} /> : null}
     </form>
