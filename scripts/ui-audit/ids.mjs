@@ -82,6 +82,7 @@ export function buildRoutes(ids) {
     ["instructor", "studio", "/studio"],
     ["instructor", "studio-course", need(ids.courseId, `/studio/courses/${ids.courseId}`)],
     ["instructor", "studio-curriculum", need(ids.courseId, `/studio/courses/${ids.courseId}/curriculum`)],
+    ["instructor", "studio-analytics", need(ids.courseId, `/studio/courses/${ids.courseId}/analytics`)],
     [
       "instructor",
       "studio-item",
