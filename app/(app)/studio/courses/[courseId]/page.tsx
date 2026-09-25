@@ -7,7 +7,8 @@ import { StatusBadge } from "@/components/course/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { pickEditorTab } from "@/lib/course-editor";
 import { courseSellabilityWarning } from "@/lib/payments";
-import { requireRole } from "@/lib/session";
+import { formatDateMedium } from "@/lib/format";
+import { hasRole, requireRole } from "@/lib/session";
 import { getOwnedCourse, readinessChecks } from "@/lib/studio";
 import { CourseEditor } from "./course-editor";
 import { PublishForm } from "./publish-form";
@@ -30,13 +31,23 @@ export default async function CourseEditorPage({ params, searchParams }: Params)
   const course = await getOwnedCourse(courseId, user.id);
   if (!course) notFound();
 
-  const checks = await readinessChecks(course.id);
+  const [checks, isAdmin] = await Promise.all([readinessChecks(course.id), hasRole(user.id, "ADMIN")]);
   const ready = checks.every((check) => check.ok);
   const published = course.status === "PUBLISHED";
   const sellabilityWarning = courseSellabilityWarning(course.prices);
 
   const publishPanel = (
     <>
+      {course.reviewNote && course.status === "DRAFT" ? (
+        <Alert variant="caution">
+          <TriangleAlert className="size-4" aria-hidden />
+          <AlertTitle>Returned for changes</AlertTitle>
+          <AlertDescription>
+            <p className="whitespace-pre-line">{course.reviewNote}</p>
+            <p className="mt-1 text-sm">Make the changes, then submit it again.</p>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <ul className="flex flex-col gap-3">
         {checks.map((check) => (
           <li key={check.label} className="flex items-start gap-3">
@@ -55,7 +66,16 @@ export default async function CourseEditorPage({ params, searchParams }: Params)
           </li>
         ))}
       </ul>
-      <PublishForm courseId={course.id} status={course.status} ready={ready} />
+      <PublishForm
+        courseId={course.id}
+        status={course.status}
+        ready={ready}
+        canPublishDirectly={isAdmin}
+        reviewRequestedLabel={course.reviewRequestedAt ? formatDateMedium(course.reviewRequestedAt) : null}
+      />
+      {published ? (
+        <p className="text-sm text-graphite">Changes you save to a live course show on its page straight away.</p>
+      ) : null}
     </>
   );
 

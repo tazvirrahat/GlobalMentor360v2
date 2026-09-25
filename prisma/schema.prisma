@@ -212,6 +212,9 @@ model Course {
   // prisma/migrations/20260817000000_catalog_search. Prisma cannot express
   // generated columns here. `prisma db push` is unsafe against a migrated
   // database — it will drop search_vector. Use `prisma migrate deploy`.
+  // Also hand-written and invisible here: the partial index
+  // courses_review_queue_idx (20260925000200_course_review). A generated diff
+  // will offer to drop it; leave that statement out, as with search_vector.
   id                String       @id @default(uuid(7))
   title             String
   slug              String       @unique
@@ -229,6 +232,10 @@ model Course {
   ratingCount       Int          @default(0)
   enrollmentCount   Int          @default(0)
   publishedAt       DateTime?
+  // Review before publishing: when the instructor submitted it, and the
+  // admin's note when it was sent back. See lib/course-review.ts.
+  reviewRequestedAt DateTime?
+  reviewNote        String?      @db.Text
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
