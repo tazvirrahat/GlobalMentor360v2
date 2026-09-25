@@ -13,6 +13,7 @@ import {
   Star,
   TicketPercent,
   Undo2,
+  UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -27,6 +28,7 @@ const STUDIO: Item[] = [
   { href: "/studio/qa", label: "Questions", icon: MessagesSquare },
   { href: "/studio/announcements", label: "Announcements", icon: Megaphone },
   { href: "/studio/coupons", label: "Coupons", icon: TicketPercent },
+  { href: "/studio/profile", label: "Your profile", icon: UserRound },
 ];
 
 const ADMIN: Item[] = [

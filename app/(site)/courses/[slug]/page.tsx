@@ -114,6 +114,10 @@ export default async function CourseLandingPage({ params, searchParams }: Params
   const languageName = LANGUAGE.of(course.language) ?? course.language;
 
   const primary = <PrimaryAction course={course} enrolled={enrolled} />;
+  const instructorHref =
+    course.instructor.slug && course.instructor.profilePublic
+      ? (`/instructors/${course.instructor.slug}` as Route)
+      : null;
 
   return (
     <main className="pb-24 lg:pb-0">
@@ -166,7 +170,17 @@ export default async function CourseLandingPage({ params, searchParams }: Params
             </ul>
 
             <p className="text-sm text-graphite">
-              Created by <span className="font-medium text-ink">{course.instructor.name}</span>
+              Created by{" "}
+              {instructorHref ? (
+                <Link
+                  href={instructorHref}
+                  className="rounded-sm font-medium text-ink underline decoration-control underline-offset-4 hover:decoration-ink focus-ring"
+                >
+                  {course.instructor.name}
+                </Link>
+              ) : (
+                <span className="font-medium text-ink">{course.instructor.name}</span>
+              )}
             </p>
           </header>
 
@@ -320,7 +334,15 @@ export default async function CourseLandingPage({ params, searchParams }: Params
                 {initials(course.instructor.name, "?")}
               </span>
               <div className="flex min-w-0 flex-col gap-1">
-                <p className="text-lg font-semibold">{course.instructor.name}</p>
+                <p className="text-lg font-semibold">
+                  {instructorHref ? (
+                    <Link href={instructorHref} className="rounded-sm hover:underline focus-ring">
+                      {course.instructor.name}
+                    </Link>
+                  ) : (
+                    course.instructor.name
+                  )}
+                </p>
                 {course.instructor.headline ? <p className="text-graphite">{course.instructor.headline}</p> : null}
                 {course.instructor.bio ? (
                   <p className="mt-2 max-w-[68ch] text-base whitespace-pre-line">{course.instructor.bio}</p>

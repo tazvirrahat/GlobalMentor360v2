@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { toMinorUnits } from "@/lib/money-input";
 import { readFaqRows } from "@/lib/course-faq";
+import { ensureInstructorSlug } from "@/lib/instructors";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
@@ -58,6 +59,10 @@ export async function createCourse(_prev: ActionState, formData: FormData): Prom
     },
     select: { id: true },
   });
+
+  // A first course makes this person an instructor with a public page to come;
+  // give them its address now so the course page can link to it once published.
+  await ensureInstructorSlug(user.id);
 
   redirect(`/studio/courses/${course.id}`);
 }
