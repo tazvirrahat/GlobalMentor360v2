@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { LECTURE_FILE_PROVIDER } from "@/lib/lecture-files";
+import { deleteObject } from "@/lib/storage";
 
 /**
  * Best-effort cleanup after a lecture no longer points at this MediaAsset.
@@ -19,7 +21,11 @@ export async function releaseOrphanedLectureAsset(asset: {
 
   if (lectureRefs > 0 || promoRefs > 0) return;
 
-  if (asset.providerAssetId) {
+  // An audio or PDF lesson (provider "file") is one object in the app bucket.
+  const row = await db.mediaAsset.findUnique({ where: { id: asset.id }, select: { provider: true, originalKey: true } });
+  if (row?.provider === LECTURE_FILE_PROVIDER) {
+    if (row.originalKey) await deleteObject(row.originalKey);
+  } else if (asset.providerAssetId) {
     try {
       const { video } = await import("@/lib/video");
       await video.deleteAsset(asset.providerAssetId);

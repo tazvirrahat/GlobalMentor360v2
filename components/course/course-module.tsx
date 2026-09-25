@@ -1,6 +1,6 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { CheckCircle2, ChevronDown, Circle, FileQuestion, FileText, Lock, PlayCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, Circle, FileQuestion, FileText, Headphones, Lock, PlayCircle } from "lucide-react";
 import {
   compactWindow,
   isGate,
@@ -160,7 +160,10 @@ function OutlineIcon({ row }: { row: ModuleRow }) {
   const cls = "mt-0.5 size-4 shrink-0";
   if (row.completed) return <CheckCircle2 className={cn(cls, "text-verified")} strokeWidth={2} aria-hidden />;
   if (isQuizType(row.type)) return <FileQuestion className={cn(cls, "text-graphite")} strokeWidth={1.75} aria-hidden />;
-  if (row.contentType === "ARTICLE") return <FileText className={cn(cls, "text-graphite")} strokeWidth={1.75} aria-hidden />;
+  if (row.contentType === "ARTICLE" || row.contentType === "FILE") {
+    return <FileText className={cn(cls, "text-graphite")} strokeWidth={1.75} aria-hidden />;
+  }
+  if (row.contentType === "AUDIO") return <Headphones className={cn(cls, "text-graphite")} strokeWidth={1.75} aria-hidden />;
   return <PlayCircle className={cn(cls, "text-graphite")} strokeWidth={1.75} aria-hidden />;
 }
 

@@ -23,6 +23,7 @@ import {
 import { EMPTY_QA_PANEL, getCourseQaPanel } from "@/lib/qa";
 import { getCurrentUser, requireUser } from "@/lib/session";
 import { getSite } from "@/lib/site";
+import { isStorageConfigured } from "@/lib/storage";
 import { AnnouncementsPanel } from "../announcements-panel";
 import { CompleteLectureForm } from "../complete-lecture-form";
 import { BookmarkButton, NotesPanel } from "../notes-panel";
@@ -53,6 +54,9 @@ export const dynamic = "force-dynamic";
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
+
+const LESSON_LINK =
+  "inline-flex min-h-6 items-center gap-1.5 rounded-sm text-sm font-medium text-ink underline decoration-control underline-offset-4 hover:decoration-ink focus-ring";
 
 /** Article text as paragraphs: blank lines split them, single newlines stay. */
 function Article({ body }: { body: string }) {
@@ -151,7 +155,10 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
   const sectionIndex = section ? course.sections.indexOf(section) : -1;
 
   const isQuiz = current.type === "QUIZ" || current.type === "PRACTICE_TEST";
-  const typeLabel = isQuiz ? "Quiz" : current.lecture?.contentType === "VIDEO" ? "Video" : "Article";
+  // Audio and PDF lessons are served from storage; without it, say so instead of a broken player.
+  const filesServed = isStorageConfigured();
+  const TYPE_LABELS: Record<string, string> = { VIDEO: "Video", AUDIO: "Audio", FILE: "PDF", ARTICLE: "Article" };
+  const typeLabel = isQuiz ? "Quiz" : (TYPE_LABELS[current.lecture?.contentType ?? "ARTICLE"] ?? "Article");
 
   const qaParams = Object.fromEntries(
     Object.entries(query)
@@ -354,6 +361,44 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
           <div className="flex aspect-video items-center justify-center rounded-lg border border-rule bg-wash p-6 text-center text-graphite">
             This video is still being prepared. Check back in a few minutes.
           </div>
+        )
+      ) : null}
+
+      {current.lecture?.contentType === "AUDIO" ? (
+        current.lecture.asset?.status === "READY" && filesServed ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-rule bg-surface p-4">
+            {/* The route checks access again before it hands out the file. */}
+            <audio controls preload="metadata" src={`/api/lecture-file/${current.id}`} aria-label={`Audio: ${current.title}`} className="w-full" />
+            <a href={`/api/lecture-file/${current.id}?download=1`} className={`${LESSON_LINK} self-start`}>
+              <Download className="size-4" aria-hidden /> Download the audio
+            </a>
+          </div>
+        ) : (
+          <p className="rounded-lg border border-rule bg-wash p-6 text-center text-graphite">This audio isn&apos;t available right now. Check back soon.</p>
+        )
+      ) : null}
+
+      {current.lecture?.contentType === "FILE" ? (
+        current.lecture.asset?.status === "READY" && filesServed ? (
+          <div className="flex flex-col gap-3">
+            <iframe
+              src={`/api/lecture-file/${current.id}`}
+              title={`PDF: ${current.title}`}
+              className="h-[70vh] min-h-96 w-full rounded-lg border border-rule bg-surface"
+            />
+            {/* Phones often can't show a PDF in the page, so the file is always one tap away. */}
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <a href={`/api/lecture-file/${current.id}`} target="_blank" rel="noopener" className={LESSON_LINK}>
+                <ExternalLink className="size-4" aria-hidden /> Open the PDF
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+              <a href={`/api/lecture-file/${current.id}?download=1`} className={LESSON_LINK}>
+                <Download className="size-4" aria-hidden /> Download
+              </a>
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-lg border border-rule bg-wash p-6 text-center text-graphite">This PDF isn&apos;t available right now. Check back soon.</p>
         )
       ) : null}
 

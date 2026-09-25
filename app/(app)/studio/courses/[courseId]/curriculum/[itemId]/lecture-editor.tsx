@@ -63,8 +63,8 @@ export function LectureEditor({
             aria-describedby="article-hint"
           />
           <p id="article-hint" className="text-sm text-graphite">
-            {isVideo
-              ? "This lecture plays a video, so learners don't see this text. It is kept in case the video is removed."
+            {lecture.contentType !== "ARTICLE"
+              ? `This lecture ${isVideo ? "plays a video" : lecture.contentType === "AUDIO" ? "plays audio" : "shows a PDF"}, so learners don't see this text. It is kept in case the ${isVideo ? "video" : "file"} is removed.`
               : "Leave a blank line between paragraphs. Put code in backticks, like `npm install`, to show it in a code font."}
           </p>
         </div>

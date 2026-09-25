@@ -1,5 +1,6 @@
 import type { MediaStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { LECTURE_FILE_PROVIDER } from "@/lib/lecture-files";
 import { drainMediaConvertEventQueue, video, VideoProviderError } from "@/lib/video";
 
 /**
@@ -7,6 +8,7 @@ import { drainMediaConvertEventQueue, video, VideoProviderError } from "@/lib/vi
  * each state, which ones need a person, and the two things a person can do —
  * check an asset against the provider, or retry a failed transcode. Also the
  * reconcile the studio's "Check status" runs for an instructor's own lecture.
+ * Audio and PDF lessons (provider "file") are not videos and are left out.
  */
 
 /** Uploads or transcodes that have not moved for this long are listed as stuck. */
@@ -14,7 +16,11 @@ export const STUCK_AFTER_MS = 60 * 60 * 1000;
 const ATTENTION_LIMIT = 50;
 
 export async function videoStatusCounts(): Promise<Record<MediaStatus, number>> {
-  const groups = await db.mediaAsset.groupBy({ by: ["status"], _count: { _all: true } });
+  const groups = await db.mediaAsset.groupBy({
+    by: ["status"],
+    where: { provider: { not: LECTURE_FILE_PROVIDER } },
+    _count: { _all: true },
+  });
   const counts: Record<MediaStatus, number> = { UPLOADING: 0, PROCESSING: 0, READY: 0, FAILED: 0 };
   for (const group of groups) counts[group.status] = group._count._all;
   return counts;
@@ -33,6 +39,7 @@ export type VideoJob = {
 export async function listVideoJobsNeedingAttention(now: Date = new Date()): Promise<VideoJob[]> {
   const rows = await db.mediaAsset.findMany({
     where: {
+      provider: { not: LECTURE_FILE_PROVIDER },
       OR: [
         { status: "FAILED" },
         { status: { in: ["UPLOADING", "PROCESSING"] }, updatedAt: { lt: new Date(now.getTime() - STUCK_AFTER_MS) } },

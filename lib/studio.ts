@@ -183,6 +183,8 @@ export async function getOwnedItemForEditing(
             select: {
               id: true,
               status: true,
+              provider: true,
+              originalKey: true,
               captions: { orderBy: { language: "asc" }, select: { id: true, language: true } },
             },
           },
