@@ -6,11 +6,11 @@ import { useEffect, useRef, type MouseEvent } from "react";
 import { COURSE_EDITOR_LABELS, type CourseEditorTab } from "@/lib/course-editor";
 import { cn } from "@/lib/utils";
 
-const ORDER = ["details", "landing", "pricing", "curriculum", "publish"] as const;
+const ORDER = ["details", "landing", "pricing", "curriculum", "publish", "analytics"] as const;
 type Key = (typeof ORDER)[number];
 
 function hrefFor(courseId: string, key: Key): Route {
-  if (key === "curriculum") return `/studio/courses/${courseId}/curriculum` as Route;
+  if (key === "curriculum" || key === "analytics") return `/studio/courses/${courseId}/${key}` as Route;
   if (key === "details") return `/studio/courses/${courseId}` as Route;
   return `/studio/courses/${courseId}?tab=${key}` as Route;
 }
@@ -19,7 +19,7 @@ function hrefFor(courseId: string, key: Key): Route {
  * The course editor's sections as links, so each one has a URL and works
  * without script. On the settings page `onSelect` switches the in-page tabs
  * without a navigation (unsaved edits in the other tabs stay put); Curriculum
- * is always a real navigation to its own page.
+ * and Analytics are always a real navigation to their own pages.
  */
 export function CourseEditorNav({
   courseId,
@@ -46,7 +46,7 @@ export function CourseEditorNav({
   }, [current]);
 
   function handle(event: MouseEvent<HTMLAnchorElement>, key: Key) {
-    if (!onSelect || key === "curriculum") return;
+    if (!onSelect || key === "curriculum" || key === "analytics") return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     event.preventDefault();
     onSelect(key);

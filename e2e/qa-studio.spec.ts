@@ -59,6 +59,19 @@ test.describe("studio exploratory QA", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Courses" })).toBeVisible();
   });
 
+  test("a course's analytics show its learners and where they stop", async ({ page }) => {
+    await signIn(page, SEED.instructor, "/studio");
+    const link = page.getByRole("link", { name: /typescript foundations/i });
+    await paginateUntilVisible(page, link);
+    await link.first().click();
+    await page.getByRole("navigation", { name: "Course editor" }).getByRole("link", { name: "Analytics" }).click();
+    await expect(page).toHaveURL(/\/analytics$/);
+    await expect(page.getByRole("heading", { level: 2, name: "Analytics" })).toBeVisible();
+    await expect(page.getByRole("term").filter({ hasText: "Learners" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Enrollments by week" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Learners who finished each item" })).toBeVisible();
+  });
+
   test("landing editor, curriculum, quiz, article, and video upload UI", async ({ page }) => {
     await signIn(page, SEED.instructor, "/studio");
 
