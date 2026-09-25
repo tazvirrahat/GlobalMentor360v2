@@ -323,12 +323,42 @@ test.describe("admin exploratory QA", () => {
     await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
   });
 
+  test("admin adds a topic, tags a course with it, and the course page links it", async ({ page }) => {
+    const topic = `Topic ${Date.now().toString(36)}`;
+    await signIn(page, SEED.admin, "/admin/taxonomy");
+    await expect(page.getByRole("heading", { level: 1, name: "Taxonomy" })).toBeVisible();
+    await page.getByLabel("New topic").fill(topic);
+    await page.getByRole("button", { name: "Add topic" }).click();
+    await expect(page.getByText("Topic added.")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(topic, { exact: true })).toBeVisible();
+
+    await page.goto("/admin/courses");
+    await adminSearch(page, "SQL for Analysts");
+    await page.getByRole("link", { name: "SQL for Analysts", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "SQL for Analysts" })).toBeVisible();
+    await page.getByRole("checkbox", { name: topic }).check();
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("status")).toHaveText("Saved.", { timeout: 15_000 });
+
+    await page.getByRole("link", { name: /course page/i }).click();
+    const related = page.getByRole("region", { name: "Related topics" });
+    await related.getByRole("link", { name: topic }).click();
+    await expect(page).toHaveURL(/\/courses\?q=/);
+    await expect(page.getByRole("link", { name: /SQL for Analysts/ }).first()).toBeVisible();
+
+    // Leave the seed as it was: deleting the topic takes it off the course.
+    await page.goto("/admin/taxonomy");
+    await page.getByRole("button", { name: `Delete ${topic}` }).click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(page.getByText(topic, { exact: true })).toHaveCount(0, { timeout: 15_000 });
+  });
+
   test("admin tables do not overflow at 375 or 1280", async ({ page }) => {
     await signIn(page, SEED.admin, "/admin/users");
 
     for (const width of [375, 1280]) {
       await page.setViewportSize({ width, height: 800 });
-      for (const path of ["/admin/payments", "/admin/users", "/admin/courses", "/admin/refunds", "/admin/reviews"]) {
+      for (const path of ["/admin/payments", "/admin/users", "/admin/courses", "/admin/refunds", "/admin/reviews", "/admin/taxonomy"]) {
         await page.goto(path);
         await page.locator("h1").first().waitFor({ state: "visible", timeout: 20_000 });
         const metrics = await page.evaluate(() => ({

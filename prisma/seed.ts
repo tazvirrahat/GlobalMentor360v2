@@ -272,6 +272,17 @@ async function seedCourse(spec: SeedCourse, instructorId: string) {
     });
   }
 
+  await db.courseTopic.deleteMany({ where: { courseId: course.id } });
+  await db.courseSkill.deleteMany({ where: { courseId: course.id } });
+  if (spec.topics?.length) {
+    const topics = await db.topic.findMany({ where: { slug: { in: spec.topics } }, select: { id: true } });
+    await db.courseTopic.createMany({ data: topics.map((topic) => ({ courseId: course.id, topicId: topic.id })) });
+  }
+  if (spec.skills?.length) {
+    const skills = await db.skill.findMany({ where: { slug: { in: spec.skills } }, select: { id: true } });
+    await db.courseSkill.createMany({ data: skills.map((skill) => ({ courseId: course.id, skillId: skill.id })) });
+  }
+
   await setPrice(course.id, "USD", spec.priceUsdCents);
   // bKash settles in BDT, so a course without a BDT price cannot be bought on
   // that rail at all. Priced independently rather than converted — FX drift

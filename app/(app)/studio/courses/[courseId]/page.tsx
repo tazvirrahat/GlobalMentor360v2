@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/course/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { pickEditorTab } from "@/lib/course-editor";
 import { courseImageUrl } from "@/lib/course-image";
+import { db } from "@/lib/db";
 import { courseSellabilityWarning } from "@/lib/payments";
 import { formatDateMedium } from "@/lib/format";
 import { hasRole, requireRole } from "@/lib/session";
@@ -34,7 +35,16 @@ export default async function CourseEditorPage({ params, searchParams }: Params)
   const course = await getOwnedCourse(courseId, user.id);
   if (!course) notFound();
 
-  const [checks, isAdmin] = await Promise.all([readinessChecks(course.id), hasRole(user.id, "ADMIN")]);
+  const [checks, isAdmin, categories] = await Promise.all([
+    readinessChecks(course.id),
+    hasRole(user.id, "ADMIN"),
+    // Subcategories, like the new-course dialog, plus the current one if an admin filed it under a whole subject.
+    db.category.findMany({
+      where: { OR: [{ parentId: { not: null } }, ...(course.primaryCategoryId ? [{ id: course.primaryCategoryId }] : [])] },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
   const ready = checks.every((check) => check.ok);
   const published = course.status === "PUBLISHED";
   const sellabilityWarning = courseSellabilityWarning(course.prices);
@@ -110,6 +120,7 @@ export default async function CourseEditorPage({ params, searchParams }: Params)
 
       <CourseEditor
         course={course}
+        categories={categories}
         initialTab={pickEditorTab(tab)}
         imageField={
           <CourseImageField

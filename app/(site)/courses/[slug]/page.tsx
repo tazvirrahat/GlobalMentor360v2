@@ -263,6 +263,21 @@ export default async function CourseLandingPage({ params, searchParams }: Params
             </section>
           ) : null}
 
+          {course.skills.length > 0 ? (
+            <section aria-labelledby="skills-heading">
+              <h2 id="skills-heading" className="text-2xl font-semibold">
+                Skills you&rsquo;ll gain
+              </h2>
+              <ul className="mt-4 flex flex-wrap gap-2">
+                {course.skills.map(({ skill }) => (
+                  <li key={skill.slug} className="rounded-full border border-rule bg-surface px-3 py-1 text-sm text-ink">
+                    {skill.name}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           <section aria-labelledby="content-heading" className="flex flex-col gap-4">
             <div>
               <h2 id="content-heading" className="text-2xl font-semibold">
@@ -331,6 +346,26 @@ export default async function CourseLandingPage({ params, searchParams }: Params
               <ul className="mt-4 flex list-disc flex-col gap-1.5 pl-5 text-base">
                 {course.targetAudience.map((audience, index) => (
                   <li key={index}>{audience.text}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {course.topics.length > 0 ? (
+            <section aria-labelledby="topics-heading">
+              <h2 id="topics-heading" className="text-2xl font-semibold">
+                Related topics
+              </h2>
+              <ul className="mt-4 flex flex-wrap gap-2">
+                {course.topics.map(({ topic }) => (
+                  <li key={topic.slug}>
+                    <Link
+                      href={`/courses?q=${encodeURIComponent(topic.name)}` as Route}
+                      className="inline-flex min-h-9 items-center rounded-full border border-control bg-surface px-3.5 text-sm font-medium text-ink hover:bg-wash focus-ring"
+                    >
+                      {topic.name}
+                    </Link>
+                  </li>
                 ))}
               </ul>
             </section>

@@ -11,6 +11,7 @@ import {
   Megaphone,
   MessagesSquare,
   Star,
+  Tags,
   TicketPercent,
   Undo2,
   UserRound,
@@ -37,6 +38,7 @@ const ADMIN: Item[] = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/courses", label: "Courses", icon: Library },
   { href: "/admin/reviews", label: "Reviews", icon: Star },
+  { href: "/admin/taxonomy", label: "Taxonomy", icon: Tags },
 ];
 
 function active(href: string, pathname: string) {

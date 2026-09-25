@@ -176,6 +176,20 @@ export async function updateCourse(_prev: ActionState, formData: FormData): Prom
   const faq = readFaqRows(formData.getAll("faqQuestion").map(String), formData.getAll("faqAnswer").map(String));
   if (!faq.ok) return { status: "error", message: faq.message };
 
+  // Category: only when the form carries the field; "none" is the Radix
+  // select's stand-in for no category. An id that no longer exists is refused.
+  let category: { primaryCategoryId: string | null } | Record<string, never> = {};
+  if (formData.has("categoryId")) {
+    const value = String(formData.get("categoryId") ?? "");
+    if (value && value !== "none") {
+      const exists = await db.category.findUnique({ where: { id: value }, select: { id: true } });
+      if (!exists) return { status: "error", message: "That category no longer exists. Pick another." };
+      category = { primaryCategoryId: value };
+    } else {
+      category = { primaryCategoryId: null };
+    }
+  }
+
   // Price is validated before any write. Lined fields used to be delete-and-
   // recreated first, so a bad amount or a unique-constraint race on price left
   // the lists already wiped (or half-written) while the action returned an error.
@@ -201,6 +215,7 @@ export async function updateCourse(_prev: ActionState, formData: FormData): Prom
           description: input.description || null,
           level: input.level,
           language: input.language,
+          ...category,
         },
       });
 
