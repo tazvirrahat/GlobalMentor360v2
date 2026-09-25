@@ -36,7 +36,7 @@ export function ContinueCard({
           </Link>
         </p>
         <div className="flex items-center gap-3">
-          <Progress value={course.percent} aria-label={`Course progress ${course.percent}%`} className="h-1.5 flex-1" />
+          <Progress value={course.percent} aria-label={`Course progress ${Math.floor(course.percent)}%`} className="h-1.5 flex-1" />
           <span className="shrink-0 text-xs text-graphite">
             {course.done} of {course.total} lessons done
           </span>

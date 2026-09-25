@@ -30,13 +30,13 @@ function CourseEntry({ entry }: { entry: MyLearningEntry }) {
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Link
             href={`/learn/${entry.slug}` as Route}
-            className="w-fit rounded-sm text-base leading-snug font-semibold text-ink hover:underline focus-ring"
+            className="min-h-6 w-fit rounded-sm text-base leading-snug font-semibold text-ink hover:underline focus-ring"
           >
             {entry.title}
           </Link>
           <p className="text-sm text-graphite">{entry.instructorName}</p>
           <div className="flex items-center gap-3">
-            <Progress value={entry.percent} aria-label={`Course progress ${entry.percent}%`} className="h-1.5 max-w-60" />
+            <Progress value={entry.percent} aria-label={`Course progress ${percent}%`} className="h-1.5 max-w-60" />
             <span className="shrink-0 text-sm text-graphite">{done ? "Completed" : `${percent}% complete`}</span>
           </div>
         </div>

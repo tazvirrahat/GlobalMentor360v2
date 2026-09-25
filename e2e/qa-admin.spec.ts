@@ -241,8 +241,7 @@ test.describe("admin exploratory QA", () => {
 
     const reason = card.getByLabel("Reason for rejection");
     await expect(reason).toHaveJSProperty("required", true);
-    await expect(card.getByText(/not shown on the learner receipt/i)).toBeVisible();
-    await expect(card.getByText(/the learner will see it/i)).toHaveCount(0);
+    await expect(card.getByText(/learner sees this reason on their receipt/i)).toBeVisible();
     await reason.fill("QA reject — coupon should release.");
     await card.getByRole("button", { name: "Reject" }).click();
     await expect(page.getByText(SEED.learner.email)).toHaveCount(0, { timeout: 20_000 });
@@ -251,6 +250,12 @@ test.describe("admin exploratory QA", () => {
     await signIn(page, SEED.learner, "/courses/sql-for-analysts/checkout?coupon=SAVE10");
     await expect(page.getByText(/you already have access/i)).toHaveCount(0);
     await expect(page.getByText(/SAVE10/i).first()).toBeVisible();
+
+    // The receipt tells the learner why, in the admin's words.
+    await page.goto("/orders");
+    await page.getByRole("link", { name: "View receipt" }).first().click();
+    await expect(page.getByText("This payment was not accepted")).toBeVisible();
+    await expect(page.getByText("QA reject — coupon should release.")).toBeVisible();
   });
 
   test("approving bKash enrols the paying user; refund revokes access", async ({
