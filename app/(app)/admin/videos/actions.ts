@@ -24,7 +24,7 @@ export async function videoJobAction(_prev: VideoJobState, formData: FormData): 
   return { status: "error", message: "Something went wrong. Reload the page and try again." };
 }
 
-export async function drainQueueAction(_prev: VideoJobState): Promise<VideoJobState> {
+export async function drainQueueAction(): Promise<VideoJobState> {
   await requireRole("ADMIN");
   if (!isVideoEventQueueConfigured()) return { status: "error", message: "The event queue isn't set up on this site." };
   try {
