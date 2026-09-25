@@ -97,6 +97,7 @@ export async function getOwnedCurriculum(courseId: string, instructorId: string)
     select: {
       id: true,
       title: true,
+      slug: true,
       status: true,
       sections: {
         orderBy: { position: "asc" },

@@ -57,7 +57,11 @@ function putWithProgress(
       else reject(new Error(`Upload failed (HTTP ${xhr.status}).`));
     };
     xhr.onerror = () =>
-      reject(new Error("Upload failed — network error (is the S3 bucket CORS rule set?)."));
+      reject(
+        new Error(
+          "The upload stopped because of a network error. Try again; if it keeps failing, ask the site admin to check the video storage settings.",
+        ),
+      );
     xhr.send(file);
   });
 }
@@ -82,11 +86,7 @@ function CheckStatusForm({ itemId }: { itemId: string }) {
       {state.status !== "idle" ? (
         <span
           role="status"
-          className={
-            state.status === "error"
-              ? "text-xs font-medium text-destructive"
-              : "text-xs text-muted-foreground"
-          }
+          className={state.status === "error" ? "text-sm font-medium text-seal" : "text-sm text-graphite"}
         >
           {state.message}
         </span>
@@ -146,25 +146,25 @@ export function LectureVideoPanel({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-muted/40 p-3 text-sm">
-      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Clapperboard className="size-3.5" aria-hidden />
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+      <span className="flex items-center gap-1.5 text-graphite">
+        <Clapperboard className="size-4" aria-hidden />
         {lecture.contentType === "VIDEO" ? "Video" : "Article"}
-        {asset?.status === "READY" && lecture.durationSeconds > 0
-          ? ` · ${formatDuration(lecture.durationSeconds)}`
-          : null}
       </span>
+      {asset?.status === "READY" && lecture.durationSeconds > 0 ? (
+        <span className="text-graphite">{formatDuration(lecture.durationSeconds)}</span>
+      ) : null}
 
       {asset ? <StatusBadge kind="video" status={asset.status} /> : null}
 
       {phase.name === "uploading" ? (
         <span className="flex min-w-40 flex-1 items-center gap-2">
-          <Progress value={phase.percent} className="max-w-48" aria-label="Upload progress" />
-          <span className="text-xs tabular-nums text-muted-foreground">{phase.percent}%</span>
+          <Progress value={phase.percent} className="max-w-48" aria-label={`Upload progress ${phase.percent}%`} />
+          <span className="text-sm text-graphite tabular-nums">{phase.percent}%</span>
         </span>
       ) : phase.name === "finalizing" ? (
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> Starting transcode…
+        <span role="status" className="flex items-center gap-1.5 text-graphite">
+          <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden /> Preparing the video…
         </span>
       ) : (
         <>
@@ -182,7 +182,7 @@ export function LectureVideoPanel({
           />
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={busy}
             onClick={() => inputRef.current?.click()}
@@ -200,13 +200,13 @@ export function LectureVideoPanel({
       )}
 
       {phase.name === "error" ? (
-        <p role="alert" className="w-full text-xs font-medium text-destructive">
+        <p role="alert" className="w-full text-sm font-medium text-seal">
           {phase.message}
         </p>
       ) : null}
 
       {asset?.status === "FAILED" && asset.failureReason ? (
-        <p role="alert" className="w-full text-xs text-destructive/90">
+        <p role="alert" className="w-full text-sm text-seal">
           {asset.failureReason}
         </p>
       ) : null}
