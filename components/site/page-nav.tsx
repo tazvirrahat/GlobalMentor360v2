@@ -58,7 +58,7 @@ export function PageNav({
           <span
             key={item.key}
             aria-hidden
-            className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground"
+            className="flex min-h-11 min-w-11 items-center justify-center text-graphite"
           >
             …
           </span>

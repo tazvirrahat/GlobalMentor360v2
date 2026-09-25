@@ -26,8 +26,8 @@ describe("email delivery copy vs SES sandbox", () => {
   it("does not promise inbox delivery without the sandbox caveat", () => {
     const note = read("components/auth/email-delivery-note.tsx");
     expect(note).toMatch(/SES sandbox cannot mail arbitrary addresses/);
-    expect(note).toMatch(/contact the academy/);
-    expect(note).toMatch(/check spam/);
+    expect(note).toMatch(/contact us if you need the link/);
+    expect(note).toMatch(/check your spam folder/);
   });
 
   it("is mounted on sign-up, unverified sign-in, and forgot-password", () => {

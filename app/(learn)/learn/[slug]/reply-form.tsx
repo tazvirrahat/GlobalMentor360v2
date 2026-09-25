@@ -44,7 +44,7 @@ export function ReplyForm({ threadId, questionTitle }: { threadId: string; quest
       ) : null}
 
       {state.status === "posted" ? (
-        <p role="status" className="text-sm font-medium text-primary">
+        <p role="status" className="text-sm font-medium text-ink">
           Reply posted.
         </p>
       ) : null}

@@ -10,26 +10,26 @@ function authorInitials(name: string) {
 export function ReviewList({ reviews }: { reviews: CourseReview[] }) {
   if (reviews.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-graphite">
         No written reviews yet. Enrolled learners can be the first.
       </p>
     );
   }
 
   return (
-    <ul className="flex flex-col divide-y divide-border">
+    <ul className="flex flex-col divide-y divide-rule">
       {reviews.map((review) => (
         <li key={review.id} className="flex flex-col gap-2 py-4 first:pt-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span
-              className="flex size-8 items-center justify-center rounded-full bg-muted font-heading text-xs font-semibold text-foreground"
+              className="flex size-8 items-center justify-center rounded-full bg-wash text-xs font-semibold text-ink"
               aria-hidden
             >
               {authorInitials(review.authorName)}
             </span>
             <StarRating value={review.rating} starClassName="size-3.5" />
-            <span className="text-sm font-semibold">{review.authorName}</span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-sm font-semibold text-ink">{review.authorName}</span>
+            <span className="text-sm text-graphite">
               <time dateTime={review.createdAt.toISOString()}>
                 {formatDateMedium(review.createdAt)}
               </time>
