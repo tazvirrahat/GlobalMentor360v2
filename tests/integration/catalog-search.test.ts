@@ -212,3 +212,49 @@ describe("bounds", () => {
     expect(first.items.length).toBeLessThanOrEqual(first.total);
   });
 });
+
+describe("duration filter", () => {
+  let halfHourId: string;
+  let twoHourId: string;
+
+  /** One section of article lectures whose durations add up to `minutes`. */
+  async function addLectures(courseId: string, minutes: number[]) {
+    const section = await db.section.create({ data: { courseId, title: "Only section", position: 0 }, select: { id: true } });
+    for (const [position, length] of minutes.entries()) {
+      await db.curriculumItem.create({
+        data: {
+          sectionId: section.id,
+          title: `Lecture ${position + 1}`,
+          type: "LECTURE",
+          position,
+          lecture: { create: { contentType: "ARTICLE", articleBody: "Text.", durationSeconds: length * 60 } },
+        },
+      });
+    }
+  }
+
+  beforeAll(async () => {
+    halfHourId = await makeCourse({ label: "catalog-halfhour", priceUsd: 1000 });
+    await addLectures(halfHourId, [10, 20]);
+    twoHourId = await makeCourse({ label: "catalog-twohour", priceUsd: 1000 });
+    await addLectures(twoHourId, [60, 45, 15]);
+  });
+
+  it("puts each course in the bucket its summed lecture time falls in", async () => {
+    const short = mine(await listPublishedCourses({ duration: "short" }));
+    const medium = mine(await listPublishedCourses({ duration: "medium" }));
+    const long = mine(await listPublishedCourses({ duration: "long" }));
+    expect(short).toContain(halfHourId);
+    expect(short).not.toContain(twoHourId);
+    expect(medium).toContain(twoHourId);
+    expect(medium).not.toContain(halfHourId);
+    expect(long).not.toContain(halfHourId);
+    expect(long).not.toContain(twoHourId);
+  });
+
+  it("combines with search and other filters", async () => {
+    const hits = mine(await listPublishedCourses({ query: `catalog-twohour ${run}`, duration: "medium" }));
+    expect(hits).toEqual([twoHourId]);
+    expect(mine(await listPublishedCourses({ duration: "medium", price: "free" }))).not.toContain(twoHourId);
+  });
+});
