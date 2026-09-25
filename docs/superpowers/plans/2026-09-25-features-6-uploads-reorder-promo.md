@@ -40,30 +40,30 @@
 
 ### Task 1: Drag reorder
 
-- [ ] `reorderSections(courseId, ids)` / `reorderItems(sectionId, ids)`: owner only; ids must equal the current set; positions 0…n−1 in one transaction.
-- [ ] `useDragOrder(ids, commit)`: optimistic order, dragged id, drop index; reverts and reports on failure.
-- [ ] Grip on each section header and item row (`GripVertical`, `cursor-grab`, `aria-hidden`); a 2 px ink line shows where it will land; the status line announces "Moved." for screen readers via the existing message.
-- [ ] Integration test (ownership, stale set refused, order written); e2e: drag an item below another and see the order after reload.
-- [ ] Commit `Let instructors drag sections and lessons into order`.
+- [x] `reorderSections(courseId, ids)` / `reorderItems(sectionId, ids)`: owner only; ids must equal the current set; positions 0…n−1 in one transaction.
+- [x] `useDragOrder(ids, commit)`: optimistic order, dragged id, drop index; reverts and reports on failure.
+- [x] Grip on each section header and item row (`GripVertical`, `cursor-grab`, `aria-hidden`); a 2 px ink line shows where it will land; the status line announces "Moved." for screen readers via the existing message.
+- [x] Integration test (ownership, stale set refused, order written); e2e: drag an item below another and see the order after reload.
+- [x] Commit `Let instructors drag sections and lessons into order`.
 
 ### Task 2: Resumable video uploads
 
-- [ ] `planUpload(size)` (16 MB parts, grown so parts ≤ 10,000), `partRange`, `missingParts`; unit tests.
-- [ ] aws: `createMultipartUpload(key, type)`, `signUploadPart(key, uploadId, n)`, `listUploadedParts(key, uploadId)` (paginated), `completeMultipartUpload(key, uploadId, parts)`, `abortMultipartUpload`.
-- [ ] Actions: `startResumableVideoUpload`, `signVideoUploadParts`, `resumeVideoUpload`, `finishResumableVideoUpload`, `cancelVideoUpload`; the target is a lecture (`itemId`) or a promo (`courseId`); guards reuse `mediaAssetMatchesUpload`.
-- [ ] Browser uploader with overall progress, per-part retry, a resume record in localStorage, Cancel.
-- [ ] Integration tests for the guards (not the owner, wrong target, too many parts, storage unset).
-- [ ] Commit `Upload videos in resumable parts`.
+- [x] `planUpload(size)` (16 MB parts, grown so parts ≤ 10,000), `partRange`, `missingParts`; unit tests.
+- [x] aws: `createMultipartUpload(key, type)`, `signUploadPart(key, uploadId, n)`, `listUploadedParts(key, uploadId)` (paginated), `completeMultipartUpload(key, uploadId, parts)`, `abortMultipartUpload`.
+- [x] Actions: `startResumableVideoUpload`, `signVideoUploadParts`, `resumeVideoUpload`, `finishResumableVideoUpload`, `cancelVideoUpload`; the target is a lecture (`itemId`) or a promo (`courseId`); guards reuse `mediaAssetMatchesUpload`.
+- [x] Browser uploader with overall progress, per-part retry, a resume record in localStorage, Cancel.
+- [x] Integration tests for the guards (not the owner, wrong target, too many parts, storage unset).
+- [x] Commit `Upload videos in resumable parts`.
 
 ### Task 3: Promo video
 
-- [ ] Landing page tab "Promo video": status (processing / ready / failed), Upload / Replace / Remove; storage unset → plain note.
-- [ ] `getPromoPlayback(courseId)`; `VideoPlayer` `source: { kind: "lecture", itemId, slug } | { kind: "promo", courseId }`.
-- [ ] Course page: "Watch the promo" in the buy box when READY; dialog with the player, titled "Promo: {course}".
-- [ ] Integration test: who may play a promo; remove releases the asset.
-- [ ] Commit `Let instructors add a promo video to a course`.
+- [x] Landing page tab "Promo video": status (processing / ready / failed), Upload / Replace / Remove; storage unset → plain note.
+- [x] `getPromoPlayback(courseId)`; `VideoPlayer` `source: { kind: "lecture", itemId, slug } | { kind: "promo", courseId }`.
+- [x] Course page: "Watch the promo" in the buy box when READY; dialog with the player, titled "Promo: {course}".
+- [x] Integration test: who may play a promo; remove releases the asset.
+- [x] Commit `Let instructors add a promo video to a course`.
 
 ### Task 4: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
-- [ ] Progress log row; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
+- [x] Progress log row; commit; push.
