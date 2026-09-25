@@ -1,22 +1,28 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ChevronRight, CircleCheck, CircleX, TriangleAlert } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Check, ExternalLink, TriangleAlert, X } from "lucide-react";
+import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/course/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { pickEditorTab } from "@/lib/course-editor";
 import { courseSellabilityWarning } from "@/lib/payments";
 import { requireRole } from "@/lib/session";
 import { getOwnedCourse, readinessChecks } from "@/lib/studio";
-import { PublishForm, SettingsForm } from "./settings-form";
+import { CourseEditor } from "./course-editor";
+import { PublishForm } from "./publish-form";
 
-export const metadata = { title: "Course settings | Studio" };
+export const metadata = { title: "Edit course | Studio" };
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ courseId: string }> };
+type Params = {
+  params: Promise<{ courseId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
+};
 
-export default async function CourseSettingsPage({ params }: Params) {
+export default async function CourseEditorPage({ params, searchParams }: Params) {
   const { courseId } = await params;
+  const { tab } = await searchParams;
   const user = await requireRole("INSTRUCTOR", "ADMIN");
 
   // Returns null for another instructor's course as well as a missing one, so a
@@ -26,81 +32,60 @@ export default async function CourseSettingsPage({ params }: Params) {
 
   const checks = await readinessChecks(course.id);
   const ready = checks.every((check) => check.ok);
+  const published = course.status === "PUBLISHED";
   const sellabilityWarning = courseSellabilityWarning(course.prices);
 
-  return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <Link
-        href="/studio"
-        className="inline-flex w-fit cursor-pointer items-center gap-1 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" aria-hidden /> Studio
-      </Link>
+  const publishPanel = (
+    <>
+      <ul className="flex flex-col gap-3">
+        {checks.map((check) => (
+          <li key={check.label} className="flex items-start gap-3">
+            {check.ok ? (
+              <Check className="mt-0.5 size-5 shrink-0 text-verified" aria-hidden />
+            ) : (
+              <X className="mt-0.5 size-5 shrink-0 text-seal" aria-hidden />
+            )}
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium text-ink">
+                <span className="sr-only">{check.ok ? "Done: " : "To do: "}</span>
+                {check.label}
+              </span>
+              {check.ok ? null : <span className="text-sm text-graphite">{check.hint}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <PublishForm courseId={course.id} status={course.status} ready={ready} />
+    </>
+  );
 
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">{course.title}</h1>
-        <StatusBadge kind="course" status={course.status} />
-      </div>
+  return (
+    <main className="flex w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <PageHeader
+        back={{ href: "/studio" as Route, label: "Courses" }}
+        title={course.title}
+        meta={<StatusBadge kind="course" status={course.status} />}
+        actions={
+          published ? (
+            <Link
+              href={`/courses/${course.slug}` as Route}
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-sm text-sm font-medium text-ink underline decoration-control underline-offset-4 hover:decoration-ink focus-ring"
+            >
+              Course page <ExternalLink className="size-3.5" aria-hidden />
+            </Link>
+          ) : null
+        }
+      />
 
       {sellabilityWarning ? (
-        <Alert
-          className="mt-6"
-          variant={course.status === "PUBLISHED" ? "destructive" : "caution"}
-        >
+        <Alert variant={published ? "destructive" : "caution"}>
           <TriangleAlert className="size-4" aria-hidden />
-          <AlertTitle>
-            {course.status === "PUBLISHED" ? "Live but unpayable" : "Not payable yet"}
-          </AlertTitle>
+          <AlertTitle>{published ? "On sale, but nobody can pay for it" : "Not ready to sell yet"}</AlertTitle>
           <AlertDescription>{sellabilityWarning}</AlertDescription>
         </Alert>
       ) : null}
 
-      <Button asChild variant="outline" className="mt-4">
-        <Link href={`/studio/courses/${course.id}/curriculum`} className="cursor-pointer">
-          Edit curriculum <ChevronRight className="size-4" aria-hidden />
-        </Link>
-      </Button>
-
-      <div className="mt-8 grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <section>
-          <Card>
-            <CardHeader>
-              <CardTitle>Readiness</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <ul className="flex flex-col gap-2 text-sm">
-                {checks.map((check) => (
-                  <li key={check.label} className="flex items-start gap-2">
-                    {check.ok ? (
-                      <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
-                    ) : (
-                      <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
-                    )}
-                    <span>
-                      {check.label}
-                      {check.ok ? null : (
-                        <span className="block text-xs text-muted-foreground">{check.hint}</span>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <PublishForm courseId={course.id} status={course.status} ready={ready} />
-            </CardContent>
-          </Card>
-        </section>
-
-        <section>
-          <Card>
-            <CardHeader>
-              <CardTitle>Settings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SettingsForm course={course} />
-            </CardContent>
-          </Card>
-        </section>
-      </div>
+      <CourseEditor course={course} initialTab={pickEditorTab(tab)} publishPanel={publishPanel} published={published} />
     </main>
   );
 }

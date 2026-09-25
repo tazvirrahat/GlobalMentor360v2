@@ -18,6 +18,7 @@ export function ConfirmSubmit({
   size = "sm",
   icon,
   disabled = false,
+  variant = "ghost",
 }: {
   label: string;
   question: string;
@@ -25,6 +26,8 @@ export function ConfirmSubmit({
   size?: "sm" | "default";
   icon?: ReactNode;
   disabled?: boolean;
+  /** The trigger's look; the confirm button is always destructive. */
+  variant?: "ghost" | "secondary";
 }) {
   const [asking, setAsking] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -56,7 +59,7 @@ export function ConfirmSubmit({
         {icon}
       </Button>
     ) : (
-      <Button ref={ref} type="button" variant="ghost" size={size} disabled={disabled} onClick={() => setAsking(true)}>
+      <Button ref={ref} type="button" variant={variant} size={size} disabled={disabled} onClick={() => setAsking(true)}>
         {label}
       </Button>
     );
