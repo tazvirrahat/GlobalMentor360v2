@@ -95,6 +95,8 @@ export function buildRoutes(ids) {
     ["admin", "admin-refunds", "/admin/refunds"],
     ["admin", "admin-users", "/admin/users"],
     ["admin", "admin-courses", "/admin/courses"],
+    ["admin", "admin-course", need(ids.courseId, `/admin/courses/${ids.courseId}`)],
+    ["admin", "admin-taxonomy", "/admin/taxonomy"],
     ["admin", "admin-reviews", "/admin/reviews"],
   ];
 

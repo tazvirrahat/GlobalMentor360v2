@@ -18,6 +18,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  tableLinkClass,
 } from "@/components/ui/table";
 import { ADMIN_PAGE_SIZE, listAdminCourses } from "@/lib/admin";
 import { listReviewQueue } from "@/lib/course-review";
@@ -139,7 +140,9 @@ export default async function AdminCoursesPage({
                   <TableRow key={course.id}>
                     <TableCell>
                       <span className="flex min-w-0 flex-col gap-0.5">
-                        <span className="font-medium text-ink">{course.title}</span>
+                        <Link href={`/admin/courses/${course.id}` as Route} className={tableLinkClass}>
+                          {course.title}
+                        </Link>
                         <span className="text-sm text-graphite">{course.instructor.name}</span>
                         <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 md:hidden">
                           <StatusBadge kind="course" status={course.status} />

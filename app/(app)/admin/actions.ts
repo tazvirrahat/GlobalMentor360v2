@@ -34,6 +34,7 @@ export async function publishCourseAction(formData: FormData) {
     redirect(`/admin/courses?error=${encodeURIComponent(result.message)}` as Route);
   }
   revalidatePath("/admin/courses");
+  revalidatePath(`/admin/courses/${courseId}`);
   revalidatePath("/courses");
 }
 

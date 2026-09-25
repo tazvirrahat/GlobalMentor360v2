@@ -74,7 +74,7 @@ export function isFreeCourse(prices: readonly { amount: number }[]): boolean {
 export type CatalogSort = "newest" | "popular" | "rating" | "price-low" | "price-high" | "relevance";
 
 export type CatalogFilters = {
-  /** Full-text / trigram search across title, subtitle, description and instructor. */
+  /** Full-text / trigram search across title, subtitle, description, instructor, topics and skills. */
   query?: string;
   level?: CourseLevel;
   categorySlug?: string;
@@ -224,6 +224,15 @@ function catalogFilterSql(input: {
         OR COALESCE(c.subtitle, '') ILIKE ${pattern}
         OR COALESCE(c.description, '') ILIKE ${pattern}
         OR u.name ILIKE ${pattern}
+        -- A course's topics and skills (admin-set) count too, so "Related topics" links find it.
+        OR EXISTS (
+          SELECT 1 FROM course_topics ct JOIN topics t ON t.id = ct."topicId"
+          WHERE ct."courseId" = c.id AND t.name ILIKE ${pattern}
+        )
+        OR EXISTS (
+          SELECT 1 FROM course_skills cs JOIN skills k ON k.id = cs."skillId"
+          WHERE cs."courseId" = c.id AND k.name ILIKE ${pattern}
+        )
       )`,
     );
   }
@@ -487,6 +496,8 @@ export async function getPublishedCourseBySlug(slug: string) {
       requirements: { orderBy: { position: "asc" }, select: { text: true } },
       targetAudience: { orderBy: { position: "asc" }, select: { text: true } },
       faqs: { orderBy: { position: "asc" }, select: { id: true, question: true, answer: true } },
+      topics: { orderBy: { topic: { name: "asc" } }, select: { topic: { select: { name: true, slug: true } } } },
+      skills: { orderBy: { skill: { name: "asc" } }, select: { skill: { select: { name: true, slug: true } } } },
       prices: {
         where: { isActive: true },
         orderBy: { currency: "asc" },

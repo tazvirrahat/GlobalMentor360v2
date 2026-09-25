@@ -91,6 +91,24 @@ export async function setUserRole(
   return { ok: true };
 }
 
+/** One course for its admin page. */
+export async function getAdminCourse(courseId: string) {
+  return db.course.findUnique({
+    where: { id: courseId },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      status: true,
+      createdAt: true,
+      publishedAt: true,
+      enrollmentCount: true,
+      instructor: { select: { name: true, email: true } },
+      prices: { where: { isActive: true }, select: { currency: true, amount: true } },
+    },
+  });
+}
+
 export async function listAdminCourses(query?: string, page?: string | number) {
   const where = query
     ? {

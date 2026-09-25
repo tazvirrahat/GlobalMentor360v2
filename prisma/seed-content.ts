@@ -32,6 +32,9 @@ export type SeedCourse = {
   requirements: string[];
   audience: string[];
   faqs?: { question: string; answer: string }[];
+  /** Topic and skill slugs (seeded by seedTaxonomy). */
+  topics?: string[];
+  skills?: string[];
   sections: { title: string; lessons: SeedLesson[] }[];
 };
 
@@ -86,6 +89,8 @@ export const SEED_COURSES: SeedCourse[] = [
       "JavaScript developers moving a project to TypeScript.",
       "Students who know JavaScript and keep seeing TypeScript in job posts.",
     ],
+    topics: ["typescript"],
+    skills: ["frontend-development", "api-design"],
     faqs: [
       {
         question: "Do I need to install anything?",

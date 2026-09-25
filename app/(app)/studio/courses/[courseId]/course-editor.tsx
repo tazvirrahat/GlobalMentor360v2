@@ -24,6 +24,7 @@ export type EditableCourse = {
   description: string | null;
   level: string;
   language: string;
+  primaryCategoryId: string | null;
   prices: { currency: string; amount: number }[];
   objectives: { text: string }[];
   requirements: { text: string }[];
@@ -80,12 +81,14 @@ function amountText(prices: EditableCourse["prices"], currency: string) {
  */
 export function CourseEditor({
   course,
+  categories,
   initialTab,
   imageField,
   publishPanel,
   published,
 }: {
   course: EditableCourse;
+  categories: { id: string; name: string }[];
   initialTab: CourseEditorTab;
   /** Saves on its own, not with Save (see CourseImageField). */
   imageField: ReactNode;
@@ -99,6 +102,7 @@ export function CourseEditor({
   // Hidden inputs, not Select `name`: Radix Select hydrates a native control
   // whose submitted value can disagree with defaultValue.
   const [level, setLevel] = useState(course.level);
+  const [category, setCategory] = useState(course.primaryCategoryId ?? "none");
   // Prefer BDT when both exist — that is the price bKash charges.
   const [currency, setCurrency] = useState(
     course.prices.some((price) => price.currency === "BDT") ? "BDT" : (course.prices[0]?.currency ?? "BDT"),
@@ -205,6 +209,27 @@ export function CourseEditor({
                 A language code, like en or bn.
               </p>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5 sm:max-w-[calc(50%-0.5rem)]">
+            <Label htmlFor="categoryId">Category</Label>
+            <input type="hidden" name="categoryId" value={category} />
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger id="categoryId" className="w-full" aria-describedby="category-hint">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No category</SelectItem>
+                {categories.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p id="category-hint" className="text-sm text-graphite">
+              Where the catalog lists the course.
+            </p>
           </div>
 
           {imageField}
