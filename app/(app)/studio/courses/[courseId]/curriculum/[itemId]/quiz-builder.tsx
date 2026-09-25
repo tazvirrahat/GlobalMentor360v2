@@ -176,7 +176,7 @@ function SettingsForm({
             type="checkbox"
             name="allowRetakes"
             defaultChecked={assessment.allowRetakes}
-            className="size-5 cursor-pointer accent-ink"
+            className="size-6 shrink-0 cursor-pointer accent-ink"
           />
           Allow retakes after a pass
         </label>
@@ -186,7 +186,7 @@ function SettingsForm({
             type="checkbox"
             name="shuffleQuestions"
             defaultChecked={assessment.shuffleQuestions}
-            className="size-5 cursor-pointer accent-ink"
+            className="size-6 shrink-0 cursor-pointer accent-ink"
           />
           Shuffle questions
         </label>
@@ -347,7 +347,7 @@ function QuestionEditorForm({
                   checked={row.correct}
                   onChange={(event) => setCorrect(row.key, event.target.checked)}
                   aria-label={`Mark answer ${index + 1} correct`}
-                  className="size-5 shrink-0 cursor-pointer accent-ink"
+                  className="size-6 shrink-0 cursor-pointer accent-ink"
                 />
 
                 {trueFalse ? (

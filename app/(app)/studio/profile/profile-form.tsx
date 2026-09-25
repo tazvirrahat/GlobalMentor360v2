@@ -76,7 +76,7 @@ export function ProfileForm({
           type="checkbox"
           name="profilePublic"
           defaultChecked={profile.profilePublic}
-          className="size-5 cursor-pointer accent-ink"
+          className="size-6 shrink-0 cursor-pointer accent-ink"
         />
         Show my instructor page to everyone
       </label>
