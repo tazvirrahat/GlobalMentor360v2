@@ -79,7 +79,7 @@ test.describe("staff surfaces", () => {
     await page.getByLabel("Password", { exact: true }).fill("dev-password-12345");
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/studio\/coupons/);
-    await expect(page.getByRole("heading", { name: "Coupons" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Coupons" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Studio" })).toBeVisible();
   });
 
