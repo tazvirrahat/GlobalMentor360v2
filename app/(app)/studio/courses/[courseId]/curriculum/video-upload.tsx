@@ -1,16 +1,12 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Clapperboard, Loader2, RefreshCw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import {
-  finalizeVideoUpload,
-  refreshVideoStatus,
-  startVideoUpload,
-  type VideoActionState,
-} from "../../../video-actions";
+import { refreshVideoStatus, type VideoActionState } from "../../../video-actions";
+import { useVideoUpload } from "./use-video-upload";
 import { StatusBadge } from "@/components/course/status-badge";
 
 const initial: VideoActionState = { status: "idle" };
@@ -26,12 +22,6 @@ export type LectureVideoInfo = {
     failureReason: string | null;
   } | null;
 };
-
-type UploadPhase =
-  | { name: "idle" }
-  | { name: "uploading"; percent: number }
-  | { name: "finalizing" }
-  | { name: "error"; message: string };
 
 /**
  * fetch() exposes no upload progress events, so the PUT goes through
@@ -106,7 +96,8 @@ export function LectureVideoPanel({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [phase, setPhase] = useState<UploadPhase>({ name: "idle" });
+  const upload = useVideoUpload({ kind: "lecture", itemId }, () => router.refresh());
+  const phase = upload.phase;
 
   if (!lecture) return null;
 
@@ -114,41 +105,6 @@ export function LectureVideoPanel({
   // only say what they are, and "Use a video instead" replaces the file.
   const fileLesson = lecture.contentType === "AUDIO" || lecture.contentType === "FILE";
   const asset = fileLesson ? null : lecture.asset;
-  const busy = phase.name === "uploading" || phase.name === "finalizing";
-
-  async function upload(file: File) {
-    setPhase({ name: "uploading", percent: 0 });
-    try {
-      const start = await startVideoUpload({
-        itemId,
-        fileName: file.name,
-        contentType: file.type || "video/mp4",
-      });
-      if (!start.ok) {
-        setPhase({ name: "error", message: start.message });
-        return;
-      }
-
-      await putWithProgress(start.uploadUrl, start.uploadHeaders, file, (percent) =>
-        setPhase({ name: "uploading", percent }),
-      );
-
-      setPhase({ name: "finalizing" });
-      const finalized = await finalizeVideoUpload({ itemId, mediaAssetId: start.mediaAssetId });
-      if (!finalized.ok) {
-        setPhase({ name: "error", message: finalized.message });
-        return;
-      }
-
-      setPhase({ name: "idle" });
-      router.refresh();
-    } catch (error) {
-      setPhase({
-        name: "error",
-        message: error instanceof Error ? error.message : "Upload failed.",
-      });
-    }
-  }
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
@@ -163,11 +119,16 @@ export function LectureVideoPanel({
       {asset ? <StatusBadge kind="video" status={asset.status} /> : null}
 
       {phase.name === "uploading" ? (
-        <span className="flex min-w-40 flex-1 items-center gap-2">
+        <span className="flex min-w-40 flex-1 flex-wrap items-center gap-2">
           <Progress value={phase.percent} className="max-w-48" aria-label={`Upload progress ${phase.percent}%`} />
-          <span className="text-sm text-graphite tabular-nums">{phase.percent}%</span>
+          <span className="text-sm text-graphite tabular-nums">
+            {phase.resuming ? `Resuming, ${phase.percent}%` : `${phase.percent}%`}
+          </span>
+          <Button type="button" variant="ghost" size="sm" onClick={upload.cancel}>
+            Cancel upload
+          </Button>
         </span>
-      ) : phase.name === "finalizing" ? (
+      ) : phase.name === "finishing" ? (
         <span role="status" className="flex items-center gap-1.5 text-graphite">
           <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden /> Preparing the video…
         </span>
@@ -182,14 +143,14 @@ export function LectureVideoPanel({
               const file = event.target.files?.[0];
               // Allow re-selecting the same file after a failure.
               event.target.value = "";
-              if (file) void upload(file);
+              if (file) void upload.start(file);
             }}
           />
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            disabled={busy}
+            disabled={upload.busy}
             onClick={() => inputRef.current?.click()}
           >
             <Upload aria-hidden />
@@ -207,6 +168,10 @@ export function LectureVideoPanel({
       {phase.name === "error" ? (
         <p role="alert" className="w-full text-sm font-medium text-seal">
           {phase.message}
+        </p>
+      ) : phase.name === "cancelled" ? (
+        <p role="status" className="w-full text-sm text-graphite">
+          Upload cancelled.
         </p>
       ) : null}
 
