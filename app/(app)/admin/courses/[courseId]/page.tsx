@@ -6,18 +6,19 @@ import { PageHeader } from "@/components/app/page-header";
 import { Panel } from "@/components/app/panel";
 import { StatusBadge } from "@/components/course/status-badge";
 import { ConfirmSubmit } from "@/components/site/confirm-submit";
+import { FlashAlert } from "@/components/site/flash-alert";
 import { Button } from "@/components/ui/button";
 import { getAdminCourse } from "@/lib/admin";
 import { formatDateMedium } from "@/lib/format";
 import { requireRole } from "@/lib/session";
 import { getCourseTaxonomy, listTaxonomy } from "@/lib/taxonomy";
-import { publishCourseAction } from "../../actions";
+import { featureCourseAction, publishCourseAction } from "../../actions";
 import { CourseTaxonomyForm } from "./taxonomy-form";
 
 export const metadata = { title: "Course | Admin" };
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ courseId: string }> };
+type Params = { params: Promise<{ courseId: string }>; searchParams: Promise<{ error?: string }> };
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -29,9 +30,10 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 }
 
 /** One course for an admin: who teaches it, where it stands, and how the catalog files it. */
-export default async function AdminCoursePage({ params }: Params) {
+export default async function AdminCoursePage({ params, searchParams }: Params) {
   await requireRole("ADMIN");
   const { courseId } = await params;
+  const { error } = await searchParams;
   const [course, taxonomy, current] = await Promise.all([
     getAdminCourse(courseId),
     listTaxonomy(),
@@ -91,6 +93,30 @@ export default async function AdminCoursePage({ params }: Params) {
             )}
           </Fact>
         </dl>
+      </Panel>
+
+      {error ? <FlashAlert title="Could not update course">{error}</FlashAlert> : null}
+
+      <Panel
+        title="Home page"
+        description={
+          course.featuredAt
+            ? `Featured since ${formatDateMedium(course.featuredAt)}: it leads the home page's course list while it is published.`
+            : "Featured courses lead the home page's course list, newest feature first; the rest are the most popular."
+        }
+        actions={
+          <form action={featureCourseAction}>
+            <input type="hidden" name="courseId" value={course.id} />
+            <input type="hidden" name="featured" value={course.featuredAt ? "false" : "true"} />
+            <Button type="submit" size="sm" variant="secondary" disabled={!course.featuredAt && !published}>
+              {course.featuredAt ? "Stop featuring" : "Feature on the home page"}
+            </Button>
+          </form>
+        }
+      >
+        {!course.featuredAt && !published ? (
+          <p className="text-sm text-graphite">Publish the course first to feature it.</p>
+        ) : null}
       </Panel>
 
       <Panel title="Taxonomy" description="Where the catalog files this course, and the topics and skills its page lists.">

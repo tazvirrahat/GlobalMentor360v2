@@ -452,6 +452,25 @@ export async function listInstructorPublishedCourses(instructorId: string, take 
   return rows.map(mapCatalogCourse);
 }
 
+/**
+ * The home page's course list: courses an admin featured (newest feature
+ * first), then the most popular, without repeats. Only published courses.
+ */
+export async function listHomeCourses(limit = 6): Promise<CatalogCourse[]> {
+  const featured = (
+    await db.course.findMany({
+      where: { status: "PUBLISHED", featuredAt: { not: null } },
+      orderBy: { featuredAt: "desc" },
+      take: limit,
+      select: CATALOG_SELECT,
+    })
+  ).map(mapCatalogCourse);
+  if (featured.length >= limit) return featured;
+  const seen = new Set(featured.map((course) => course.id));
+  const popular = (await listPublishedCourses({ sort: "popular" })).items.filter((course) => !seen.has(course.id));
+  return [...featured, ...popular].slice(0, limit);
+}
+
 /** The languages actually present in the catalog, so the filter offers no dead options. */
 export async function listCatalogLanguages(): Promise<string[]> {
   const rows = await db.course.findMany({

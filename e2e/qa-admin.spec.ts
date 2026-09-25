@@ -407,6 +407,23 @@ test.describe("admin exploratory QA", () => {
     await other.close();
   });
 
+  test("featuring a course puts it first on the home page", async ({ page }) => {
+    await signIn(page, SEED.admin, "/admin/courses");
+    await adminSearch(page, "SQL for Analysts");
+    await page.getByRole("link", { name: "SQL for Analysts", exact: true }).click();
+    await page.getByRole("button", { name: "Feature on the home page" }).click();
+    await expect(page.getByRole("button", { name: "Stop featuring" })).toBeVisible({ timeout: 15_000 });
+
+    await page.goto("/");
+    const list = page.getByRole("region", { name: "Popular courses" }).getByRole("listitem");
+    await expect(list.first()).toContainText("SQL for Analysts");
+
+    // Put the seed back.
+    await page.goBack();
+    await page.getByRole("button", { name: "Stop featuring" }).click();
+    await expect(page.getByRole("button", { name: "Feature on the home page" })).toBeVisible({ timeout: 15_000 });
+  });
+
   test("admin tables do not overflow at 375 or 1280", async ({ page }) => {
     await signIn(page, SEED.admin, "/admin/users");
 

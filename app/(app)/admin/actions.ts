@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { adminSetCoursePublished, setReviewVisibility, setUserRole } from "@/lib/admin";
+import { adminSetCoursePublished, setCourseFeatured, setReviewVisibility, setUserRole } from "@/lib/admin";
 import type { Role } from "@/generated/prisma/enums";
 import { approveReview, returnReview } from "@/lib/course-review";
 import { processAdminRefund } from "@/lib/refunds";
@@ -41,6 +41,18 @@ export async function publishCourseAction(formData: FormData) {
   revalidatePath("/admin/courses");
   revalidatePath(`/admin/courses/${courseId}`);
   revalidatePath("/courses");
+}
+
+export async function featureCourseAction(formData: FormData) {
+  const admin = await requireRole("ADMIN");
+  const courseId = String(formData.get("courseId") ?? "");
+  const featured = String(formData.get("featured") ?? "") === "true";
+  const result = await setCourseFeatured(admin.id, courseId, featured);
+  if (!result.ok) {
+    redirect(`/admin/courses/${courseId}?error=${encodeURIComponent(result.message)}` as Route);
+  }
+  revalidatePath(`/admin/courses/${courseId}`);
+  revalidatePath("/");
 }
 
 export async function moderateReviewAction(formData: FormData) {

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { listTopCategoriesWithCounts } from "@/lib/categories";
 import { getContinueLearning } from "@/lib/continue-learning";
-import { listPublishedCourses } from "@/lib/courses";
+import { listHomeCourses } from "@/lib/courses";
 import { availableRails } from "@/lib/payments";
 import { listHomeTestimonials } from "@/lib/reviews";
 import { getCurrentUser } from "@/lib/session";
@@ -34,13 +34,13 @@ function courses(count: number) {
 export default async function HomePage() {
   const site = getSite();
   const user = await getCurrentUser();
-  const [catalog, categories, testimonials, continueLearning] = await Promise.all([
-    listPublishedCourses({ sort: "popular" }),
+  const [popular, categories, testimonials, continueLearning] = await Promise.all([
+    // Featured by an admin first, then the most popular.
+    listHomeCourses(6),
     listTopCategoriesWithCounts(),
     listHomeTestimonials(3, 4),
     user ? getContinueLearning(user.id) : Promise.resolve(null),
   ]);
-  const popular = catalog.items.slice(0, 6);
   const cardAvailable = availableRails().some((rail) => rail.kind === "automatic");
 
   return (

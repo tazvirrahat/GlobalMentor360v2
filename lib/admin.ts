@@ -182,6 +182,18 @@ export async function grantCourse(actorId: string, userId: string, courseId: str
   return { ok: true };
 }
 
+/** Puts a published course at the top of the home page's list, or takes it off. Audited. */
+export async function setCourseFeatured(actorId: string, courseId: string, featured: boolean): Promise<AdminResult> {
+  const course = await db.course.findUnique({ where: { id: courseId }, select: { status: true, featuredAt: true } });
+  if (!course) return { ok: false, message: "Course not found." };
+  if (featured && course.status !== "PUBLISHED") return { ok: false, message: "Only a published course can be featured." };
+  await db.course.update({ where: { id: courseId }, data: { featuredAt: featured ? new Date() : null } });
+  await db.auditLog.create({
+    data: { actorId, action: featured ? "course.feature" : "course.unfeature", targetType: "course", targetId: courseId },
+  });
+  return { ok: true };
+}
+
 /** One course for its admin page. */
 export async function getAdminCourse(courseId: string) {
   return db.course.findUnique({
@@ -193,6 +205,7 @@ export async function getAdminCourse(courseId: string) {
       status: true,
       createdAt: true,
       publishedAt: true,
+      featuredAt: true,
       enrollmentCount: true,
       instructor: { select: { name: true, email: true } },
       prices: { where: { isActive: true }, select: { currency: true, amount: true } },
