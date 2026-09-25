@@ -1,134 +1,183 @@
-import { PageNav } from "@/components/site/page-nav";
+import { ListFooter } from "@/components/app/list-footer";
+import { PageHeader } from "@/components/app/page-header";
+import { Price } from "@/components/course/price";
+import { Serial } from "@/components/course/serial";
 import { EmptyState } from "@/components/site/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { formatDate, formatDateTime } from "@/lib/format";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { formatDateMedium, formatPrice } from "@/lib/format";
+import { formatTimeOfDay } from "@/lib/day-groups";
 import { parsePage, showingRange } from "@/lib/pagination";
 import { listPendingManualPayments, MANUAL_PAYMENT_QUEUE_PAGE_SIZE } from "@/lib/payments";
 import { requireRole } from "@/lib/session";
+import { getSite } from "@/lib/site";
 import { ReviewForm } from "./review-form";
-import { Price } from "@/components/course/price";
-import { Serial } from "@/components/course/serial";
 
 export const metadata = { title: "Payments | Admin" };
 
 // The queue must reflect reality the moment an admin acts on it.
 export const dynamic = "force-dynamic";
 
-export default async function AdminPaymentsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ page?: string }>;
-}) {
+type QueueRow = Awaited<ReturnType<typeof listPendingManualPayments>>["items"][number];
+
+/** What the learner told us about the payment: the ID to find in the bKash account, and who sent it. */
+function BkashProof({ payment }: { payment: QueueRow }) {
+  return (
+    <dl className="flex flex-col gap-1 text-sm">
+      <div className="flex flex-wrap items-center gap-x-2">
+        <dt className="text-graphite">Transaction ID</dt>
+        <dd>
+          {payment.bkashTransactionId ? (
+            <Serial value={payment.bkashTransactionId} copyLabel="transaction ID" size="sm" />
+          ) : (
+            "Not given"
+          )}
+        </dd>
+      </div>
+      <div className="flex flex-wrap gap-x-2">
+        <dt className="text-graphite">From</dt>
+        <dd className="font-mono text-ink">{payment.bkashPhoneNumber ?? "Not given"}</dd>
+      </div>
+      {payment.bkashPaymentDate ? (
+        <div className="flex flex-wrap gap-x-2">
+          <dt className="text-graphite">Paid on</dt>
+          <dd className="text-ink">{formatDateMedium(payment.bkashPaymentDate)}</dd>
+        </div>
+      ) : null}
+      {payment.bkashReference ? (
+        <div className="flex flex-wrap gap-x-2">
+          <dt className="text-graphite">Reference</dt>
+          <dd className="break-all text-ink">{payment.bkashReference}</dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+}
+
+/**
+ * bKash payments waiting for a person to match them against the bKash account
+ * (spec §6 Admin): oldest first, one row each, Approve or Reject.
+ */
+export default async function AdminPaymentsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   // Redirects non-admins. bKash approval is the one action that turns money into
   // access, so it is admin-only.
   await requireRole("ADMIN");
 
   const { page: pageParam } = await searchParams;
-  const { items: pending, total, page, pageCount } = await listPendingManualPayments(
-    parsePage(pageParam),
-  );
+  const { items: pending, total, page, pageCount } = await listPendingManualPayments(parsePage(pageParam));
   const range = showingRange(page, MANUAL_PAYMENT_QUEUE_PAGE_SIZE, total);
-
-  const pager = (
-    <>
-      {total > 0 ? (
-        <p className="text-sm tabular-nums text-muted-foreground">
-          Showing {range.from}–{range.to} of {total}
-        </p>
-      ) : null}
-      <PageNav pathname="/admin/payments" page={page} pageCount={pageCount} />
-    </>
-  );
+  const { timeZone } = getSite();
 
   return (
-    <main className="mx-auto w-full min-w-0 max-w-[90rem] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">Payment verification</h1>
-        <Badge variant={total > 0 ? "warning" : "secondary"}>{total} awaiting</Badge>
-      </div>
+    <main className="flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <PageHeader
+        title="Payment verification"
+        description="Check each transaction ID against the bKash account, then approve or reject it. Oldest first."
+        meta={total > 0 ? <Badge variant="warning">{total} waiting</Badge> : null}
+      />
 
       {total === 0 ? (
         <EmptyState
-          className="mt-8"
           title="Nothing to review"
-          message="bKash payment proofs appear here when learners submit them."
+          message="When a learner pays with bKash and submits their transaction ID, it waits here for you."
         />
       ) : (
-        <div className="mt-4 min-w-0 space-y-2">
-          {pager}
-          <div className="w-0 min-w-full overflow-x-auto rounded-lg border bg-card shadow-sm">
-            <table className="w-full min-w-[40rem] text-sm">
-              <thead className="border-b bg-muted/40 text-left text-sm font-medium text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Date</th>
-                  <th className="px-3 py-2 font-medium">Learner</th>
-                  <th className="px-3 py-2 font-medium">Course</th>
-                  <th className="px-3 py-2 text-right font-medium">Amount</th>
-                  <th className="px-3 py-2 font-medium">Trx ID</th>
-                  <th className="px-3 py-2 font-medium">Review</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pending.map((payment) => {
-                  const courses = payment.order.items.map((item) => item.course.title).join(", ");
-                  const date = payment.bkashPaymentDate ?? payment.createdAt;
-                  return (
-                    <tr key={payment.id} className="border-b last:border-b-0 hover:bg-muted/50">
-                      <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-muted-foreground">
-                        {formatDate(date)}
-                      </td>
-                      <td className="max-w-[11rem] px-3 py-1.5">
-                        <p
-                          className="truncate"
-                          title={`${payment.user.name} · ${payment.user.email}`}
-                        >
-                          <span className="font-medium">{payment.user.name}</span>
-                          <span className="text-muted-foreground"> · {payment.user.email}</span>
-                        </p>
-                      </td>
-                      <td className="relative max-w-[12rem] px-3 py-1.5">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <p className="min-w-0 truncate" title={courses}>
-                            {courses}
-                          </p>
-                          <details className="shrink-0">
-                            <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-                              Proof details
-                            </summary>
-                            <dl className="absolute z-10 mt-1 w-56 space-y-1 rounded-md border bg-card p-2 text-xs shadow-sm">
-                              <div>
-                                <dt className="text-muted-foreground">bKash number</dt>
-                                <dd className="font-mono tabular-nums">{payment.bkashPhoneNumber}</dd>
-                              </div>
-                              <div>
-                                <dt className="text-muted-foreground">Reference</dt>
-                                <dd>{payment.bkashReference ?? "—"}</dd>
-                              </div>
-                              <div>
-                                <dt className="text-muted-foreground">Submitted</dt>
-                                <dd className="tabular-nums">{formatDateTime(payment.createdAt)}</dd>
-                              </div>
-                            </dl>
-                          </details>
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-right font-semibold tabular-nums">
-                        <Price amount={payment.amount} currency={payment.currency} />
-                      </td>
-                      <td className="px-3 py-1.5">
-                        {payment.bkashTransactionId ? <Serial value={payment.bkashTransactionId} size="sm" /> : "—"}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-1.5">
-                        <ReviewForm paymentId={payment.id} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <>
+          <div className="hidden md:block">
+          <Table className="min-w-[56rem]">
+            <TableCaption>bKash payments waiting for review</TableCaption>
+            <colgroup>
+              <col className="w-28" />
+              <col className="w-48" />
+              <col />
+              <col className="w-24" />
+              <col className="w-60" />
+              <col className="w-44" />
+            </colgroup>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Submitted</TableHead>
+                <TableHead>Learner</TableHead>
+                <TableHead>Course</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>bKash</TableHead>
+                <TableHead>
+                  <span className="sr-only">Review</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pending.map((payment) => {
+                const courses = payment.order.items.map((item) => item.course.title).join(", ");
+                const summary = `${payment.user.name} paid ${formatPrice(payment.amount, payment.currency)} for ${courses || "an order"}.`;
+                return (
+                  <TableRow key={payment.id} className="align-top">
+                    <TableCell className="align-top">
+                      <time dateTime={payment.createdAt.toISOString()} className="flex flex-col">
+                        <span className="text-ink">{formatDateMedium(payment.createdAt)}</span>
+                        <span className="text-sm text-graphite">{formatTimeOfDay(payment.createdAt, timeZone)}</span>
+                      </time>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <span className="flex min-w-0 flex-col">
+                        <span className="font-medium break-words text-ink">{payment.user.name}</span>
+                        <span className="text-sm break-all text-graphite">{payment.user.email}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell className="align-top text-ink">{courses || "Order"}</TableCell>
+                    <TableCell className="text-right align-top font-semibold">
+                      <Price amount={payment.amount} currency={payment.currency} />
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <BkashProof payment={payment} />
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <ReviewForm paymentId={payment.id} summary={summary} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
           </div>
-          {pager}
-        </div>
+
+          {/* Phones (bKash is a phone app, so this gets used): one stacked row per payment. */}
+          <ul className="flex flex-col divide-y divide-rule border-y border-rule md:hidden">
+            {pending.map((payment) => {
+              const courses = payment.order.items.map((item) => item.course.title).join(", ");
+              const summary = `${payment.user.name} paid ${formatPrice(payment.amount, payment.currency)} for ${courses || "an order"}.`;
+              return (
+                <li key={payment.id} className="flex flex-col gap-3 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="font-medium text-ink">{payment.user.name}</span>
+                      <span className="text-sm break-all text-graphite">{payment.user.email}</span>
+                    </span>
+                    <Price amount={payment.amount} currency={payment.currency} className="shrink-0 font-semibold" />
+                  </div>
+                  <p className="text-ink">{courses || "Order"}</p>
+                  <BkashProof payment={payment} />
+                  <p className="text-sm text-graphite">
+                    Submitted{" "}
+                    <time dateTime={payment.createdAt.toISOString()}>
+                      {formatDateMedium(payment.createdAt)}, {formatTimeOfDay(payment.createdAt, timeZone)}
+                    </time>
+                  </p>
+                  <ReviewForm paymentId={payment.id} summary={summary} align="start" />
+                </li>
+              );
+            })}
+          </ul>
+          <ListFooter range={range} total={total} pathname="/admin/payments" page={page} pageCount={pageCount} />
+        </>
       )}
     </main>
   );

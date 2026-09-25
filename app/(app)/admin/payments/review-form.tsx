@@ -1,63 +1,108 @@
 "use client";
 
-import { useActionState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useActionState, useState } from "react";
 import { FieldError } from "@/components/site/field-error";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { approvePayment, rejectPayment, type ReviewState } from "./actions";
 
 const initial: ReviewState = { status: "idle" };
 
-export function ReviewForm({ paymentId }: { paymentId: string }) {
+/**
+ * Approve enrols the learner at once. Reject opens a dialog that will not submit
+ * without a reason, because the learner reads that reason on their receipt.
+ */
+export function ReviewForm({
+  paymentId,
+  summary,
+  align = "end",
+}: {
+  paymentId: string;
+  summary: string;
+  align?: "start" | "end";
+}) {
   const [approveState, approve, approving] = useActionState(approvePayment, initial);
-  const [rejectState, reject, rejecting] = useActionState(rejectPayment, initial);
+  const [open, setOpen] = useState(false);
+  // A successful reject revalidates the queue and this row leaves; close the
+  // dialog with it so focus is not stranded in a dialog whose trigger is gone.
+  const [rejectState, reject, rejecting] = useActionState(async (prev: ReviewState, formData: FormData) => {
+    const result = await rejectPayment(prev, formData);
+    if (result.status === "done") setOpen(false);
+    return result;
+  }, initial);
 
-  const state = approveState.status !== "idle" ? approveState : rejectState;
   const busy = approving || rejecting;
 
   return (
-    <div className="flex items-center gap-2">
-      <Input
-        id={`notes-${paymentId}`}
-        name="notes"
-        form={`approve-${paymentId}`}
-        placeholder="Notes"
-        aria-label="Notes"
-        className="h-8 w-24"
-      />
-      <form action={approve} id={`approve-${paymentId}`} className="shrink-0">
-        <input type="hidden" name="paymentId" value={paymentId} />
-        <Button type="submit" size="sm" disabled={busy}>
-          {approving ? "Approving…" : "Approve and enrol"}
-        </Button>
-      </form>
-      <form action={reject} className="flex shrink-0 items-center gap-2">
-        <input type="hidden" name="paymentId" value={paymentId} />
-        <Input
-          id={`reject-notes-${paymentId}`}
-          name="notes"
-          required
-          aria-required="true"
-          aria-label="Reason for rejection"
-          aria-describedby={`reject-notes-hint-${paymentId}`}
-          autoComplete="off"
-          placeholder="Reason for rejection"
-          className="h-8 w-36"
-        />
-        <Button type="submit" size="sm" variant="destructive" disabled={busy}>
-          {rejecting ? "Rejecting…" : "Reject"}
-        </Button>
-      </form>
-      <p
-        id={`reject-notes-hint-${paymentId}`}
-        className="shrink-0 text-xs text-graphite sm:whitespace-nowrap"
-      >
-        The learner sees this reason on their receipt and in a notification.
-      </p>
-      {state.status === "error" ? <FieldError message={state.message} /> : null}
-      {state.status === "done" ? (
-        <p role="status" className="text-sm font-medium">
-          {state.message}
+    <div className={cn("flex flex-col gap-1.5", align === "end" ? "items-end" : "items-start")}>
+      <div className={cn("flex flex-wrap gap-2", align === "end" && "justify-end")}>
+        <form action={approve}>
+          <input type="hidden" name="paymentId" value={paymentId} />
+          <Button type="submit" size="sm" disabled={busy}>
+            {approving ? "Approving…" : "Approve and enrol"}
+          </Button>
+        </form>
+
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button type="button" size="sm" variant="secondary" disabled={busy}>
+              Reject
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <form action={reject} className="flex flex-col gap-4">
+              <DialogHeader>
+                <DialogTitle>Reject this payment?</DialogTitle>
+                <DialogDescription>{summary}</DialogDescription>
+              </DialogHeader>
+              <input type="hidden" name="paymentId" value={paymentId} />
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`reject-notes-${paymentId}`}>Reason for rejection</Label>
+                <Textarea
+                  id={`reject-notes-${paymentId}`}
+                  name="notes"
+                  required
+                  rows={3}
+                  maxLength={500}
+                  aria-describedby={`reject-notes-hint-${paymentId}`}
+                  placeholder="For example: no payment with this transaction ID reached our bKash account."
+                />
+                <p id={`reject-notes-hint-${paymentId}`} className="text-sm text-graphite">
+                  The learner sees this reason on their receipt and in a notification.
+                </p>
+              </div>
+              {rejectState.status === "error" ? <FieldError message={rejectState.message} /> : null}
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="secondary">
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button type="submit" variant="destructive" disabled={rejecting}>
+                  {rejecting ? "Rejecting…" : "Reject payment"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {approveState.status === "error" ? <FieldError message={approveState.message} /> : null}
+      {approveState.status === "done" || rejectState.status === "done" ? (
+        <p role="status" className="text-sm font-medium text-ink">
+          {approveState.status === "done" ? approveState.message : rejectState.status === "done" ? rejectState.message : ""}
         </p>
       ) : null}
     </div>
