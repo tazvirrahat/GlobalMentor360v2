@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Star } from "lucide-react";
 import { EmptyState } from "@/components/site/empty-state";
 import { FlashAlert } from "@/components/site/flash-alert";
 import { StarRating } from "@/components/site/star-rating";
@@ -43,7 +42,6 @@ export default async function AdminReviewsPage({
       {reviews.length === 0 ? (
         <EmptyState
           className="mt-8"
-          icon={<Star className="size-6" />}
           title="No reviews yet"
           message="Reviews appear here after learners rate a course. You can hide or restore them."
         />

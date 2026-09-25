@@ -1,4 +1,3 @@
-import { Search, Users } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,7 +58,6 @@ export default async function AdminUsersPage({
         q?.trim() ? (
           <EmptyState
             className="mt-8"
-            icon={<Search className="size-6" />}
             title="No users match"
             message={`No users match “${q.trim()}”. Try a different search.`}
           >
@@ -72,7 +70,6 @@ export default async function AdminUsersPage({
         ) : (
           <EmptyState
             className="mt-8"
-            icon={<Users className="size-6" />}
             title="No users yet"
             message="Accounts will appear here when people sign up."
           />

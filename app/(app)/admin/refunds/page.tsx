@@ -1,4 +1,3 @@
-import { Receipt } from "lucide-react";
 import { EmptyState } from "@/components/site/empty-state";
 import { FlashAlert } from "@/components/site/flash-alert";
 import { Button } from "@/components/ui/button";
@@ -48,7 +47,6 @@ export default async function AdminRefundsPage({
       {orders.length === 0 ? (
         <EmptyState
           className="mt-8"
-          icon={<Receipt className="size-6" />}
           title="No paid orders"
           message="Paid orders appear here so you can record a refund and revoke access."
         />

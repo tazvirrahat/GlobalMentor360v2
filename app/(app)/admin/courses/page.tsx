@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, Search, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/site/empty-state";
@@ -59,7 +59,6 @@ export default async function AdminCoursesPage({
         q?.trim() ? (
           <EmptyState
             className="mt-8"
-            icon={<Search className="size-6" />}
             title="No courses match"
             message={`No courses match “${q.trim()}”. Try a different search.`}
           >
@@ -72,7 +71,6 @@ export default async function AdminCoursesPage({
         ) : (
           <EmptyState
             className="mt-8"
-            icon={<BookOpen className="size-6" />}
             title="No courses yet"
             message="Courses appear here when instructors create them."
           />
