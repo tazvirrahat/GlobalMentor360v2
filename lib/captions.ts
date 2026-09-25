@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getOwnedLectureItem } from "@/lib/studio";
 import { putCaptionObject, VideoProviderError } from "@/lib/video";
+import { parseVtt, type TranscriptCue } from "@/lib/vtt";
 
 /**
  * Captions are uploaded VTT files attached to a MediaAsset. AWS does not
@@ -59,7 +60,23 @@ export async function attachUploadedCaption(input: {
     update: { vttKey, source: "UPLOADED" },
   });
 
+  // The player's Transcript tab reads these cues, so it never fetches the VTT from S3.
+  const cues = parseVtt(input.vtt);
+  await db.transcript.upsert({
+    where: { assetId_language: { assetId: asset.id, language } },
+    create: { assetId: asset.id, language, cues },
+    update: { cues },
+  });
+
   return { ok: true };
+}
+
+/** A video's transcript for the player: English when there is one, otherwise the first language. */
+export async function getTranscriptForAsset(assetId: string): Promise<{ language: string; cues: TranscriptCue[] } | null> {
+  const rows = await db.transcript.findMany({ where: { assetId }, orderBy: { language: "asc" }, select: { language: true, cues: true } });
+  const row = rows.find((entry) => entry.language === "en" || entry.language.startsWith("en-")) ?? rows[0];
+  if (!row || !Array.isArray(row.cues) || row.cues.length === 0) return null;
+  return { language: row.language, cues: row.cues as TranscriptCue[] };
 }
 
 export async function listCaptionsForAsset(assetId: string) {
