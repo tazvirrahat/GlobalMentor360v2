@@ -63,14 +63,14 @@ export function parseProfileInput(fields: { headline: string; bio: string; websi
   { ok: true; value: { headline: string | null; bio: string | null; websiteUrl: string | null; profilePublic: boolean } } | { ok: false; field: string; message: string };
 ```
 
-- [ ] Data migration: slug = slugified name for every user who authors a course and has no slug; duplicates get `-2`, `-3` by id order; empty names become `instructor`.
-- [ ] `getInstructorProfile`: rating is the review-count-weighted average of their published courses' aggregates; learners is the sum of `enrollmentCount`.
-- [ ] Page: initials avatar, h1 name, headline, facts (courses, learners, rating), About (paragraphs), website link, Courses (`CourseRow`, h3). Metadata from name + headline.
-- [ ] Course page: "Created by" and the Instructor section name link to `/instructors/[slug]` when the profile is public.
-- [ ] Studio "Your profile": headline, bio, website, "Show my profile page" checkbox; the public URL shown with a link once it exists. `createCourse` ensures a slug.
-- [ ] Seed: Dana Instructor gets a headline and bio.
-- [ ] Tests: `parseProfileInput` unit; `getInstructorProfile` integration (unpublished courses hidden, private profile 404, rating weighting); e2e: the course page links to the instructor page.
-- [ ] Commit `Add public instructor pages and a profile editor in the studio`.
+- [x] Data migration: slug = slugified name for every user who authors a course and has no slug; duplicates get `-2`, `-3` by id order; empty names become `instructor`.
+- [x] `getInstructorProfile`: rating is the review-count-weighted average of their published courses' aggregates; learners is the sum of `enrollmentCount`.
+- [x] Page: initials avatar, h1 name, headline, facts (courses, learners, rating), About (paragraphs), website link, Courses (`CourseRow`, h3). Metadata from name + headline.
+- [x] Course page: "Created by" and the Instructor section name link to `/instructors/[slug]` when the profile is public.
+- [x] Studio "Your profile": headline, bio, website, "Show my profile page" checkbox; the public URL shown with a link once it exists. `createCourse` ensures a slug.
+- [x] Seed: Dana Instructor gets a headline and bio.
+- [x] Tests: `parseProfileInput` unit; `getInstructorProfile` integration (unpublished courses hidden, private profile 404, rating weighting); e2e: the course page links to the instructor page.
+- [x] Commit `Add public instructor pages and a profile editor in the studio`.
 
 ### Task 2: Lecture resources
 
@@ -90,14 +90,14 @@ export async function resourceObjectSize(key: string): Promise<number | null>;
 export async function presignResourceDownload(key: string, filename: string): Promise<string>;
 ```
 
-- [ ] Studio actions (owner-scoped): `addResourceLink`, `startResourceUpload` (refuses when storage is not configured or the file is over the cap), `finishResourceUpload` (HEADs the object, stores the size), `deleteResource` (confirm in UI; deletes the S3 object best-effort).
-- [ ] Studio panel on the lecture editor: list (name, "Link" or size), add a link (title + URL), upload a file (progress like video) or a note that uploads need storage.
-- [ ] Download route: find resource → lecture → course; `canAccessPlayerItem`; redirect 302 to the presigned GET; 404 otherwise. Links never go through it.
-- [ ] Player Overview tab: "Resources" list (file: download icon, name, size; link: external icon, name, "opens in a new tab").
-- [ ] Tests: unit for the helpers; integration for owner-scoped writes and the download access decision.
-- [ ] Commit `Let instructors attach links and files to lectures`.
+- [x] Studio actions (owner-scoped): `addResourceLink`, `startResourceUpload` (refuses when storage is not configured or the file is over the cap), `finishResourceUpload` (HEADs the object, stores the size), `deleteResource` (confirm in UI; deletes the S3 object best-effort).
+- [x] Studio panel on the lecture editor: list (name, "Link" or size), add a link (title + URL), upload a file (progress like video) or a note that uploads need storage.
+- [x] Download route: find resource → lecture → course; `canAccessPlayerItem`; redirect 302 to the presigned GET; 404 otherwise. Links never go through it.
+- [x] Player Overview tab: "Resources" list (file: download icon, name, size; link: external icon, name, "opens in a new tab").
+- [x] Tests: unit for the helpers; integration for owner-scoped writes and the download access decision.
+- [x] Commit `Let instructors attach links and files to lectures`.
 
 ### Task 3: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary (add `/instructors/[slug]` to the audit's public routes).
-- [ ] Progress log row; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary (add `/instructors/[slug]` to the audit's public routes).
+- [x] Progress log row; commit; push.
