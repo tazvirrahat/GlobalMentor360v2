@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { toMinorUnits } from "@/lib/money-input";
+import { readFaqRows } from "@/lib/course-faq";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
@@ -164,6 +165,11 @@ export async function updateCourse(_prev: ActionState, formData: FormData): Prom
   const owned = await getOwnedCourse(input.courseId, user.id);
   if (!owned) return { status: "error", message: "Course not found." };
 
+  // FAQ rows are checked before any write, like the price below: a half-filled
+  // row refuses the whole save instead of wiping the lists first.
+  const faq = readFaqRows(formData.getAll("faqQuestion").map(String), formData.getAll("faqAnswer").map(String));
+  if (!faq.ok) return { status: "error", message: faq.message };
+
   // Price is validated before any write. Lined fields used to be delete-and-
   // recreated first, so a bad amount or a unique-constraint race on price left
   // the lists already wiped (or half-written) while the action returned an error.
@@ -210,6 +216,15 @@ export async function updateCourse(_prev: ActionState, formData: FormData): Prom
         "courseTargetAudience",
         formData.getAll("audience").map(String),
       );
+
+      // Only a form that carries the FAQ editor rewrites the FAQ, so a caller
+      // that posts the other fields alone cannot wipe it by omission.
+      if (formData.has("faqEditor")) await tx.courseFaq.deleteMany({ where: { courseId: owned.id } });
+      if (formData.has("faqEditor") && faq.rows.length > 0) {
+        await tx.courseFaq.createMany({
+          data: faq.rows.map((row, position) => ({ courseId: owned.id, ...row, position })),
+        });
+      }
 
       if (price) {
         // The form submits one currency at a time, so this touches that currency

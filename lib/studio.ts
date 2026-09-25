@@ -87,6 +87,7 @@ export async function getOwnedCourse(courseId: string, instructorId: string) {
       objectives: { orderBy: { position: "asc" }, select: { id: true, text: true } },
       requirements: { orderBy: { position: "asc" }, select: { id: true, text: true } },
       targetAudience: { orderBy: { position: "asc" }, select: { id: true, text: true } },
+      faqs: { orderBy: { position: "asc" }, select: { id: true, question: true, answer: true } },
     },
   });
 }

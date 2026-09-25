@@ -265,6 +265,12 @@ async function seedCourse(spec: SeedCourse, instructorId: string) {
   await replaceTextList("courseObjective", course.id, spec.objectives);
   await replaceTextList("courseRequirement", course.id, spec.requirements);
   await replaceTextList("courseTargetAudience", course.id, spec.audience);
+  await db.courseFaq.deleteMany({ where: { courseId: course.id } });
+  if (spec.faqs?.length) {
+    await db.courseFaq.createMany({
+      data: spec.faqs.map((faq, position) => ({ courseId: course.id, ...faq, position })),
+    });
+  }
 
   await setPrice(course.id, "USD", spec.priceUsdCents);
   // bKash settles in BDT, so a course without a BDT price cannot be bought on
