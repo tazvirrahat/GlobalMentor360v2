@@ -3,10 +3,10 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { appBucket, isAppBucketConfigured } from "@/lib/video/aws";
 
 /**
- * Lecture resource files in S3, beside the video originals. Uploads are a
- * presigned PUT from the browser (like video); downloads a presigned GET that
- * lives five minutes and asks the browser to save the file under its own name.
- * Nothing here decides who may download: the route does that first.
+ * Files in the app's S3 bucket beside the video originals: lecture resources
+ * and course images. Uploads are a presigned PUT from the browser (like
+ * video); reads a short-lived presigned GET. Nothing here decides who may
+ * read or write: the caller does that first.
  */
 
 const UPLOAD_TTL_SECONDS = 15 * 60;
@@ -16,7 +16,7 @@ export function isStorageConfigured(): boolean {
   return isAppBucketConfigured();
 }
 
-export async function presignResourceUpload(
+export async function presignUpload(
   key: string,
   contentType: string,
 ): Promise<{ url: string; headers: Record<string, string> }> {
@@ -28,19 +28,20 @@ export async function presignResourceUpload(
   return { url, headers: { "content-type": type } };
 }
 
-/** The stored object's size, or null when it is not there (the upload never finished). */
-export async function resourceObjectSize(key: string): Promise<number | null> {
+/** The stored object's size and type, or null when it is not there (the upload never finished). */
+export async function headObject(key: string): Promise<{ size: number; contentType: string | null } | null> {
   const { client, bucket } = appBucket();
   try {
     const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-    return head.ContentLength ?? 0;
+    return { size: head.ContentLength ?? 0, contentType: head.ContentType ?? null };
   } catch (error) {
     if (error instanceof NotFound) return null;
     throw error;
   }
 }
 
-export async function presignResourceDownload(key: string, filename: string): Promise<string> {
+/** A download that asks the browser to save the file under its own name. */
+export async function presignDownload(key: string, filename: string): Promise<string> {
   const { client, bucket } = appBucket();
   // RFC 6266: a plain ASCII fallback plus the UTF-8 name.
   const ascii = filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
@@ -52,13 +53,19 @@ export async function presignResourceDownload(key: string, filename: string): Pr
   );
 }
 
+/** A plain GET for something the page shows (an image), not a download. */
+export async function presignView(key: string, expiresIn = DOWNLOAD_TTL_SECONDS): Promise<string> {
+  const { client, bucket } = appBucket();
+  return getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn });
+}
+
 /** Best effort: a row deleted with its file left behind costs storage, not correctness. */
-export async function deleteResourceObject(key: string): Promise<void> {
+export async function deleteObject(key: string): Promise<void> {
   if (!isStorageConfigured() || !key) return;
   try {
     const { client, bucket } = appBucket();
     await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   } catch (error) {
-    console.error("storage: could not delete resource object", error);
+    console.error("storage: could not delete object", error);
   }
 }

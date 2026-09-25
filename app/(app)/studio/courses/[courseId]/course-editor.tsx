@@ -81,11 +81,14 @@ function amountText(prices: EditableCourse["prices"], currency: string) {
 export function CourseEditor({
   course,
   initialTab,
+  imageField,
   publishPanel,
   published,
 }: {
   course: EditableCourse;
   initialTab: CourseEditorTab;
+  /** Saves on its own, not with Save (see CourseImageField). */
+  imageField: ReactNode;
   publishPanel: ReactNode;
   published: boolean;
 }) {
@@ -203,6 +206,8 @@ export function CourseEditor({
               </p>
             </div>
           </div>
+
+          {imageField}
         </Panel>
 
         <Panel tab="landing" current={tab} description="The lists on the course page. Short lines read best; empty lines are dropped.">

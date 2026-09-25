@@ -14,6 +14,7 @@ export type CartLine = {
   courseId: string;
   title: string;
   slug: string;
+  thumbnailUrl: string | null;
   addedAt: Date;
   prices: { amount: number; currency: string }[];
   isFree: boolean;
@@ -103,6 +104,7 @@ export async function getCart(userId: string): Promise<{ id: string; items: Cart
               id: true,
               title: true,
               slug: true,
+              thumbnailUrl: true,
               prices: {
                 where: { isActive: true },
                 orderBy: { currency: "asc" },
@@ -123,6 +125,7 @@ export async function getCart(userId: string): Promise<{ id: string; items: Cart
       courseId: item.course.id,
       title: item.course.title,
       slug: item.course.slug,
+      thumbnailUrl: item.course.thumbnailUrl,
       addedAt: item.addedAt,
       prices: item.course.prices,
       isFree: isFreeCourse(item.course.prices),

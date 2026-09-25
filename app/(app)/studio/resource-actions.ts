@@ -12,12 +12,7 @@ import {
   safeDownloadName,
 } from "@/lib/lecture-resources";
 import { requireRole } from "@/lib/session";
-import {
-  deleteResourceObject,
-  isStorageConfigured,
-  presignResourceUpload,
-  resourceObjectSize,
-} from "@/lib/storage";
+import { deleteObject, headObject, isStorageConfigured, presignUpload } from "@/lib/storage";
 import { getOwnedLectureItem } from "@/lib/studio";
 
 /**
@@ -90,7 +85,7 @@ export async function startResourceUpload(input: {
   }
 
   const key = resourceStorageKey(owned.lectureId, randomUUID(), input.filename);
-  const target = await presignResourceUpload(key, input.contentType);
+  const target = await presignUpload(key, input.contentType);
   return { ok: true, key, uploadUrl: target.url, uploadHeaders: target.headers };
 }
 
@@ -104,10 +99,11 @@ export async function finishResourceUpload(input: {
   // The key came back from the browser; it must be in this lecture's folder.
   if (!isKeyForLecture(input.key, owned.lectureId)) return { ok: false, message: "That upload is not for this lecture." };
 
-  const size = await resourceObjectSize(input.key);
-  if (size === null) return { ok: false, message: "The file didn't finish uploading. Try again." };
+  const head = await headObject(input.key);
+  if (head === null) return { ok: false, message: "The file didn't finish uploading. Try again." };
+  const size = head.size;
   if (size > RESOURCE_MAX_BYTES) {
-    await deleteResourceObject(input.key);
+    await deleteObject(input.key);
     return { ok: false, message: "Files can be up to 100 MB." };
   }
 
@@ -139,7 +135,7 @@ export async function deleteResource(_prev: ResourceState, formData: FormData): 
   if (!resource) return { status: "error", message: "Resource not found." };
 
   await db.lectureResource.delete({ where: { id: resource.id } });
-  await deleteResourceObject(resource.storageKey);
+  await deleteObject(resource.storageKey);
   revalidate(resource.lecture.curriculumItem.section.courseId, resource.lecture.curriculumItem.id);
   return { status: "done", message: "Removed." };
 }

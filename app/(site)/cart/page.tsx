@@ -1,6 +1,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { CoverMark } from "@/components/course/cover-mark";
+import { courseImageUrl } from "@/lib/course-image";
 import { Price } from "@/components/course/price";
 import { BkashCheckout } from "@/components/checkout/bkash-checkout";
 import { BkashReview } from "@/components/checkout/bkash-quote";
@@ -73,7 +74,12 @@ export default async function CartPage({ searchParams }: { searchParams: Promise
               const bdt = item.prices.find((price) => price.currency === BKASH_CURRENCY);
               return (
                 <li key={item.courseId} className="flex items-center gap-4 py-4">
-                  <CoverMark title={item.title} slug={item.slug} size={40} />
+                  <CoverMark
+                    title={item.title}
+                    slug={item.slug}
+                    imageUrl={courseImageUrl(item.courseId, item.thumbnailUrl)}
+                    size={40}
+                  />
                   <div className="flex min-w-0 flex-1 flex-col">
                     <Link
                       href={`/courses/${item.slug}` as Route}

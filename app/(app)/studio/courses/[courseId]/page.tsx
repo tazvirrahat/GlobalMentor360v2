@@ -6,11 +6,14 @@ import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/course/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { pickEditorTab } from "@/lib/course-editor";
+import { courseImageUrl } from "@/lib/course-image";
 import { courseSellabilityWarning } from "@/lib/payments";
 import { formatDateMedium } from "@/lib/format";
 import { hasRole, requireRole } from "@/lib/session";
+import { isStorageConfigured } from "@/lib/storage";
 import { getOwnedCourse, readinessChecks } from "@/lib/studio";
 import { CourseEditor } from "./course-editor";
+import { CourseImageField } from "./course-image-field";
 import { PublishForm } from "./publish-form";
 
 export const metadata = { title: "Edit course | Studio" };
@@ -105,7 +108,21 @@ export default async function CourseEditorPage({ params, searchParams }: Params)
         </Alert>
       ) : null}
 
-      <CourseEditor course={course} initialTab={pickEditorTab(tab)} publishPanel={publishPanel} published={published} />
+      <CourseEditor
+        course={course}
+        initialTab={pickEditorTab(tab)}
+        imageField={
+          <CourseImageField
+            courseId={course.id}
+            title={course.title}
+            slug={course.slug}
+            imageUrl={courseImageUrl(course.id, course.thumbnailUrl)}
+            storageReady={isStorageConfigured()}
+          />
+        }
+        publishPanel={publishPanel}
+        published={published}
+      />
     </main>
   );
 }

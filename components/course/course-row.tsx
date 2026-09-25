@@ -1,11 +1,14 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { CompactRating } from "@/components/site/star-rating";
+import { courseImageUrl } from "@/lib/course-image";
 import { courseLevelLabel } from "@/lib/labels";
 import { CoverMark } from "./cover-mark";
 import { CoursePrice } from "./price";
 
 export type CourseRowData = {
+  id?: string;
+  thumbnailUrl?: string | null;
   title: string;
   slug: string;
   subtitle: string | null;
@@ -37,7 +40,11 @@ export function CourseRow({
 
   return (
     <article className="relative flex gap-4 rounded-md px-2 py-4 hover:bg-wash/70 sm:gap-5 sm:py-5">
-      <CoverMark title={course.title} slug={course.slug} />
+      <CoverMark
+        title={course.title}
+        slug={course.slug}
+        imageUrl={course.id ? courseImageUrl(course.id, course.thumbnailUrl) : null}
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:gap-6">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Heading className="text-base leading-snug font-semibold text-ink">

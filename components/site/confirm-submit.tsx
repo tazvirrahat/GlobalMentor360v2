@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
  *
  * With `icon`, the trigger is a 32px icon button whose accessible name is
  * `label` (for dense rows such as the curriculum editor).
+ *
+ * With `onConfirm`, the yes button runs it instead of submitting, for a control
+ * that sits inside a form it must not submit (the course image on Details).
  */
 export function ConfirmSubmit({
   label,
@@ -19,6 +22,7 @@ export function ConfirmSubmit({
   icon,
   disabled = false,
   variant = "ghost",
+  onConfirm,
 }: {
   label: string;
   question: string;
@@ -28,6 +32,7 @@ export function ConfirmSubmit({
   disabled?: boolean;
   /** The trigger's look; the confirm button is always destructive. */
   variant?: "ghost" | "secondary";
+  onConfirm?: () => void;
 }) {
   const [asking, setAsking] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -67,9 +72,25 @@ export function ConfirmSubmit({
   return (
     <span className="inline-flex flex-wrap items-center gap-2" role="group" aria-label={question}>
       <span className="text-sm font-medium text-ink">{question}</span>
-      <Button type="submit" variant="destructive" size={size} autoFocus>
-        {confirmLabel}
-      </Button>
+      {onConfirm ? (
+        <Button
+          type="button"
+          variant="destructive"
+          size={size}
+          autoFocus
+          onClick={() => {
+            refocus.current = true;
+            setAsking(false);
+            onConfirm();
+          }}
+        >
+          {confirmLabel}
+        </Button>
+      ) : (
+        <Button type="submit" variant="destructive" size={size} autoFocus>
+          {confirmLabel}
+        </Button>
+      )}
       <Button type="button" variant="secondary" size={size} onClick={cancel}>
         Cancel
       </Button>
