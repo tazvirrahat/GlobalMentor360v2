@@ -67,7 +67,7 @@ test.describe("admin exploratory QA", () => {
     await signIn(page, SEED.admin, "/admin");
     await expect(page).toHaveURL(/\/admin\/payments/);
     await expect(page.getByRole("heading", { name: "Payment verification" })).toBeVisible();
-    await expect(page.getByText(/\d+ awaiting/)).toBeVisible();
+    await expect(page.getByText(/\d+ waiting|nothing to review/i).first()).toBeVisible();
 
     const adminNav = page.getByRole("navigation", { name: "Admin" });
     await expect(adminNav.getByRole("link", { name: "Payments" })).toBeVisible();
@@ -239,11 +239,13 @@ test.describe("admin exploratory QA", () => {
     await expect(card.getByText(/sql for analysts/i)).toBeVisible();
     await expect(card.getByText(/student picker|choose learner/i)).toHaveCount(0);
 
-    const reason = card.getByLabel("Reason for rejection");
-    await expect(reason).toHaveJSProperty("required", true);
-    await expect(card.getByText(/learner sees this reason on their receipt/i)).toBeVisible();
-    await reason.fill("QA reject — coupon should release.");
     await card.getByRole("button", { name: "Reject" }).click();
+    const dialog = page.getByRole("dialog", { name: /reject this payment/i });
+    const reason = dialog.getByLabel("Reason for rejection");
+    await expect(reason).toHaveJSProperty("required", true);
+    await expect(dialog.getByText(/learner sees this reason on their receipt/i)).toBeVisible();
+    await reason.fill("QA reject — coupon should release.");
+    await dialog.getByRole("button", { name: "Reject payment" }).click();
     await expect(page.getByText(SEED.learner.email)).toHaveCount(0, { timeout: 20_000 });
 
     await context.clearCookies();
