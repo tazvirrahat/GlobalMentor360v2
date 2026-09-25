@@ -318,6 +318,59 @@ export async function moveItem(_prev: CurriculumState, formData: FormData): Prom
   return { status: "done", message: "Moved." };
 }
 
+/** Swaps a section with its neighbour. Same park-then-swap as moveItem, on @@unique([courseId, position]). */
+export async function moveSection(_prev: CurriculumState, formData: FormData): Promise<CurriculumState> {
+  const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const sectionId = String(formData.get("sectionId") ?? "");
+  const direction = String(formData.get("direction") ?? "");
+
+  const section = await db.section.findFirst({
+    where: { id: sectionId, course: { instructorId: user.id } },
+    select: { id: true, position: true, courseId: true },
+  });
+  if (!section) return { status: "error", message: "Section not found." };
+
+  const delta = direction === "up" ? -1 : 1;
+  const neighbour = await db.section.findFirst({
+    where: { courseId: section.courseId, position: section.position + delta },
+    select: { id: true, position: true },
+  });
+  if (!neighbour) return { status: "done", message: "Already at the end." };
+
+  await db.$transaction(async (tx) => {
+    await tx.section.update({ where: { id: section.id }, data: { position: MOVE_PARK_POSITION } });
+    await tx.section.update({ where: { id: neighbour.id }, data: { position: section.position } });
+    await tx.section.update({ where: { id: section.id }, data: { position: neighbour.position } });
+  });
+
+  revalidatePath(`/studio/courses/${section.courseId}/curriculum`);
+  return { status: "done", message: "Moved." };
+}
+
+const renameSectionSchema = z.object({
+  sectionId: z.string().min(1),
+  title: z.string().trim().min(1, "Give the section a title.").max(200),
+});
+
+export async function renameSection(_prev: CurriculumState, formData: FormData): Promise<CurriculumState> {
+  const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const parsed = renameSectionSchema.safeParse({
+    sectionId: formData.get("sectionId"),
+    title: formData.get("title"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const section = await ownedSection(parsed.data.sectionId, user.id);
+  if (!section) return { status: "error", message: "Section not found." };
+
+  await db.section.update({ where: { id: section.id }, data: { title: parsed.data.title } });
+  revalidatePath(`/studio/courses/${section.courseId}/curriculum`);
+  revalidatePath(`/courses/${section.course.slug}`);
+  return { status: "done", message: "Renamed." };
+}
+
 type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
 /**
