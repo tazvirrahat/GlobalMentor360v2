@@ -1,5 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { APIError } from "better-auth/api";
+import { ACCOUNT_SUSPENDED } from "@/lib/auth-errors";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { getSite } from "@/lib/site";
@@ -77,6 +79,22 @@ export const auth = betterAuth({
   },
 
   databaseHooks: {
+    session: {
+      create: {
+        // A suspended account cannot sign in. Throwing (not returning false)
+        // gives the sign-in form a code it can explain; getCurrentUser also
+        // ignores non-ACTIVE accounts, so an old session is useless too.
+        before: async (session) => {
+          const owner = await db.user.findUnique({ where: { id: session.userId }, select: { status: true } });
+          if (owner && owner.status !== "ACTIVE") {
+            throw new APIError("FORBIDDEN", {
+              code: ACCOUNT_SUSPENDED,
+              message: "This account is suspended. Contact support if you think this is a mistake.",
+            });
+          }
+        },
+      },
+    },
     user: {
       create: {
         // Every account is a learner. Instructor and admin are granted separately —

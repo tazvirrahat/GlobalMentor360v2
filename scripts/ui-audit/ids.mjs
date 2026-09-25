@@ -51,6 +51,7 @@ export async function lookupIds() {
       order: order.id ?? null,
       cert: cert.serial ?? null,
       instructorSlug: instructor.slug ?? null,
+      learnerId: learner.id ?? null,
     };
   } finally {
     await client.end();
@@ -94,6 +95,7 @@ export function buildRoutes(ids) {
     ["admin", "admin-payments", "/admin/payments"],
     ["admin", "admin-refunds", "/admin/refunds"],
     ["admin", "admin-users", "/admin/users"],
+    ["admin", "admin-user", need(ids.learnerId, `/admin/users/${ids.learnerId}`)],
     ["admin", "admin-courses", "/admin/courses"],
     ["admin", "admin-course", need(ids.courseId, `/admin/courses/${ids.courseId}`)],
     ["admin", "admin-taxonomy", "/admin/taxonomy"],

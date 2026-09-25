@@ -1,4 +1,5 @@
 import type { Route } from "next";
+import Link from "next/link";
 import { ListFooter } from "@/components/app/list-footer";
 import { PageHeader } from "@/components/app/page-header";
 import { SearchBox } from "@/components/app/search-box";
@@ -14,6 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  tableLinkClass,
 } from "@/components/ui/table";
 import { ADMIN_PAGE_SIZE, listAdminUsers } from "@/lib/admin";
 import { formatDateMedium } from "@/lib/format";
@@ -39,7 +41,10 @@ export default async function AdminUsersPage({
 
   return (
     <main className="flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      <PageHeader title="Users" description="Everyone with an account. Give or take away instructor and admin access." />
+      <PageHeader
+        title="Users"
+        description="Everyone with an account. Give or take away instructor and admin access; open someone to suspend them or give them a course."
+      />
       {error ? <FlashAlert title="Could not update role">{error}</FlashAlert> : null}
 
       <SearchBox
@@ -82,7 +87,12 @@ export default async function AdminUsersPage({
                   <TableRow key={user.id}>
                     <TableCell>
                       <span className="flex min-w-0 flex-col">
-                        <span className="font-medium text-ink">{user.name}</span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <Link href={`/admin/users/${user.id}` as Route} className={tableLinkClass}>
+                            {user.name}
+                          </Link>
+                          {user.status === "SUSPENDED" ? <Badge variant="destructive">Suspended</Badge> : null}
+                        </span>
                         <span className="text-sm break-all text-graphite">{user.email}</span>
                         <span className="mt-1 flex flex-wrap gap-1 md:hidden">
                           {[...roles].map((role) => (

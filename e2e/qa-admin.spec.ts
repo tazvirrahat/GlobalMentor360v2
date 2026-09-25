@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import pg from "pg";
 import { SEED, adminSearch, findOnPagedList, paginateUntilVisible, signIn } from "./helpers";
 
 /**
@@ -359,6 +360,51 @@ test.describe("admin exploratory QA", () => {
     await page.getByRole("button", { name: `Delete ${topic}` }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page.getByText(topic, { exact: true })).toHaveCount(0, { timeout: 15_000 });
+  });
+
+  test("admin suspends an account, which then cannot sign in; restoring it and giving a course", async ({ page, browser, baseURL }) => {
+    const email = `suspend-${Date.now().toString(36)}@example.test`;
+    const password = "suspend-test-password-1";
+    const created = await page.request.post("/api/auth/sign-up/email", {
+      data: { email, password, name: "Suspend Test" },
+      headers: { origin: baseURL! },
+    });
+    expect(created.ok()).toBeTruthy();
+    // Sign-in needs a verified address; mail is not delivered in tests.
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    await client.query(`UPDATE users SET "emailVerified" = true WHERE email = $1`, [email]);
+    await client.end();
+
+    await signIn(page, SEED.admin, "/admin/users");
+    await adminSearch(page, email);
+    await page.getByRole("link", { name: "Suspend Test" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Suspend Test" })).toBeVisible();
+    await page.getByRole("button", { name: "Suspend account" }).click();
+    await page.getByRole("button", { name: "Suspend", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: /suspended/i })).toBeVisible({ timeout: 15_000 });
+
+    const other = await browser.newContext();
+    const learner = await other.newPage();
+    await learner.goto("/sign-in");
+    await learner.getByLabel("Email").fill(email);
+    await learner.getByLabel("Password", { exact: true }).fill(password);
+    await learner.getByRole("button", { name: /sign in/i }).click();
+    await expect(learner.getByText(/this account is suspended/i)).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Unsuspend" }).click();
+    await expect(page.getByRole("status").filter({ hasText: /restored/i })).toBeVisible({ timeout: 15_000 });
+
+    await page.getByLabel("Course", { exact: true }).click();
+    await page.getByRole("option", { name: "SQL for Analysts" }).click();
+    await page.getByRole("button", { name: "Give course" }).click();
+    await expect(page.getByRole("status").filter({ hasText: /course given/i })).toBeVisible({ timeout: 15_000 });
+
+    await learner.getByRole("button", { name: /sign in/i }).click();
+    await learner.waitForURL((url) => !url.pathname.startsWith("/sign-in"), { timeout: 20_000 });
+    await learner.goto("/dashboard");
+    await expect(learner.getByRole("link", { name: "SQL for Analysts" }).first()).toBeVisible();
+    await other.close();
   });
 
   test("admin tables do not overflow at 375 or 1280", async ({ page }) => {
