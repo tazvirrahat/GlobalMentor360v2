@@ -31,9 +31,18 @@ export function CourseEditorNav({
   onSelect?: (tab: CourseEditorTab) => void;
 }) {
   // On a phone the nav scrolls sideways; keep the current section in view.
+  // Scrolls the nav itself: scrollIntoView would also move the browser's
+  // sequential-focus starting point, so the first Tab skipped the skip link.
+  const nav = useRef<HTMLElement>(null);
   const activeLink = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
-    activeLink.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const container = nav.current;
+    const link = activeLink.current;
+    if (!container || !link) return;
+    const start = link.offsetLeft - container.offsetLeft;
+    const end = start + link.offsetWidth;
+    if (start < container.scrollLeft) container.scrollLeft = start;
+    else if (end > container.scrollLeft + container.clientWidth) container.scrollLeft = end - container.clientWidth;
   }, [current]);
 
   function handle(event: MouseEvent<HTMLAnchorElement>, key: Key) {
@@ -44,7 +53,7 @@ export function CourseEditorNav({
   }
 
   return (
-    <nav aria-label="Course editor" className="-mx-4 overflow-x-auto border-b border-rule px-4 sm:mx-0 sm:px-0">
+    <nav ref={nav} aria-label="Course editor" className="-mx-4 overflow-x-auto border-b border-rule px-4 sm:mx-0 sm:px-0">
       <ul className="flex min-w-max gap-1">
         {ORDER.map((key) => {
           const active = key === current;
