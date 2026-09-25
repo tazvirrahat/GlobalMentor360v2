@@ -15,6 +15,7 @@ import { isStorageConfigured } from "@/lib/storage";
 import { getOwnedCourse, readinessChecks } from "@/lib/studio";
 import { CourseEditor } from "./course-editor";
 import { CourseImageField } from "./course-image-field";
+import { PromoVideoField } from "./promo-video-field";
 import { PublishForm } from "./publish-form";
 
 export const metadata = { title: "Edit course | Studio" };
@@ -131,6 +132,7 @@ export default async function CourseEditorPage({ params, searchParams }: Params)
             storageReady={isStorageConfigured()}
           />
         }
+        promoField={<PromoVideoField courseId={course.id} promo={course.promoVideo} storageReady={isStorageConfigured()} />}
         publishPanel={publishPanel}
         published={published}
       />

@@ -6,6 +6,7 @@ import type { Route } from "next";
 import type Hls from "hls.js";
 import { Loader2 } from "lucide-react";
 import { qualityOptions, type QualityOption } from "@/lib/player";
+import { getPromoPlayback } from "@/app/(site)/courses/[slug]/promo-actions";
 import { getSignedPlayback, reportWatchProgress } from "./actions";
 import { onSeekRequest, publishTime } from "./player-clock";
 
@@ -74,17 +75,16 @@ function subscribeToStorage(onChange: () => void) {
  * with a Cancel button before opening the next lesson (WCAG 2.2.1); with it
  * off, the page refreshes so the "Next lesson" button appears.
  */
-export function VideoPlayer({
-  itemId,
-  slug,
-  startAt,
-  nextHref,
-}: {
-  itemId: string;
-  slug: string;
-  startAt: number;
-  nextHref?: string | null;
-}) {
+export function VideoPlayer(
+  props: { itemId: string; slug: string; startAt: number; nextHref?: string | null } | { promoCourseId: string },
+) {
+  // A course's promo plays in the same player, but reports no progress, has no
+  // notes clock and no next lesson.
+  const promoCourseId = "promoCourseId" in props ? props.promoCourseId : null;
+  const itemId = "itemId" in props ? props.itemId : null;
+  const slug = "slug" in props ? props.slug : "";
+  const startAt = "startAt" in props ? props.startAt : 0;
+  const nextHref = "nextHref" in props ? (props.nextHref ?? null) : null;
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +124,7 @@ export function VideoPlayer({
 
   // Notes read the current time and ask the video to seek (player-clock.ts).
   useEffect(() => {
+    if (promoCourseId) return;
     publishTime(0);
     const stop = onSeekRequest((seconds) => {
       const el = videoRef.current;
@@ -136,7 +137,7 @@ export function VideoPlayer({
       stop();
       publishTime(null);
     };
-  }, []);
+  }, [promoCourseId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,7 +147,7 @@ export function VideoPlayer({
       setLoading(true);
       setError(null);
 
-      const signed = await getSignedPlayback(itemId);
+      const signed = promoCourseId ? await getPromoPlayback(promoCourseId) : await getSignedPlayback(itemId ?? "");
       if (cancelled) return;
 
       if (!signed.ok) {
@@ -231,11 +232,11 @@ export function VideoPlayer({
       hls?.destroy();
       hlsRef.current = null;
     };
-  }, [itemId, startAt]);
+  }, [itemId, promoCourseId, startAt]);
 
   async function report(force = false) {
     const el = videoRef.current;
-    if (!el) return null;
+    if (!el || !itemId) return null;
     if (!seekedRef.current) return null;
     const now = Date.now();
     if (!force && now - lastReportRef.current < 15_000) return null;
@@ -286,7 +287,7 @@ export function VideoPlayer({
             onPlay={() => void report(true)}
             onPause={() => void report(true)}
             onTimeUpdate={(event) => {
-              publishTime(event.currentTarget.currentTime);
+              if (!promoCourseId) publishTime(event.currentTarget.currentTime);
               void report(false);
             }}
             onEnded={onEnded}

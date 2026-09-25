@@ -84,6 +84,7 @@ export function CourseEditor({
   categories,
   initialTab,
   imageField,
+  promoField,
   publishPanel,
   published,
 }: {
@@ -92,6 +93,8 @@ export function CourseEditor({
   initialTab: CourseEditorTab;
   /** Saves on its own, not with Save (see CourseImageField). */
   imageField: ReactNode;
+  /** Saves on its own too (see PromoVideoField). */
+  promoField: ReactNode;
   publishPanel: ReactNode;
   published: boolean;
 }) {
@@ -261,6 +264,7 @@ export function CourseEditor({
             defaults={course.targetAudience.map((row) => row.text)}
           />
           <FaqEditor defaults={course.faqs} />
+          {promoField}
         </Panel>
 
         <Panel tab="pricing" current={tab} description="What the course costs. Enter 0 to make it free.">

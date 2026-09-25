@@ -23,6 +23,7 @@ import { getPlayerLockedItemIds } from "@/lib/progress";
 import { getCourseReviewPanel, REVIEW_PAGE_SIZE } from "@/lib/reviews";
 import { getCurrentUser } from "@/lib/session";
 import { enrollFree } from "./enroll-free-action";
+import { PromoDialog } from "./promo-dialog";
 import { PurchaseBar } from "./purchase-bar";
 import { ReviewForm } from "./review-form";
 
@@ -223,6 +224,7 @@ export default async function CourseLandingPage({ params, searchParams }: Params
                   </Button>
                 )
               ) : null}
+              {course.promoVideo?.status === "READY" ? <PromoDialog courseId={course.id} courseTitle={course.title} /> : null}
               {!enrolled && firstPreview ? (
                 <Link
                   href={`/learn/${course.slug}/${firstPreview.id}` as Route}

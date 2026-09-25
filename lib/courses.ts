@@ -483,6 +483,7 @@ export async function getPublishedCourseBySlug(slug: string) {
       subtitle: true,
       description: true,
       thumbnailUrl: true,
+      promoVideo: { select: { status: true } },
       level: true,
       language: true,
       ratingAverage: true,
