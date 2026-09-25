@@ -1,5 +1,5 @@
 /** The player's tabs, in order. `?tab=` holds one of these. */
-export const PLAYER_TABS = ["overview", "qa", "notes", "announcements"] as const;
+export const PLAYER_TABS = ["overview", "transcript", "qa", "notes", "announcements"] as const;
 export type PlayerTab = (typeof PLAYER_TABS)[number];
 
 /** The tab to open: the one in the URL when this learner has it, else the first. */
@@ -52,4 +52,25 @@ export function qualityOptions(levels: readonly { height: number }[]): QualityOp
   });
   picked.sort((a, b) => Number.parseInt(b.label, 10) - Number.parseInt(a.label, 10));
   return [{ value: -1, label: "Auto" }, ...picked];
+}
+
+/**
+ * The cue under the playhead, or -1 in a gap. `seconds` is whole seconds (the
+ * player clock floors), so a cue stays current through its last second.
+ */
+export function activeCueIndex(cues: readonly { start: number; end: number }[], seconds: number | null): number {
+  if (seconds === null) return -1;
+  let low = 0;
+  let high = cues.length - 1;
+  let found = -1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (cues[mid]!.start <= seconds) {
+      found = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return found >= 0 && seconds <= cues[found]!.end ? found : -1;
 }

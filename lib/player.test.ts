@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClock, parseClock, pickTab, qualityOptions } from "./player";
+import { activeCueIndex, formatClock, parseClock, pickTab, qualityOptions } from "./player";
 
 describe("pickTab", () => {
   it("keeps a known, available tab and falls back to the first", () => {
@@ -48,5 +48,22 @@ describe("qualityOptions", () => {
 
   it("is just Auto with no usable levels", () => {
     expect(qualityOptions([])).toEqual([{ value: -1, label: "Auto" }]);
+  });
+});
+
+describe("activeCueIndex", () => {
+  const cues = [
+    { start: 1, end: 4.25 },
+    { start: 5.5, end: 7 },
+    { start: 7, end: 9 },
+  ];
+  it("finds the cue under the playhead, and -1 before, between and after", () => {
+    expect(activeCueIndex(cues, 0)).toBe(-1);
+    expect(activeCueIndex(cues, 1)).toBe(0);
+    expect(activeCueIndex(cues, 4)).toBe(0);
+    expect(activeCueIndex(cues, 5)).toBe(-1);
+    expect(activeCueIndex(cues, 7)).toBe(2);
+    expect(activeCueIndex(cues, 10)).toBe(-1);
+    expect(activeCueIndex(cues, null)).toBe(-1);
   });
 });

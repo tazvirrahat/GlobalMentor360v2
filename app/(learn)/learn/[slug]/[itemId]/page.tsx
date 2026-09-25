@@ -8,6 +8,7 @@ import { LearnShell } from "@/components/learn/learn-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getLearnerAnnouncements } from "@/lib/announcements";
+import { getTranscriptForAsset } from "@/lib/captions";
 import { getCertificateBySerial } from "@/lib/certificates";
 import { db } from "@/lib/db";
 import { formatFileSize } from "@/lib/lecture-resources";
@@ -28,6 +29,7 @@ import { BookmarkButton, NotesPanel } from "../notes-panel";
 import { PlayerTabs, type PlayerTabSpec } from "../player-tabs";
 import { QaPanel } from "../qa-panel";
 import { QuizForm } from "../quiz-form";
+import { TranscriptPanel } from "../transcript-panel";
 import { VideoPlayer } from "../video-player";
 
 type Params = {
@@ -100,7 +102,9 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
 
   const enrolled = Boolean(user && course.enrolled);
   const qaPage = first(query.qaPage);
-  const [announcements, notesPage, bookmarked, qaPanel, certificate, resources] = await Promise.all([
+  const videoAsset =
+    current.lecture?.contentType === "VIDEO" && current.lecture.asset?.status === "READY" ? current.lecture.asset : null;
+  const [announcements, notesPage, bookmarked, qaPanel, certificate, resources, transcript] = await Promise.all([
     // getLearnerAnnouncements and getCourseQaPanel re-check the enrollment
     // themselves; these conditions are cost guards, not the access guard.
     enrolled ? getLearnerAnnouncements(user!.id, course.id) : Promise.resolve([]),
@@ -121,6 +125,7 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
           select: { id: true, filename: true, sizeBytes: true, externalUrl: true },
         })
       : Promise.resolve([]),
+    videoAsset ? getTranscriptForAsset(videoAsset.id) : Promise.resolve(null),
   ]);
 
   const nextId = continueTargetId(flat.map(sequentialItemFromPlayer), itemId);
@@ -217,6 +222,13 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
       ),
     },
   ];
+  if (transcript) {
+    tabs.push({
+      value: "transcript",
+      label: "Transcript",
+      panel: <TranscriptPanel cues={transcript.cues} language={transcript.language} />,
+    });
+  }
   if (enrolled) {
     tabs.push({
       value: "qa",
