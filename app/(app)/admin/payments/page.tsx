@@ -1,4 +1,3 @@
-import { Banknote } from "lucide-react";
 import { PageNav } from "@/components/site/page-nav";
 import { EmptyState } from "@/components/site/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +50,6 @@ export default async function AdminPaymentsPage({
       {total === 0 ? (
         <EmptyState
           className="mt-8"
-          icon={<Banknote className="size-6" />}
           title="Nothing to review"
           message="bKash payment proofs appear here when learners submit them."
         />

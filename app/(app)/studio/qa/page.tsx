@@ -1,6 +1,6 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
-import { CircleCheck, Inbox, MessageCircleQuestion } from "lucide-react";
+import { CircleCheck, MessageCircleQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/site/empty-state";
@@ -176,7 +176,6 @@ export default async function StudioQaPage({ searchParams }: Params) {
       {inbox.threads.length === 0 ? (
         filtered ? (
           <EmptyState
-            icon={<Inbox className="size-6" />}
             title="No questions match"
             message="No questions match those filters."
           >
@@ -188,7 +187,6 @@ export default async function StudioQaPage({ searchParams }: Params) {
           </EmptyState>
         ) : (
           <EmptyState
-            icon={<Inbox className="size-6" />}
             title="Inbox is empty"
             message="When learners ask questions on your courses, they show up here."
           />

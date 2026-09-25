@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Megaphone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/site/empty-state";
 import { PageNav } from "@/components/site/page-nav";
@@ -74,7 +73,6 @@ export default async function AnnouncementsPage({
         <h2 className="font-heading text-xl font-semibold tracking-tight">Sent</h2>
         {sent.length === 0 ? (
           <EmptyState
-            icon={<Megaphone className="size-6" />}
             message="Nothing sent yet."
           />
         ) : (

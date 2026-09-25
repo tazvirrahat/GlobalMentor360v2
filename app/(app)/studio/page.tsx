@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, ExternalLink, TriangleAlert } from "lucide-react";
+import { ExternalLink, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/site/empty-state";
@@ -46,7 +46,6 @@ export default async function StudioPage({
           {courses.length === 0 ? (
             <EmptyState
               className="mt-4"
-              icon={<BookOpen className="size-6" />}
               title="No courses yet"
               message="Create your first course to start teaching."
             >

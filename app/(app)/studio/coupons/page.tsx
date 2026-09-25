@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Ticket } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/site/empty-state";
@@ -106,7 +106,6 @@ export default async function StudioCouponsPage({
           {coupons.length === 0 ? (
             <EmptyState
               className="mt-4"
-              icon={<Ticket className="size-6" />}
               title="No coupons yet"
               message="Codes you create appear here. They apply at checkout."
             />
