@@ -38,7 +38,7 @@ function TagChecks({
               name={name}
               value={option.id}
               defaultChecked={selected.includes(option.id)}
-              className="size-5 shrink-0 cursor-pointer accent-ink"
+              className="size-6 shrink-0 cursor-pointer accent-ink"
             />
             {option.name}
           </label>

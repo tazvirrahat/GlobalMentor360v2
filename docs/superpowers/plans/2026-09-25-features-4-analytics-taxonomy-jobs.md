@@ -62,12 +62,12 @@ export type CourseAnalytics = {
 export async function getCourseAnalytics(courseId: string, now?: Date): Promise<CourseAnalytics>;
 ```
 
-- [ ] Pure week helpers with unit tests (Dhaka midnight boundaries, year rollover).
-- [ ] Queries: one grouped count per series (`date_trunc('week', "enrolledAt" AT TIME ZONE 'Asia/Dhaka')`), zero-filled in code.
-- [ ] Page: four figures (Learners, Completed with %, New in the last 30 days, Rating); "Enrollments by week" and "Rating by month" as tables with bars; "Where learners stop": each item's reached % and completed %, with the largest drop between consecutive items called out in a sentence. Empty course: one plain empty state.
-- [ ] Editor nav gains "Analytics" (a route like Curriculum).
-- [ ] Integration test: counts, revoked excluded, zero-filled weeks, per-item reach order; e2e: the instructor opens Analytics for the seed course.
-- [ ] Commit `Show instructors how their courses are doing`.
+- [x] Pure week helpers with unit tests (Dhaka midnight boundaries, year rollover).
+- [x] Queries: one grouped count per series (`date_trunc('week', "enrolledAt" AT TIME ZONE 'Asia/Dhaka')`), zero-filled in code.
+- [x] Page: four figures (Learners, Completed with %, New in the last 30 days, Rating); "Enrollments by week" and "Rating by month" as tables with bars; "Where learners stop": each item's reached % and completed %, with the largest drop between consecutive items called out in a sentence. Empty course: one plain empty state.
+- [x] Editor nav gains "Analytics" (a route like Curriculum).
+- [x] Integration test: counts, revoked excluded, zero-filled weeks, per-item reach order; e2e: the instructor opens Analytics for the seed course.
+- [x] Commit `Show instructors how their courses are doing`.
 
 ### Task 2: Taxonomy
 
@@ -86,13 +86,13 @@ export async function deleteTag(adminId: string, kind: "topic" | "skill", id: st
 export async function setCourseTaxonomy(adminId: string, courseId: string, input: { categoryId: string | null; topicIds: string[]; skillIds: string[] }): Promise<TaxonomyResult>;
 ```
 
-- [ ] Names 2–60 characters; duplicate names (case-insensitive, same parent for categories) refused; slug from name with `-2`… on collision.
-- [ ] Admin › Taxonomy: Categories (each subject with its subcategories, course counts, rename, up/down, delete when empty; add a subject or a subcategory), Topics and Skills (name, course count, rename, delete with "removes it from N courses"; add).
-- [ ] Admin course page `/admin/courses/[courseId]`: title, instructor, status, learners, Publish/Unpublish, and a Taxonomy form (category select, topic and skill checkboxes). The Courses table links each title there.
-- [ ] Studio Details tab: Category select; `updateCourse` saves it when the field is present.
-- [ ] Course page: "Skills you'll gain" (list) and "Related topics" (links to `/courses?q=<topic>`), each only when non-empty.
-- [ ] Integration tests (guards, slugs, audit rows, course links); e2e: admin adds a topic and assigns it to a course, the course page shows it.
-- [ ] Commit `Add a taxonomy editor and let admins tag courses`.
+- [x] Names 2–60 characters; duplicate names (case-insensitive, same parent for categories) refused; slug from name with `-2`… on collision.
+- [x] Admin › Taxonomy: Categories (each subject with its subcategories, course counts, rename, up/down, delete when empty; add a subject or a subcategory), Topics and Skills (name, course count, rename, delete with "removes it from N courses"; add).
+- [x] Admin course page `/admin/courses/[courseId]`: title, instructor, status, learners, Publish/Unpublish, and a Taxonomy form (category select, topic and skill checkboxes). The Courses table links each title there.
+- [x] Studio Details tab: Category select; `updateCourse` saves it when the field is present.
+- [x] Course page: "Skills you'll gain" (list) and "Related topics" (links to `/courses?q=<topic>`), each only when non-empty.
+- [x] Integration tests (guards, slugs, audit rows, course links); e2e: admin adds a topic and assigns it to a course, the course page shows it.
+- [x] Commit `Add a taxonomy editor and let admins tag courses`.
 
 ### Task 3: Video job monitoring
 
@@ -110,12 +110,12 @@ export async function retryVideoProcessing(adminId: string, assetId: string): Pr
 export function lastDrain(): { at: Date; applied: number; error: string | null } | null;
 ```
 
-- [ ] Admin › Videos: four status figures; "Needs attention" table (lecture and course, instructor, status with age, the failure reason in full); per row Retry (FAILED) and Check status; "Event queue" panel: configured or not, last drain on this server, Drain now.
-- [ ] With AWS unset, actions say "Video processing isn't set up on this site." rather than failing.
-- [ ] Integration tests for counts, the attention filter, retry guards; e2e: admin opens Videos.
-- [ ] Commit `Let admins watch and retry video processing`.
+- [x] Admin › Videos: four status figures; "Needs attention" table (lecture and course, instructor, status with age, the failure reason in full); per row Retry (FAILED) and Check status; "Event queue" panel: configured or not, last drain on this server, Drain now.
+- [x] With AWS unset, actions say "Video processing isn't set up on this site." rather than failing.
+- [x] Integration tests for counts, the attention filter, retry guards; e2e: admin opens Videos.
+- [x] Commit `Let admins watch and retry video processing`.
 
 ### Task 4: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary (new pages added to the audit).
-- [ ] Progress log row; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary (new pages added to the audit).
+- [x] Progress log row; commit; push.
