@@ -58,8 +58,8 @@ export function requestSeek(seconds: number): void;
 export function onSeekRequest(handler: (seconds: number) => void): () => void;
 ```
 
-- [ ] Tests first for `pickTab`, `formatClock`, `parseClock`; implement; the clock is a module-level store read with `useSyncExternalStore` (server snapshot `null`).
-- [ ] Commit `Add the player's tab and time helpers`.
+- [x] Tests first for `pickTab`, `formatClock`, `parseClock`; implement; the clock is a module-level store read with `useSyncExternalStore` (server snapshot `null`).
+- [x] Commit `Add the player's tab and time helpers`.
 
 ### Task 2: Player page
 
@@ -71,56 +71,56 @@ export function onSeekRequest(handler: (seconds: number) => void): () => void;
 4. Action row: for an unfinished lecture, "Mark lesson complete" (primary, 44px; "Complete and continue" when a next lesson exists — the action already continues). For a finished item with a next one, "Next lesson" (primary). For the course's last item, "Back to My learning".
 5. Tabs (`PlayerTabs`): Overview (the lecture's description, or its section and position when there is none), Q&A ({n}), Notes ({n}) — enrolled only, Announcements ({n}) — enrolled and only when there are some. Counts in the tab names. The tab strip scrolls horizontally on narrow screens; triggers ≥ 44px.
 
-- [ ] `PlayerTabs({ initial, tabs: { value, label, count?, panel: ReactNode }[] })`: Radix `Tabs` with `value` state; `onValueChange` → `history.replaceState(null, "", url with ?tab=)`, preserving other params; the tab trigger shows "Q&A" and the count in a separate element ("Q&A 3", accessible name "Q&A, 3").
-- [ ] e2e: open the Notes / Q&A tab before using them; `/mark complete and continue/` → `/complete and continue/`; `/mark complete/` → `/mark lesson complete|complete and continue/`.
-- [ ] Verify at 375×812: the lesson and the action row are above the fold on the first TypeScript lesson (measure `getBoundingClientRect().bottom` of the action row after scrolling the article's first paragraph into view — the article is long, so the check is that the **Complete** button is reachable without passing any tab content, and that the video/quiz variants fit).
-- [ ] Commit `Put the lesson first and the rest of the player in tabs`.
+- [x] `PlayerTabs({ initial, tabs: { value, label, count?, panel: ReactNode }[] })`: Radix `Tabs` with `value` state; `onValueChange` → `history.replaceState(null, "", url with ?tab=)`, preserving other params; the tab trigger shows "Q&A" and the count in a separate element ("Q&A 3", accessible name "Q&A, 3").
+- [x] e2e: open the Notes / Q&A tab before using them; `/mark complete and continue/` → `/complete and continue/`; `/mark complete/` → `/mark lesson complete|complete and continue/`.
+- [x] Verify at 375×812: the lesson and the action row are above the fold on the first TypeScript lesson (measure `getBoundingClientRect().bottom` of the action row after scrolling the article's first paragraph into view — the article is long, so the check is that the **Complete** button is reachable without passing any tab content, and that the video/quiz variants fit).
+- [x] Commit `Put the lesson first and the rest of the player in tabs`.
 
 ### Task 3: Notes stamped with the video time
 
-- [ ] `VideoPlayer` publishes `currentTime` (throttled to 1s) and subscribes to seek requests (`el.currentTime = s; el.focus()`).
-- [ ] `NoteForm` (client): textarea "Note", then "At (m:ss)" text input (`inputMode="numeric"`, pattern hint) prefilled from `useVideoTime()` when the textarea gets focus and a video is present; the field is hidden for articles (the time is 0). Server action parses with `parseClock`, rejects bad input with a field error.
-- [ ] Notes list: newest first; a `m:ss` chip (`button`, 32px, "Play from 1:15") that calls `requestSeek` when there is a video; delete asks for confirmation (a second click on "Delete" within the row: "Delete note?" Yes / Cancel).
-- [ ] Commit `Stamp notes with the video time and let a note seek back to it`.
+- [x] `VideoPlayer` publishes `currentTime` (throttled to 1s) and subscribes to seek requests (`el.currentTime = s; el.focus()`).
+- [x] `NoteForm` (client): textarea "Note", then "At (m:ss)" text input (`inputMode="numeric"`, pattern hint) prefilled from `useVideoTime()` when the textarea gets focus and a video is present; the field is hidden for articles (the time is 0). Server action parses with `parseClock`, rejects bad input with a field error.
+- [x] Notes list: newest first; a `m:ss` chip (`button`, 32px, "Play from 1:15") that calls `requestSeek` when there is a video; delete asks for confirmation (a second click on "Delete" within the row: "Delete note?" Yes / Cancel).
+- [x] Commit `Stamp notes with the video time and let a note seek back to it`.
 
 ### Task 4: Q&A, announcements, quiz restyle
 
-- [ ] Q&A: the ask form collapsed behind "Ask a question" (a `details` with a 44px summary) above the threads; threads as a list with title, author, date (separate elements), body, replies indented with the instructor label as a neutral badge; "Reply" disclosure.
-- [ ] Announcements: list, newest first, subject (h3), date, body, "From {author}".
-- [ ] Quiz: questions as fieldsets with legends, options as 44px rows, result as a `verified`/`destructive` alert with the score (proportional figures), the answer key after submitting (already exists) restyled; "Try again" when retakes are allowed.
-- [ ] Commit `Restyle Q&A, announcements and quizzes on the new tokens`.
+- [x] Q&A: the ask form collapsed behind "Ask a question" (a `details` with a 44px summary) above the threads; threads as a list with title, author, date (separate elements), body, replies indented with the instructor label as a neutral badge; "Reply" disclosure.
+- [x] Announcements: list, newest first, subject (h3), date, body, "From {author}".
+- [x] Quiz: questions as fieldsets with legends, options as 44px rows, result as a `verified`/`destructive` alert with the score (proportional figures), the answer key after submitting (already exists) restyled; "Try again" when retakes are allowed.
+- [x] Commit `Restyle Q&A, announcements and quizzes on the new tokens`.
 
 ### Task 5: My learning
 
-- [ ] `defaultLearningTab({ inProgress, completed, archived })` → first non-empty of in-progress, completed, archived, else in-progress. Tests.
-- [ ] Page: h1 "My learning", a greeting line ("Welcome back, {first name}."), the `ContinueCard` for the most recent in-progress course, a caution notice per payment awaiting verification ("Your payment for {course} is being checked." → link to the order), then tabs In progress / Completed / Archived (counts) defaulting per the helper. Rows: `CoverMark`, title, instructor, progress bar + "{n}% complete" (integer), Resume/Review; completed rows show `CertificateChip`. Remove the page-level Account / Purchases / Sign out buttons and the role badges.
-- [ ] e2e: "Welcome back" heading → the "My learning" heading.
-- [ ] Commit `Rebuild My learning around continuing and certificates`.
+- [x] `defaultLearningTab({ inProgress, completed, archived })` → first non-empty of in-progress, completed, archived, else in-progress. Tests.
+- [x] Page: h1 "My learning", a greeting line ("Welcome back, {first name}."), the `ContinueCard` for the most recent in-progress course, a caution notice per payment awaiting verification ("Your payment for {course} is being checked." → link to the order), then tabs In progress / Completed / Archived (counts) defaulting per the helper. Rows: `CoverMark`, title, instructor, progress bar + "{n}% complete" (integer), Resume/Review; completed rows show `CertificateChip`. Remove the page-level Account / Purchases / Sign out buttons and the role badges.
+- [x] e2e: "Welcome back" heading → the "My learning" heading.
+- [x] Commit `Rebuild My learning around continuing and certificates`.
 
 ### Task 6: Account
 
-- [ ] Layout: `md:grid-cols-[12rem_1fr]`; left sub-nav (in-page links, `aria-current="true"` on the section in view is not needed — plain anchor links) Profile, Email, Password, Devices; single column on phones.
-- [ ] Profile: name form (server action `updateNameAction`: trimmed, 1–100 chars, `db.user.update`, revalidate `/account` and the layout) — the Help page promises it. Member since.
-- [ ] Email, Password (PasswordInput ×3), Devices (sessions list; "Sign out" per device and "Sign out other devices" each confirm with a second step). Each form confirms inline in a `role="status"` line.
-- [ ] Remove the page's Sign out button and the My learning / Orders / Notifications buttons; update `lib/auth.component.test.ts` to check that the account menu offers Sign out.
-- [ ] Commit `Rebuild Account as sections with a name form and confirmed sign-outs`.
+- [x] Layout: `md:grid-cols-[12rem_1fr]`; left sub-nav (in-page links, `aria-current="true"` on the section in view is not needed — plain anchor links) Profile, Email, Password, Devices; single column on phones.
+- [x] Profile: name form (server action `updateNameAction`: trimmed, 1–100 chars, `db.user.update`, revalidate `/account` and the layout) — the Help page promises it. Member since.
+- [x] Email, Password (PasswordInput ×3), Devices (sessions list; "Sign out" per device and "Sign out other devices" each confirm with a second step). Each form confirms inline in a `role="status"` line.
+- [x] Remove the page's Sign out button and the My learning / Orders / Notifications buttons; update `lib/auth.component.test.ts` to check that the account menu offers Sign out.
+- [x] Commit `Rebuild Account as sections with a name form and confirmed sign-outs`.
 
 ### Task 7: Orders and receipts
 
-- [ ] `/orders`: a real `<table>` (Order, Courses, Date, Total, Status, receipt link) with a fixed column template; phone collapses to a list. h1 "Orders".
-- [ ] `/orders/[id]`: printable receipt (`print:` styles hide chrome), order number in `Serial`, items, totals `<dl>`, payment rows (method, status badge, date, transaction ID `Serial`). **Rejected bKash payment:** a `destructive` notice with the admin's reason (`verificationNotes`) and "Pay again" linking to the course checkout.
-- [ ] `rejectManualPayment` also notifies the learner ("Payment not accepted" with the reason, linking to the order). Integration test in `tests/integration/bkash-approval.test.ts`.
-- [ ] e2e: "Purchases" heading → "Orders".
-- [ ] Commit `Show orders as a table and tell the learner why a payment was rejected`.
+- [x] `/orders`: a real `<table>` (Order, Courses, Date, Total, Status, receipt link) with a fixed column template; phone collapses to a list. h1 "Orders".
+- [x] `/orders/[id]`: printable receipt (`print:` styles hide chrome), order number in `Serial`, items, totals `<dl>`, payment rows (method, status badge, date, transaction ID `Serial`). **Rejected bKash payment:** a `destructive` notice with the admin's reason (`verificationNotes`) and "Pay again" linking to the course checkout.
+- [x] `rejectManualPayment` also notifies the learner ("Payment not accepted" with the reason, linking to the order). Integration test in `tests/integration/bkash-approval.test.ts`.
+- [x] e2e: "Purchases" heading → "Orders".
+- [x] Commit `Show orders as a table and tell the learner why a payment was rejected`.
 
 ### Task 8: Notifications
 
-- [ ] `groupByDay(items, now)` → "Today", "Yesterday", or a date; tests.
-- [ ] Page: h1 "Notifications", "Mark all read" (secondary) when any unread; groups with h2 day headings; each item a full-width button-link (title, body one line, time) with an 8px ink dot + sr-only "Unread" for unread ones; "Mark as read" as a 32px ghost button.
-- [ ] Commit `Group notifications by day and mark unread with a dot`.
+- [x] `groupByDay(items, now)` → "Today", "Yesterday", or a date; tests.
+- [x] Page: h1 "Notifications", "Mark all read" (secondary) when any unread; groups with h2 day headings; each item a full-width button-link (title, body one line, time) with an 8px ink dot + sr-only "Unread" for unread ones; "Mark as read" as a 32px ghost button.
+- [x] Commit `Group notifications by day and mark unread with a dot`.
 
 ### Task 9: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build.
-- [ ] `npm run ui-audit` + summary + keyboard. Learner routes: 0 axe, 0 small targets, 0 text < 13px; player phone: lesson + actions visible before any tab content.
-- [ ] Progress log row; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build.
+- [x] `npm run ui-audit` + summary + keyboard. Learner routes: 0 axe, 0 small targets, 0 text < 13px; player phone: lesson + actions visible before any tab content.
+- [x] Progress log row; commit; push.

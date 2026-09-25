@@ -45,7 +45,7 @@ export function LearnTopBar({ course, next, contents }: LearnTopBarProps) {
           <div className="hidden shrink-0 items-center gap-3 md:flex">
             <Progress
               value={course.percent}
-              aria-label={`Course progress ${course.percent}%`}
+              aria-label={`Course progress ${Math.floor(course.percent)}%`}
               className="w-32"
             />
             <span className="text-xs text-graphite tabular-nums">

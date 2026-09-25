@@ -134,7 +134,7 @@ export function ChangeEmailForm({ currentEmail }: { currentEmail: string }) {
 
 /** Signs out every other device, after asking. */
 export function RevokeOthersForm() {
-  const [state, action, pending] = useActionState(async (_prev: AccountState) => revokeOtherSessionsAction(), initial);
+  const [state, action, pending] = useActionState(async (): Promise<AccountState> => revokeOtherSessionsAction(), initial);
   const [asking, setAsking] = useState(false);
 
   return (
