@@ -235,6 +235,8 @@ model Course {
   // Review before publishing: when the instructor submitted it, and the
   // admin's note when it was sent back. See lib/course-review.ts.
   reviewRequestedAt DateTime?
+  /// Set by an admin to lead the home page's course list (newest first); null = not featured.
+  featuredAt        DateTime?
   reviewNote        String?      @db.Text
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
