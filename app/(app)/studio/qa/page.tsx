@@ -1,16 +1,16 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
-import { CircleCheck, MessageCircleQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/site/empty-state";
 import { getInboxCourseFilters, getInstructorInbox, INBOX_PAGE_SIZE } from "@/lib/qa";
-import { formatDate } from "@/lib/format";
+import { formatDateMedium } from "@/lib/format";
 import { showingRange } from "@/lib/pagination";
 import { requireRole } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { InboxReplyForm } from "./inbox-reply-form";
-import { PageNav } from "@/components/site/page-nav";
+import { ListFooter } from "@/components/app/list-footer";
+import { PageHeader } from "@/components/app/page-header";
 
 export const metadata: Metadata = { title: "Q&A | Studio" };
 export const dynamic = "force-dynamic";
@@ -82,171 +82,156 @@ export default async function StudioQaPage({ searchParams }: Params) {
   const filtered = Boolean(courseId || unansweredOnly || query.since);
   const range = showingRange(inbox.page, INBOX_PAGE_SIZE, inbox.total);
 
-  const pager = (
-    <>
-      {inbox.threads.length > 0 ? (
-        <p className="text-sm tabular-nums text-muted-foreground">
-          Showing {range.from}–{range.to} of {inbox.total}
-        </p>
-      ) : null}
-      <PageNav
-        pathname="/studio/qa"
-        params={{ courseId, unanswered: query.unanswered, since: query.since }}
-        page={inbox.page}
-        pageCount={inbox.pageCount}
-      />
-    </>
-  );
+  const filterLink = (active: boolean) =>
+    cn(
+      "inline-flex min-h-8 items-center rounded-md border px-3 text-sm font-medium focus-ring",
+      active ? "border-ink bg-ink text-surface" : "border-control bg-surface text-ink hover:bg-wash",
+    );
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      <header>
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">Questions</h1>
-        <p className="mt-1 text-muted-foreground">
-          {unansweredTotal === 0
-            ? "Everything has an answer from you."
-            : `${unansweredTotal} ${unansweredTotal === 1 ? "question is" : "questions are"} waiting on you.`}
-        </p>
-      </header>
+    <main className="flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <PageHeader
+        title="Questions"
+        description={
+          unansweredTotal === 0
+            ? "Every question has an answer from you."
+            : `${unansweredTotal} ${unansweredTotal === 1 ? "question is" : "questions are"} waiting for your answer.`
+        }
+      />
 
-      <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 shadow-sm">
+      <div className="flex flex-col gap-4 rounded-lg border border-rule bg-surface p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-muted-foreground">Show</span>
-          <Button
-            asChild
-            size="sm"
-            variant={unansweredOnly ? "default" : "outline"}
-            className="rounded-full"
+          <span className="w-16 text-sm font-medium text-graphite">Show</span>
+          <Link
+            href={buildHref(filters, { unanswered: "" })}
+            aria-current={unansweredOnly ? undefined : "page"}
+            className={filterLink(!unansweredOnly)}
           >
-            <Link href={buildHref(filters, { unanswered: unansweredOnly ? "" : "1" })}>
-              Needs my answer
-            </Link>
-          </Button>
+            All questions
+          </Link>
+          <Link
+            href={buildHref(filters, { unanswered: "1" })}
+            aria-current={unansweredOnly ? "page" : undefined}
+            className={filterLink(unansweredOnly)}
+          >
+            Needs my answer
+          </Link>
         </div>
 
-        <form action="/studio/qa" method="get" className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="w-16 text-sm font-medium text-graphite">Asked</span>
+          {SINCE_OPTIONS.map((option) => {
+            const active = (query.since ?? "") === option.value;
+            return (
+              <Link
+                key={option.value}
+                href={buildHref(filters, { since: option.value })}
+                aria-current={active ? "page" : undefined}
+                className={filterLink(active)}
+              >
+                {option.label}
+              </Link>
+            );
+          })}
+        </div>
+
+        <form action="/studio/qa" method="get" className="flex flex-col gap-1.5">
+          <label htmlFor="courseId" className="text-sm font-medium text-graphite">
+            Course
+          </label>
           <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="courseId" className="cursor-pointer text-sm font-medium text-muted-foreground">
-              Course
-            </label>
             <select
               id="courseId"
               name="courseId"
               defaultValue={courseId ?? ""}
-              className="h-10 max-w-md min-w-[14rem] cursor-pointer rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs focus-ring"
+              className="h-10 min-w-0 flex-1 cursor-pointer rounded-md border border-input bg-surface px-3 text-sm text-ink focus-ring sm:max-w-md"
             >
               <option value="">All courses</option>
               {courses.map((course) => (
                 <option key={course.id} value={course.id}>
-                  {course.unanswered > 0
-                    ? `${course.title} (${course.unanswered})`
-                    : course.title}
+                  {course.unanswered > 0 ? `${course.title} (${course.unanswered} waiting)` : course.title}
                 </option>
               ))}
             </select>
             {unansweredOnly ? <input type="hidden" name="unanswered" value="1" /> : null}
             {query.since ? <input type="hidden" name="since" value={query.since} /> : null}
-            <Button type="submit" size="sm" variant="outline">
+            <Button type="submit" variant="secondary">
               Apply
             </Button>
           </div>
           {courseTotal > courses.length ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-graphite">
               Showing {courses.length} of {courseTotal} courses, ordered by title.
             </p>
           ) : null}
         </form>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-muted-foreground">Asked</span>
-          {SINCE_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              asChild
-              size="sm"
-              variant={(query.since ?? "") === option.value ? "default" : "outline"}
-              className="rounded-full"
-            >
-              <Link href={buildHref(filters, { since: option.value })}>{option.label}</Link>
-            </Button>
-          ))}
-        </div>
       </div>
 
       {inbox.threads.length === 0 ? (
         filtered ? (
-          <EmptyState
-            title="No questions match"
-            message="No questions match those filters."
-          >
-            <Button asChild>
-              <Link href="/studio/qa" className="cursor-pointer">
-                Clear filters
-              </Link>
+          <EmptyState title="No questions match" message="Nothing matches those filters.">
+            <Button asChild variant="secondary">
+              <Link href="/studio/qa">Clear filters</Link>
             </Button>
           </EmptyState>
         ) : (
           <EmptyState
-            title="Inbox is empty"
-            message="When learners ask questions on your courses, they show up here."
+            title="No questions yet"
+            message="When learners ask about your courses, their questions appear here."
           />
         )
       ) : (
-        <div className="flex flex-col gap-2">
-          {pager}
-          <ol className="overflow-hidden rounded-lg border bg-card shadow-sm">
+        <>
+          <ol className="flex flex-col divide-y divide-rule overflow-hidden rounded-lg border border-rule bg-surface">
             {inbox.threads.map((thread) => (
-              <li
-                key={thread.id}
-                className={cn(
-                  "border-b last:border-b-0",
-                  thread.answered ? "" : "border-l-4 border-l-warning",
-                )}
-              >
+              <li key={thread.id} className={cn(!thread.answered && "border-l-4 border-l-caution")}>
                 <details className="group">
-                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-3 py-2 hover:bg-muted/50 [&::-webkit-details-marker]:hidden">
-                    {thread.answered ? (
-                      <CircleCheck className="size-4 shrink-0 text-success" aria-label="Answered" />
-                    ) : (
-                      <MessageCircleQuestion
-                        className="size-4 shrink-0 text-warning"
-                        aria-label="Needs an answer"
-                      />
-                    )}
-                    <span className="min-w-0 flex-1 truncate font-medium">{thread.title}</span>
-                    {thread.answered ? (
-                      <Badge variant="success">Answered</Badge>
-                    ) : (
-                      <Badge variant="warning">Needs answer</Badge>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {thread.courseTitle}
-                      {thread.lectureTitle ? ` · ${thread.lectureTitle}` : " · course-wide"}
+                  <summary className="flex min-h-14 cursor-pointer list-none flex-col gap-1 px-4 py-3 hover:bg-wash/60 focus-ring-inset [&::-webkit-details-marker]:hidden">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="min-w-0 flex-1 font-medium text-ink">{thread.title}</span>
+                      {thread.answered ? (
+                        <Badge variant="success">Answered</Badge>
+                      ) : (
+                        <Badge variant="warning">Needs your answer</Badge>
+                      )}
                     </span>
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {formatDate(thread.createdAt)} · {thread.replyCount}{" "}
-                      {thread.replyCount === 1 ? "reply" : "replies"}
+                    <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-graphite">
+                      <span>{thread.courseTitle}</span>
+                      <span>{thread.lectureTitle ?? "About the whole course"}</span>
+                      <span>
+                        <time dateTime={thread.createdAt.toISOString()}>{formatDateMedium(thread.createdAt)}</time>
+                      </span>
+                      <span>
+                        {thread.replyCount} {thread.replyCount === 1 ? "reply" : "replies"}
+                      </span>
                     </span>
                   </summary>
-                  <div className="flex flex-col gap-2 border-t px-3 py-3">
-                    <p className="whitespace-pre-line text-sm text-muted-foreground">{thread.body}</p>
-                    <p className="text-xs tabular-nums text-muted-foreground">
-                      {thread.askedBy} ·{" "}
-                      <Link
-                        href={`/learn/${thread.courseSlug}` as Route}
-                        className="cursor-pointer underline hover:text-foreground"
-                      >
-                        open in course
-                      </Link>
+                  <div className="flex flex-col gap-3 border-t border-rule px-4 py-4">
+                    <p className="text-sm text-graphite">
+                      Asked by <span className="font-medium text-ink">{thread.askedBy}</span>
                     </p>
+                    <p className="max-w-[68ch] whitespace-pre-line text-ink">{thread.body}</p>
+                    <Link
+                      href={`/learn/${thread.courseSlug}?tab=qa` as Route}
+                      className="inline-flex min-h-8 w-fit items-center rounded-sm text-sm font-medium text-ink underline decoration-control underline-offset-4 hover:decoration-ink focus-ring"
+                    >
+                      Open in the course
+                    </Link>
                     <InboxReplyForm threadId={thread.id} title={thread.title} />
                   </div>
                 </details>
               </li>
             ))}
           </ol>
-          {pager}
-        </div>
+          <ListFooter
+            range={range}
+            total={inbox.total}
+            pathname="/studio/qa"
+            params={{ courseId, unanswered: query.unanswered, since: query.since }}
+            page={inbox.page}
+            pageCount={inbox.pageCount}
+          />
+        </>
       )}
     </main>
   );

@@ -1,9 +1,18 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ListFooter } from "@/components/app/list-footer";
+import { PageHeader } from "@/components/app/page-header";
+import { Panel } from "@/components/app/panel";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/site/empty-state";
-import { PageNav } from "@/components/site/page-nav";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { describeCouponValue } from "@/lib/coupon-input";
 import { db } from "@/lib/db";
 import { clampPage, pageCount, parsePage, showingRange, skipTake } from "@/lib/pagination";
 import { hasRole, requireRole } from "@/lib/session";
@@ -61,98 +70,78 @@ export default async function StudioCouponsPage({
     }),
   ]);
 
-  const pager = (
-    <>
-      {coupons.length > 0 ? (
-        <p className="text-sm tabular-nums text-muted-foreground">
-          Showing {range.from}–{range.to} of {couponTotal}
-        </p>
-      ) : null}
-      <PageNav pathname="/studio/coupons" page={couponPage} pageCount={couponPageCount} />
-    </>
-  );
-
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <Link
-        href="/studio"
-        className="inline-flex w-fit cursor-pointer items-center gap-1 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" aria-hidden /> Studio
-      </Link>
-      <h1 className="mt-4 font-heading text-3xl font-semibold tracking-tight">Coupons</h1>
-      <p className="mt-1 text-muted-foreground">
-        Codes apply at checkout. Prices still come from the database; the coupon only records a
-        discount.
-      </p>
+    <main className="flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <PageHeader
+        title="Coupons"
+        description="Codes learners enter at checkout for a discount. The price itself never changes."
+      />
 
-      <div className="mt-8 grid min-w-0 items-start gap-8 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Create</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CouponForm courses={courses} canCreateGlobal={isAdmin} />
-            {courseTotal > courses.length ? (
-              <p className="mt-3 text-sm text-muted-foreground">
-                Showing {courses.length} of {courseTotal} {isAdmin ? "published " : ""}
-                courses, ordered by title.
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-        <section className="min-w-0">
-          <h2 className="font-heading text-xl font-semibold tracking-tight">Existing</h2>
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <section aria-labelledby="coupons-heading" className="flex min-w-0 flex-col gap-3">
+          <h2 id="coupons-heading" className="text-lg font-semibold">
+            Your coupons
+          </h2>
           {coupons.length === 0 ? (
-            <EmptyState
-              className="mt-4"
-              title="No coupons yet"
-              message="Codes you create appear here. They apply at checkout."
-            />
+            <EmptyState headingLevel={3} title="No coupons yet" message="Codes you create appear here." />
           ) : (
-            <div className="mt-3 flex min-w-0 flex-col gap-2">
-              {pager}
-              <div className="w-0 min-w-full overflow-x-auto rounded-lg border bg-card shadow-sm">
-                <div className="hidden min-w-[32rem] border-b bg-muted/40 px-3 py-1.5 text-sm font-medium text-muted-foreground sm:grid sm:grid-cols-[8rem_minmax(0,1fr)_5.5rem_5rem_auto] sm:gap-3">
-                  <span>Code</span>
-                  <span>Scope</span>
-                  <span className="text-right">Usage</span>
-                  <span className="text-right">Value</span>
-                  <span className="sr-only">Status</span>
-                </div>
-                <ul>
+            <>
+              <Table className="md:min-w-[36rem]">
+                <TableCaption>Coupons</TableCaption>
+                <colgroup>
+                  <col className="w-36" />
+                  <col />
+                  <col className="w-28" />
+                  <col className="hidden w-24 md:table-column" />
+                  <col className="w-24" />
+                </colgroup>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Applies to</TableHead>
+                    <TableHead>Discount</TableHead>
+                    <TableHead className="hidden text-right md:table-cell">Used</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {coupons.map((coupon) => (
-                    <li
-                      key={coupon.id}
-                      className="border-b border-border px-3 py-1.5 text-sm last:border-b-0 hover:bg-muted/50"
-                    >
-                      <div className="grid min-w-[32rem] items-center gap-2 sm:grid-cols-[8rem_minmax(0,1fr)_5.5rem_5rem_auto] sm:gap-3">
-                        <span className="font-mono font-semibold tracking-tight">{coupon.code}</span>
-                        <span
-                          className="min-w-0 truncate text-muted-foreground"
-                          title={coupon.course?.title ?? "All courses"}
-                        >
-                          {coupon.course?.title ?? "All courses"}
-                        </span>
-                        <span className="tabular-nums text-muted-foreground sm:text-right">
-                          {coupon.redeemedCount}
-                          {coupon.maxRedemptions ? ` / ${coupon.maxRedemptions}` : ""}
-                        </span>
-                        <span className="tabular-nums text-muted-foreground sm:text-right">
-                          {coupon.type === "PERCENTAGE" ? `${coupon.value}%` : coupon.value}
-                        </span>
+                    <TableRow key={coupon.id}>
+                      <TableCell className="font-mono font-semibold break-all text-ink">{coupon.code}</TableCell>
+                      <TableCell className="text-graphite">{coupon.course?.title ?? "All courses"}</TableCell>
+                      <TableCell className="text-ink">{describeCouponValue(coupon.type, coupon.value)}</TableCell>
+                      <TableCell className="hidden text-right text-graphite tabular-nums md:table-cell">
+                        {coupon.redeemedCount}
+                        {coupon.maxRedemptions ? ` of ${coupon.maxRedemptions}` : ""}
+                      </TableCell>
+                      <TableCell>
                         <Badge variant={coupon.isActive ? "success" : "secondary"}>
                           {coupon.isActive ? "Active" : "Off"}
                         </Badge>
-                      </div>
-                    </li>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </ul>
-              </div>
-              {pager}
-            </div>
+                </TableBody>
+              </Table>
+              <ListFooter
+                range={range}
+                total={couponTotal}
+                pathname="/studio/coupons"
+                page={couponPage}
+                pageCount={couponPageCount}
+              />
+            </>
           )}
         </section>
+
+        <Panel title="New coupon" className="lg:sticky lg:top-6">
+          <CouponForm courses={courses} canCreateGlobal={isAdmin} />
+          {courseTotal > courses.length ? (
+            <p className="text-sm text-graphite">
+              Showing {courses.length} of {courseTotal} {isAdmin ? "published " : ""}courses, ordered by title.
+            </p>
+          ) : null}
+        </Panel>
       </div>
     </main>
   );

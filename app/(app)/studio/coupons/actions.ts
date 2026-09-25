@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { parseCouponValue } from "@/lib/coupon-input";
 import { createCoupon, resolveCouponScope } from "@/lib/coupons";
 import { db } from "@/lib/db";
 import { hasRole, requireRole } from "@/lib/session";
@@ -14,7 +15,7 @@ export type CouponState =
 const schema = z.object({
   code: z.string().trim().min(3).max(40),
   type: z.enum(["PERCENTAGE", "FIXED"]),
-  value: z.coerce.number().int().positive(),
+  value: z.string(),
   courseId: z.string().optional(),
   maxRedemptions: z.string().optional(),
 });
@@ -28,7 +29,7 @@ export async function createCouponAction(
   const parsed = schema.safeParse({
     code: formData.get("code"),
     type: formData.get("type"),
-    value: formData.get("value"),
+    value: formData.get("value") ?? "",
     courseId: formData.get("courseId") ?? "",
     maxRedemptions: formData.get("maxRedemptions") ?? "",
   });
@@ -67,13 +68,13 @@ export async function createCouponAction(
     return { status: "error", message: "Max redemptions must be a whole number of 1 or more." };
   }
 
-  const value =
-    parsed.data.type === "FIXED" ? parsed.data.value : parsed.data.value;
+  const value = parseCouponValue(parsed.data.type, parsed.data.value);
+  if (!value.ok) return { status: "error", message: value.message };
 
   const result = await createCoupon({
     code: parsed.data.code,
     type: parsed.data.type,
-    value,
+    value: value.value,
     courseId,
     maxRedemptions: max,
     isAdmin,

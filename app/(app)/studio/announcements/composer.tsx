@@ -41,9 +41,7 @@ export function Composer({
 
   if (courses.length === 0) {
     return (
-      <p className="text-muted-foreground">
-        You do not teach any courses yet. Create one before announcing anything.
-      </p>
+      <p className="text-graphite">You don&apos;t teach any courses yet. Create one first.</p>
     );
   }
 
@@ -92,7 +90,7 @@ export function Composer({
 
       {state.status === "error" ? <FieldError message={state.message} /> : null}
       {state.status === "done" ? (
-        <p role="status" className="text-sm font-medium text-primary">
+        <p role="status" className="text-sm font-medium text-ink">
           {state.message}
         </p>
       ) : null}
@@ -102,9 +100,8 @@ export function Composer({
         {pending ? "Sending…" : "Send to enrolled learners"}
       </Button>
 
-      <p className="text-xs text-muted-foreground">
-        Every learner with a live enrollment gets this by email and sees it in the course.
-        Refunded learners do not.
+      <p className="text-sm text-graphite">
+        Everyone enrolled gets it by email and sees it in the course. Learners who were refunded don&apos;t.
       </p>
     </form>
   );

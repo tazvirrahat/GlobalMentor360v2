@@ -3,11 +3,15 @@ import { notFound, redirect } from "next/navigation";
 import { canAccessPlayerItem, getPlayerCourse } from "@/lib/progress";
 import { requireUser } from "@/lib/session";
 import { pickResumeItem } from "@/lib/continue-learning";
+import { PLAYER_TABS } from "@/lib/player";
 
-type Params = { params: Promise<{ slug: string }> };
+type Params = { params: Promise<{ slug: string }>; searchParams: Promise<{ tab?: string }> };
 
-export default async function LearnIndexPage({ params }: Params) {
+export default async function LearnIndexPage({ params, searchParams }: Params) {
   const { slug } = await params;
+  const { tab } = await searchParams;
+  // A link to the course's Q&A (from the studio inbox) keeps its tab through the redirect.
+  const query = tab && (PLAYER_TABS as readonly string[]).includes(tab) ? `?tab=${tab}` : "";
   const user = await requireUser(`/learn/${slug}`);
   const course = await getPlayerCourse(slug, user.id);
   if (!course) notFound();
@@ -30,5 +34,5 @@ export default async function LearnIndexPage({ params }: Params) {
     redirect(`/courses/${slug}` as Route);
   }
 
-  redirect(`/learn/${slug}/${targetId}` as Route);
+  redirect(`/learn/${slug}/${targetId}${query}` as Route);
 }

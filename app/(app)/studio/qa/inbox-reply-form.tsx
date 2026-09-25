@@ -23,8 +23,8 @@ export function InboxReplyForm({ threadId, title }: { threadId: string; title: s
     <form action={action} className="mt-1 flex flex-col gap-2">
       <input type="hidden" name="threadId" value={threadId} />
 
-      <Label htmlFor={`reply-${uid}`} className="sr-only">
-        Reply to “{title}”
+      <Label htmlFor={`reply-${uid}`}>
+        Your answer<span className="sr-only"> to “{title}”</span>
       </Label>
       <Textarea
         id={`reply-${uid}`}
@@ -33,12 +33,12 @@ export function InboxReplyForm({ threadId, title }: { threadId: string; title: s
         required
         minLength={2}
         maxLength={REPLY_BODY_MAX}
-        placeholder="Answer this question…"
+        placeholder="Write your answer"
       />
 
       {state.status === "error" ? <FieldError message={state.message} /> : null}
       {state.status === "done" ? (
-        <p role="status" className="text-sm font-medium text-primary">
+        <p role="status" className="text-sm font-medium text-ink">
           {state.message}
         </p>
       ) : null}
