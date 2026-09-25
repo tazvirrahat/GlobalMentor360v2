@@ -56,8 +56,8 @@ export default async function CurriculumPage({ params }: Params) {
         <h2 className="text-xl font-semibold">Curriculum</h2>
         <p className="text-sm text-graphite">
           {count(course.sections.length, "section", "sections")}, {count(lectures, "lecture", "lectures")},{" "}
-          {count(quizzes, "quiz", "quizzes")}. Learners take them in this order; a quiz must be passed before what
-          follows it opens.
+          {count(quizzes, "quiz", "quizzes")}. Learners take them in this order: each item opens once the one before it is done (a quiz
+          counts when passed). Free previews are always open.
         </p>
       </div>
 

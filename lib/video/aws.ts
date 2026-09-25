@@ -147,6 +147,23 @@ function sqs(config: AwsBaseConfig): SQSClient {
   return sqsSingleton;
 }
 
+/**
+ * The app's S3 bucket and client, for other stored files that live beside the
+ * video originals (lecture resources). Throws the same "not configured" error
+ * as the video pipeline when the AWS variables are unset.
+ */
+export function appBucket(): { client: S3Client; bucket: string } {
+  const config = readBaseConfig();
+  return { client: s3(config), bucket: config.bucket };
+}
+
+/** True when the S3 variables are set, without throwing. */
+export function isAppBucketConfigured(): boolean {
+  return Boolean(
+    process.env.AWS_REGION && process.env.AWS_S3_BUCKET && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // S3 helpers
 // ---------------------------------------------------------------------------

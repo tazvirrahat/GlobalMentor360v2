@@ -35,7 +35,7 @@ type UploadPhase =
  * fetch() exposes no upload progress events, so the PUT goes through
  * XMLHttpRequest — the only browser API with `upload.onprogress`.
  */
-function putWithProgress(
+export function putWithProgress(
   url: string,
   headers: Record<string, string>,
   file: File,
