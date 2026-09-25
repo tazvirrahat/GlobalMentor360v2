@@ -12,6 +12,7 @@ import { getContinueLearning } from "@/lib/continue-learning";
 import { defaultLearningTab, listPendingPayments } from "@/lib/dashboard";
 import { getMyLearning, type MyLearningEntry } from "@/lib/my-learning";
 import { requireUser } from "@/lib/session";
+import { archiveCourseAction } from "./actions";
 
 export const metadata = {
   title: "My learning",
@@ -20,7 +21,7 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-function CourseEntry({ entry }: { entry: MyLearningEntry }) {
+function CourseEntry({ entry, archived }: { entry: MyLearningEntry; archived: boolean }) {
   const done = entry.percent >= 100;
   const percent = Math.floor(entry.percent);
   return (
@@ -48,16 +49,24 @@ function CourseEntry({ entry }: { entry: MyLearningEntry }) {
             {done ? "Review" : "Continue"}
           </Link>
         </Button>
+        <form action={archiveCourseAction}>
+          <input type="hidden" name="courseId" value={entry.courseId} />
+          <input type="hidden" name="archived" value={archived ? "false" : "true"} />
+          <Button type="submit" variant="ghost">
+            {archived ? "Unarchive" : "Archive"}
+            <span className="sr-only"> {entry.title}</span>
+          </Button>
+        </form>
       </div>
     </li>
   );
 }
 
-function CourseList({ entries }: { entries: MyLearningEntry[] }) {
+function CourseList({ entries, archived = false }: { entries: MyLearningEntry[]; archived?: boolean }) {
   return (
     <ul className="flex flex-col divide-y divide-rule border-y border-rule">
       {entries.map((entry) => (
-        <CourseEntry key={entry.courseId} entry={entry} />
+        <CourseEntry key={entry.courseId} entry={entry} archived={archived} />
       ))}
     </ul>
   );
@@ -167,7 +176,10 @@ export default async function DashboardPage() {
           </TabsContent>
           {archived.length > 0 ? (
             <TabsContent value="archived" className="mt-2">
-              <CourseList entries={archived} />
+              <p className="py-3 text-sm text-graphite">
+                Archived courses are only hidden from your list. You keep access, and your progress is saved.
+              </p>
+              <CourseList entries={archived} archived />
             </TabsContent>
           ) : null}
         </Tabs>

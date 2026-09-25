@@ -105,3 +105,17 @@ export async function getMyLearning(userId: string): Promise<MyLearning> {
     archived: entries.filter(({ archived }) => archived).map(({ entry }) => entry),
   };
 }
+
+/**
+ * Archive or unarchive one of this learner's courses. Archiving only tidies My
+ * learning: access is untouched, and the course is one click from coming back.
+ * Scoped by userId in the `where`, so another learner's id changes nothing.
+ * False when the learner has no live enrollment in that course.
+ */
+export async function setCourseArchived(userId: string, courseId: string, archived: boolean): Promise<boolean> {
+  const { count } = await db.enrollment.updateMany({
+    where: { userId, courseId, revokedAt: null },
+    data: { archivedAt: archived ? new Date() : null },
+  });
+  return count > 0;
+}
