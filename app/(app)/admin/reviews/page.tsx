@@ -88,7 +88,7 @@ export default async function AdminReviewsPage({
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <Link
                           href={`/courses/${review.course.slug}` as Route}
-                          className="w-fit rounded-sm font-medium text-ink hover:underline focus-ring"
+                          className="inline-flex min-h-6 w-fit items-center rounded-sm font-medium text-ink hover:underline focus-ring"
                         >
                           {review.course.title}
                         </Link>

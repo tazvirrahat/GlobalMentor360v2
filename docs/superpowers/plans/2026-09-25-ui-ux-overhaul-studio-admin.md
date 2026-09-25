@@ -75,19 +75,19 @@ export function SearchBox(props: {
 }): JSX.Element;
 ```
 
-- [ ] `PageHeader`: `header` with flex-wrap; h1 `text-2xl sm:text-3xl font-semibold`; back link `inline-flex min-h-8 items-center gap-1 text-sm text-graphite hover:text-ink focus-ring`.
-- [ ] `ListFooter`: `text-sm text-graphite` line only when `pageCount > 1`, then `PageNav` with its top margin reduced (`[&_nav]:mt-3`).
-- [ ] `SearchBox`: visible `<Label>` (sr-only is fine only when the placeholder repeats it — use visible), `Input type="search" name="q"`, `Button variant="secondary"` "Search", "Clear" link; `role="search"`.
-- [ ] `Table`: container `overflow-x-auto lg:overflow-visible`; `TableHeader` `lg:sticky lg:top-0 z-10 bg-wash`; `TableHead` defaults `scope="col"`, `h-10 px-3 text-left text-sm font-semibold text-graphite`; `TableCell` `px-3 py-2.5 align-middle`; `TableRow` border `rule`, hover `wash/60`. `TableFooter` token colours.
-- [ ] `EmptyState`: `rounded-lg border border-rule bg-surface p-6`, left-aligned h2/h3, graphite message, children as actions. Drop the `icon` prop and update every call site.
-- [ ] Commit `Add page header, list footer and search box for the app shell`.
+- [x] `PageHeader`: `header` with flex-wrap; h1 `text-2xl sm:text-3xl font-semibold`; back link `inline-flex min-h-8 items-center gap-1 text-sm text-graphite hover:text-ink focus-ring`.
+- [x] `ListFooter`: `text-sm text-graphite` line only when `pageCount > 1`, then `PageNav` with its top margin reduced (`[&_nav]:mt-3`).
+- [x] `SearchBox`: visible `<Label>` (sr-only is fine only when the placeholder repeats it — use visible), `Input type="search" name="q"`, `Button variant="secondary"` "Search", "Clear" link; `role="search"`.
+- [x] `Table`: container `overflow-x-auto lg:overflow-visible`; `TableHeader` `lg:sticky lg:top-0 z-10 bg-wash`; `TableHead` defaults `scope="col"`, `h-10 px-3 text-left text-sm font-semibold text-graphite`; `TableCell` `px-3 py-2.5 align-middle`; `TableRow` border `rule`, hover `wash/60`. `TableFooter` token colours.
+- [x] `EmptyState`: `rounded-lg border border-rule bg-surface p-6`, left-aligned h2/h3, graphite message, children as actions. Drop the `icon` prop and update every call site.
+- [x] Commit `Add page header, list footer and search box for the app shell`.
 
 ### Task 2: Studio courses
 
-- [ ] `/studio`: `PageHeader` title "Courses", description "Create a course, then build its lessons and publish it.", action `NewCourseDialog` (primary "New course" → `Dialog` titled "New course" holding `NewCourseForm`; `createCourse` already redirects to the editor).
-- [ ] Table columns: Course (title link + "N sections" graphite under it + sellability warning in `seal`), Status (`StatusBadge`), Learners (right, integer), Updated (`formatDateMedium`), actions ("Course page" link, 32px, published only). Empty: "No courses yet" + "New course" button.
-- [ ] e2e: `heading "Studio"` → `heading level 1 "Courses"` (qa-studio ×3); create flows click "New course" first, then fill Title in the dialog (qa-studio ×2).
-- [ ] Commit `Show studio courses as a table with a New course dialog`.
+- [x] `/studio`: `PageHeader` title "Courses", description "Create a course, then build its lessons and publish it.", action `NewCourseDialog` (primary "New course" → `Dialog` titled "New course" holding `NewCourseForm`; `createCourse` already redirects to the editor).
+- [x] Table columns: Course (title link + "N sections" graphite under it + sellability warning in `seal`), Status (`StatusBadge`), Learners (right, integer), Updated (`formatDateMedium`), actions ("Course page" link, 32px, published only). Empty: "No courses yet" + "New course" button.
+- [x] e2e: `heading "Studio"` → `heading level 1 "Courses"` (qa-studio ×3); create flows click "New course" first, then fill Title in the dialog (qa-studio ×2).
+- [x] Commit `Show studio courses as a table with a New course dialog`.
 
 ### Task 3: Tabbed course editor
 
@@ -101,60 +101,62 @@ export function pickEditorTab(raw: string | undefined): CourseEditorTab; // unkn
 export function listRowLabel(noun: string, index: number): string;      // ("Objective", 0) → "Objective 1"
 ```
 
-- [ ] Server page: `PageHeader` (back "Courses", title = course title, meta = `StatusBadge`, action = "Course page" link when published), sellability `Alert` (destructive when published, caution otherwise), `CourseEditorNav`, then `CourseEditor` with `initialTab={pickEditorTab(searchParams.tab)}` and the readiness checks.
-- [ ] `CourseEditorNav({ courseId, current, onSelect? })`: `nav aria-label="Course editor"`; Details / Landing page / Pricing / Publish link to `?tab=`; Curriculum links to `/curriculum`; `aria-current="page"` + 2px ink underline on the current one; 40px tall. When `onSelect` is given (settings page), clicks on the four in-page items call it and `history.replaceState` instead of navigating.
-- [ ] `CourseEditor`: one `<form action={updateCourse}>` holds three panels (`section aria-labelledby` + h2, `hidden` when inactive): **Details** (title, subtitle, description, level, language), **Landing page** (three `ListEditor`s), **Pricing** (amount + currency, the bKash note rewritten). A save bar under the panels (hidden on Publish): status line + "Save". **Publish** panel sits outside the form: readiness list (verified check / seal cross, hint under a failed item), `PublishForm` (unpublish confirms with `ConfirmSubmit`).
-- [ ] Invalid field in a hidden panel: `onInvalidCapture` on the form finds the panel (`data-tab`) and switches to it inside `flushSync`, so the browser can focus the field and show its message.
-- [ ] `ListEditor({ name, legend, hint, noun, defaults, max = 12 })`: client rows (stable ids), each `Input` labelled `listRowLabel(noun, i)` with a visible number, "Remove {noun} {n}" icon button (32px), "Add {noun}" secondary button (disabled at `max`). Starts with the defaults or one empty row. Same `name` so `updateCourse` is untouched. This fixes the axe `label` ×28.
-- [ ] Unit tests for `pickEditorTab`, `listRowLabel`.
-- [ ] e2e (qa-studio): `getByText("Settings")` → editor nav visible; "What you'll learn" after clicking "Landing page"; "Edit curriculum" → nav link "Curriculum".
-- [ ] Commit `Split the course editor into tabs and label every list row`.
+- [x] Server page: `PageHeader` (back "Courses", title = course title, meta = `StatusBadge`, action = "Course page" link when published), sellability `Alert` (destructive when published, caution otherwise), `CourseEditorNav`, then `CourseEditor` with `initialTab={pickEditorTab(searchParams.tab)}` and the readiness checks.
+- [x] `CourseEditorNav({ courseId, current, onSelect? })`: `nav aria-label="Course editor"`; Details / Landing page / Pricing / Publish link to `?tab=`; Curriculum links to `/curriculum`; `aria-current="page"` + 2px ink underline on the current one; 40px tall. When `onSelect` is given (settings page), clicks on the four in-page items call it and `history.replaceState` instead of navigating.
+- [x] `CourseEditor`: one `<form action={updateCourse}>` holds three panels (`section aria-labelledby` + h2, `hidden` when inactive): **Details** (title, subtitle, description, level, language), **Landing page** (three `ListEditor`s), **Pricing** (amount + currency, the bKash note rewritten). A save bar under the panels (hidden on Publish): status line + "Save". **Publish** panel sits outside the form: readiness list (verified check / seal cross, hint under a failed item), `PublishForm` (unpublish confirms with `ConfirmSubmit`).
+- [x] Invalid field in a hidden panel: `onInvalidCapture` on the form finds the panel (`data-tab`) and switches to it inside `flushSync`, so the browser can focus the field and show its message.
+- [x] `ListEditor({ name, legend, hint, noun, defaults, max = 12 })`: client rows (stable ids), each `Input` labelled `listRowLabel(noun, i)` with a visible number, "Remove {noun} {n}" icon button (32px), "Add {noun}" secondary button (disabled at `max`). Starts with the defaults or one empty row. Same `name` so `updateCourse` is untouched. This fixes the axe `label` ×28.
+- [x] Unit tests for `pickEditorTab`, `listRowLabel`.
+- [x] e2e (qa-studio): `getByText("Settings")` → editor nav visible; "What you'll learn" after clicking "Landing page"; "Edit curriculum" → nav link "Curriculum".
+- [x] Commit `Split the course editor into tabs and label every list row`.
 
 ### Task 4: Curriculum
 
-- [ ] `moveSection(prev, fd)` in `curriculum-actions.ts`: owner check through `course.instructorId`, swap with the neighbour using the same park position as `moveItem` (sections have `@@unique([courseId, position])`); "Already at the end." at the ends; revalidate. Integration test beside `moveItem`'s.
-- [ ] Page: editor header + `CourseEditorNav current="curriculum"`, h2 "Curriculum" with "N sections, N lessons, N quizzes".
-- [ ] Section block: "Section N" (graphite) + h3 title; Move up / Move down (icon, labelled "Move section {title} up"), "Delete section" through `ConfirmSubmit` ("Delete this section and its lessons?").
-- [ ] Lesson row: type icon, title link (`min-h-8`), "Lesson"/"Quiz" in graphite, "Free preview" badge, controls: move up/down, preview toggle (labelled "Turn free preview on/off for {title}"), delete through `ConfirmSubmit`. No `GripVertical` (drag is phase 8). Empty-quiz warning stays, in `seal`.
-- [ ] Video panel restyled into the row; add forms as a quiet row at the section's foot.
-- [ ] Commit `Rebuild the curriculum editor with section reorder and confirmed deletes`.
+- [x] Added during the task: `renameSection` (rename in place). Without it a typo in a section title meant deleting the section and its lessons.
+
+- [x] `moveSection(prev, fd)` in `curriculum-actions.ts`: owner check through `course.instructorId`, swap with the neighbour using the same park position as `moveItem` (sections have `@@unique([courseId, position])`); "Already at the end." at the ends; revalidate. Integration test beside `moveItem`'s.
+- [x] Page: editor header + `CourseEditorNav current="curriculum"`, h2 "Curriculum" with "N sections, N lessons, N quizzes".
+- [x] Section block: "Section N" (graphite) + h3 title; Move up / Move down (icon, labelled "Move section {title} up"), "Delete section" through `ConfirmSubmit` ("Delete this section and its lessons?").
+- [x] Lesson row: type icon, title link (`min-h-8`), "Lesson"/"Quiz" in graphite, "Free preview" badge, controls: move up/down, preview toggle (labelled "Turn free preview on/off for {title}"), delete through `ConfirmSubmit`. No `GripVertical` (drag is phase 8). Empty-quiz warning stays, in `seal`.
+- [x] Video panel restyled into the row; add forms as a quiet row at the section's foot.
+- [x] Commit `Rebuild the curriculum editor with section reorder and confirmed deletes`.
 
 ### Task 5: Lesson and quiz editors
 
-- [ ] Item page: back link "Curriculum" (`min-h-8`), h1 item title, "Lesson"/"Quiz" + "In {section}" meta.
-- [ ] Lecture editor: plain panel; article body loses `font-mono`; hint: "Leave a blank line between paragraphs. Put code in backticks, like `npm install`, to show it in a code font." (what the player renders). Video lectures keep the "not shown while there is a video" note.
-- [ ] Quiz builder, caption upload, video upload: token colours, no `font-heading`/`tracking-tight`/`muted-foreground`, 24px+ controls, destructive actions confirm.
-- [ ] Commit `Restyle the lesson and quiz editors`.
+- [x] Item page: back link "Curriculum" (`min-h-8`), h1 item title, "Lesson"/"Quiz" + "In {section}" meta.
+- [x] Lecture editor: plain panel; article body loses `font-mono`; hint: "Leave a blank line between paragraphs. Put code in backticks, like `npm install`, to show it in a code font." (what the player renders). Video lectures keep the "not shown while there is a video" note.
+- [x] Quiz builder, caption upload, video upload: token colours, no `font-heading`/`tracking-tight`/`muted-foreground`, 24px+ controls, destructive actions confirm.
+- [x] Commit `Restyle the lesson and quiz editors`.
 
 ### Task 6: Questions, announcements, coupons
 
-- [ ] Questions inbox: `PageHeader` (description = waiting count), filters in one row (Needs my answer toggle link, Course select + Apply, Asked chips), threads as a list with course, learner, asked date, answered state, reply form; `ListFooter`.
-- [ ] Announcements: header, composer panel, sent list as a table (Subject, Course, Sent, Recipients).
-- [ ] Coupons: header, table (Code in Plex Mono, Applies to, Discount, Used, Status) + create panel. Type options "Percent off" / "Amount off"; the value field's label follows the type; "Amount off" takes a whole amount (৳500), stored in minor units by `parseCouponValue`. Table shows "20% off" / "500 off".
-- [ ] `lib/coupon-input.ts`: `parseCouponValue(type, raw): { ok: true; value: number } | { ok: false; message: string }` with tests (percent 1–100 integer; amount > 0, up to 2 decimals → ×100).
-- [ ] Commit `Restyle questions, announcements and coupons; coupon amounts in whole currency`.
+- [x] Questions inbox: `PageHeader` (description = waiting count), filters in one row (Needs my answer toggle link, Course select + Apply, Asked chips), threads as a list with course, learner, asked date, answered state, reply form; `ListFooter`.
+- [x] Announcements: header, composer panel, sent list (Subject, Course, Sent) as expandable rows; recipient counts are not stored per announcement, so none are shown.
+- [x] Coupons: header, table (Code in Plex Mono, Applies to, Discount, Used, Status) + create panel. Type options "Percent off" / "Amount off"; the value field's label follows the type; "Amount off" takes a whole amount (৳500), stored in minor units by `parseCouponValue`. Table shows "20% off" / "500 off".
+- [x] `lib/coupon-input.ts`: `parseCouponValue(type, raw): { ok: true; value: number } | { ok: false; message: string }` with tests (percent 1–100 integer; amount > 0, up to 2 decimals → ×100).
+- [x] Commit `Restyle questions, announcements and coupons; coupon amounts in whole currency`.
 
 ### Task 7: Admin payments
 
-- [ ] Queue table: Submitted (date, time under it), Learner (name, email under), Courses, Amount (`Price`, right), bKash (sender number and transaction ID in Plex Mono, reference if any), Actions.
-- [ ] Actions: "Approve and enrol" (primary sm) submits directly; "Reject" (secondary sm) opens a `Dialog` "Reject this payment?" with a required `Textarea` "Reason for rejection", hint "The learner sees this reason on their receipt and in a notification.", "Reject payment" (destructive) + Cancel. Error stays in the dialog; success closes it and the row leaves.
-- [ ] Header: title "Payment verification", meta = caution badge "N waiting". Empty: "Nothing to review" + where proofs come from.
-- [ ] e2e (qa-admin reject): click row "Reject" → fill dialog "Reason for rejection" → click "Reject payment"; hint asserted inside the dialog.
-- [ ] Commit `Show the payments queue as a table and reject through a dialog`.
+- [x] Queue table: Submitted (date, time under it), Learner (name, email under), Courses, Amount (`Price`, right), bKash (sender number and transaction ID in Plex Mono, reference if any), Actions.
+- [x] Actions: "Approve and enrol" (primary sm) submits directly; "Reject" (secondary sm) opens a `Dialog` "Reject this payment?" with a required `Textarea` "Reason for rejection", hint "The learner sees this reason on their receipt and in a notification.", "Reject payment" (destructive) + Cancel. Error stays in the dialog; success closes it and the row leaves.
+- [x] Header: title "Payment verification", meta = caution badge "N waiting". Empty: "Nothing to review" + where proofs come from.
+- [x] e2e (qa-admin reject): click row "Reject" → fill dialog "Reason for rejection" → click "Reject payment"; hint asserted inside the dialog.
+- [x] Commit `Show the payments queue as a table and reject through a dialog`.
 
 ### Task 8: Refunds, users, courses, reviews
 
-- [ ] `listRefundableOrders(page, q?)` and the reviews list take `q` (learner name/email or course title, case-insensitive `contains`); existing callers unchanged.
-- [ ] Refunds: `SearchBox`, table (Courses, Learner, Paid, Amount, action "Refund…" → dialog with required "Reason" + "Refund and revoke access"). Description: "Recording a refund removes the learner's access. Send the money back through Stripe or bKash yourself."
-- [ ] Users: table (Name + email, Joined, Roles, actions "Make instructor"/"Remove instructor", "Make admin"/"Remove admin"; removing a role confirms).
-- [ ] Courses: table (Course + instructor, Learners, Status, actions: "Course page" 32px, Publish / Unpublish — unpublish confirms).
-- [ ] Reviews: `SearchBox`, table (Course, Learner, Rating, Review excerpt, Posted, Hide/Show).
-- [ ] e2e: refund flow opens the dialog (qa-admin); critical-path accepts row button "Refund…"; admin course/review selectors as needed.
-- [ ] Commit `Show refunds, users, courses and reviews as searchable tables`.
+- [x] `listRefundableOrders(page, q?)` and the reviews list take `q` (learner name/email or course title, case-insensitive `contains`); existing callers unchanged.
+- [x] Refunds: `SearchBox`, table (Courses, Learner, Paid, Amount, action "Refund…" → dialog with required "Reason" + "Refund and revoke access"). Description: "Recording a refund removes the learner's access. Send the money back through Stripe or bKash yourself."
+- [x] Users: table (Name + email, Joined, Roles, actions "Make instructor"/"Remove instructor", "Make admin"/"Remove admin"). Role changes stay one click: they are instantly reversible and removing your own admin role is refused server-side.
+- [x] Courses: table (Course + instructor, Learners, Status, actions: "Course page" 32px, Publish / Unpublish — unpublish confirms).
+- [x] Reviews: `SearchBox`, table (Course, Learner, Rating, Review excerpt, Posted, Hide/Show).
+- [x] e2e: refund flow opens the dialog (qa-admin); critical-path accepts row button "Refund…"; admin course/review selectors as needed.
+- [x] Commit `Show refunds, users, courses and reviews as searchable tables`.
 
 ### Task 9: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build.
-- [ ] `npm run ui-audit` + summary + keyboard: studio and admin routes 0 axe (the `label` ×28 gone), 0 small targets, 0 text < 13px, 0 overflow.
-- [ ] grep `app/(app)` for `muted-foreground|font-heading|tracking-tight|text-primary|bg-card|shadow-sm` → none.
-- [ ] Progress log row; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build.
+- [x] `npm run ui-audit` + summary + keyboard: studio and admin routes 0 axe (the `label` ×28 gone), 0 small targets, 0 text < 13px, 0 overflow.
+- [x] grep `app/(app)` for `muted-foreground|font-heading|tracking-tight|text-primary|bg-card|shadow-sm` → none.
+- [x] Progress log row; commit; push.

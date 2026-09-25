@@ -120,7 +120,7 @@ export function AppSidebar({
         onClick={onNavigate}
         className="flex min-h-11 flex-col justify-center rounded-md px-3 focus-ring"
       >
-        <span className="text-base font-bold tracking-tight text-ink">{siteName}</span>
+        <span className="text-base font-bold text-ink">{siteName}</span>
         <span className="text-xs text-graphite">{area}</span>
       </Link>
 

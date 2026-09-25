@@ -77,7 +77,7 @@ export default async function StudioCouponsPage({
         description="Codes learners enter at checkout for a discount. The price itself never changes."
       />
 
-      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section aria-labelledby="coupons-heading" className="flex min-w-0 flex-col gap-3">
           <h2 id="coupons-heading" className="text-lg font-semibold">
             Your coupons
@@ -89,16 +89,16 @@ export default async function StudioCouponsPage({
               <Table className="md:min-w-[36rem]">
                 <TableCaption>Coupons</TableCaption>
                 <colgroup>
-                  <col className="w-36" />
-                  <col />
-                  <col className="w-28" />
+                  <col className="md:w-36" />
+                  <col className="hidden md:table-column" />
+                  <col className="w-24 md:w-28" />
                   <col className="hidden w-24 md:table-column" />
-                  <col className="w-24" />
+                  <col className="w-20 md:w-24" />
                 </colgroup>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Code</TableHead>
-                    <TableHead>Applies to</TableHead>
+                    <TableHead className="hidden md:table-cell">Applies to</TableHead>
                     <TableHead>Discount</TableHead>
                     <TableHead className="hidden text-right md:table-cell">Used</TableHead>
                     <TableHead>Status</TableHead>
@@ -107,8 +107,15 @@ export default async function StudioCouponsPage({
                 <TableBody>
                   {coupons.map((coupon) => (
                     <TableRow key={coupon.id}>
-                      <TableCell className="font-mono font-semibold break-all text-ink">{coupon.code}</TableCell>
-                      <TableCell className="text-graphite">{coupon.course?.title ?? "All courses"}</TableCell>
+                      <TableCell>
+                        <span className="flex min-w-0 flex-col">
+                          <span className="font-mono font-semibold break-all text-ink">{coupon.code}</span>
+                          <span className="text-sm text-graphite md:hidden">{coupon.course?.title ?? "All courses"}</span>
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden text-graphite md:table-cell">
+                        {coupon.course?.title ?? "All courses"}
+                      </TableCell>
                       <TableCell className="text-ink">{describeCouponValue(coupon.type, coupon.value)}</TableCell>
                       <TableCell className="hidden text-right text-graphite tabular-nums md:table-cell">
                         {coupon.redeemedCount}
@@ -134,7 +141,7 @@ export default async function StudioCouponsPage({
           )}
         </section>
 
-        <Panel title="New coupon" className="lg:sticky lg:top-6">
+        <Panel title="New coupon" className="xl:sticky xl:top-6">
           <CouponForm courses={courses} canCreateGlobal={isAdmin} />
           {courseTotal > courses.length ? (
             <p className="text-sm text-graphite">
