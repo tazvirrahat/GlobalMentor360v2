@@ -465,7 +465,32 @@ export const awsProvider: VideoProvider = {
 export async function drainMediaConvertEventQueue(): Promise<number> {
   const queueUrl = process.env.AWS_VIDEO_EVENT_QUEUE_URL?.trim();
   if (!queueUrl) return 0;
+  try {
+    const applied = await drainQueue(queueUrl);
+    drainStore.__videoLastDrain = { at: new Date(), applied, error: null };
+    return applied;
+  } catch (error) {
+    drainStore.__videoLastDrain = { at: new Date(), applied: 0, error: error instanceof Error ? error.message : String(error) };
+    throw error;
+  }
+}
 
+export type DrainRecord = { at: Date; applied: number; error: string | null };
+
+// On globalThis so dev reloads and separate route bundles see the same record.
+// Per server process: another instance has its own (Admin › Videos says so).
+const drainStore = globalThis as unknown as { __videoLastDrain?: DrainRecord };
+
+/** The last drain this server process ran, for Admin › Videos. */
+export function lastDrain(): DrainRecord | null {
+  return drainStore.__videoLastDrain ?? null;
+}
+
+export function isVideoEventQueueConfigured(): boolean {
+  return Boolean(process.env.AWS_VIDEO_EVENT_QUEUE_URL?.trim());
+}
+
+async function drainQueue(queueUrl: string): Promise<number> {
   const config = readBaseConfig();
   const client = sqs(config);
   let applied = 0;

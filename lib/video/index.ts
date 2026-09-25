@@ -13,7 +13,10 @@ export { releaseOrphanedLectureAsset } from "./release-asset";
 export {
   captionObjectKey,
   drainMediaConvertEventQueue,
+  isVideoEventQueueConfigured,
+  lastDrain,
   putCaptionObject,
   readCaptionObject,
   tryDrainMediaConvertEventQueue,
+  type DrainRecord,
 } from "./aws";

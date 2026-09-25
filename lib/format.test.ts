@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatHoursMinutes, formatLessonMinutes, formatPrice, formatPriceParts } from "./format";
+import { formatDuration, formatHoursMinutes, formatLessonMinutes, formatPrice, formatPriceParts } from "./format";
 
 describe("formatLessonMinutes", () => {
   it("rounds to whole minutes and never says 0", () => {
@@ -37,5 +37,15 @@ describe("formatPriceParts", () => {
       expect(parts.map((p) => p.text).join("")).toBe(formatPrice(amount, currency));
       expect(parts.filter((p) => p.separator).every((p) => p.text === ",")).toBe(true);
     }
+  });
+});
+
+describe("formatDuration", () => {
+  const now = new Date("2026-09-25T12:00:00Z");
+  it("picks minutes, then hours, then days", () => {
+    expect(formatDuration(new Date("2026-09-25T11:59:40Z"), now)).toBe("1 minute");
+    expect(formatDuration(new Date("2026-09-25T11:15:00Z"), now)).toBe("45 minutes");
+    expect(formatDuration(new Date("2026-09-25T09:00:00Z"), now)).toBe("3 hours");
+    expect(formatDuration(new Date("2026-09-23T11:00:00Z"), now)).toBe("2 days");
   });
 });
