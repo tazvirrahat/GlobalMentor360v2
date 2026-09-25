@@ -303,3 +303,18 @@ export async function attachCaptionAction(
   if (item) revalidatePath(`/studio/courses/${item.section.courseId}/curriculum/${itemId}`);
   return { status: "done", message: `Captions attached (${language}).` };
 }
+
+/** The promo's "Check status": the same reconcile as a lecture's. */
+export async function refreshPromoStatus(input: { courseId: string }): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
+  const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const course = await db.course.findFirst({
+    where: { id: String(input.courseId ?? ""), instructorId: user.id },
+    select: { id: true, slug: true, promoVideo: { select: { id: true, providerAssetId: true, status: true } } },
+  });
+  const asset = course?.promoVideo;
+  if (!course || !asset?.providerAssetId) return { ok: false, message: "No promo video yet." };
+  const result = await reconcileVideoAsset({ id: asset.id, providerAssetId: asset.providerAssetId, status: asset.status, lectureId: null });
+  revalidatePath(`/studio/courses/${course.id}`);
+  revalidatePath(`/courses/${course.slug}`);
+  return result;
+}

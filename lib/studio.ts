@@ -84,6 +84,7 @@ export async function getOwnedCourse(courseId: string, instructorId: string) {
       status: true,
       primaryCategoryId: true,
       thumbnailUrl: true,
+      promoVideo: { select: { id: true, status: true, failureReason: true } },
       reviewNote: true,
       reviewRequestedAt: true,
       prices: { where: { isActive: true }, select: { currency: true, amount: true } },
