@@ -118,6 +118,7 @@ const CATALOG_SELECT = {
   title: true,
   slug: true,
   subtitle: true,
+  thumbnailUrl: true,
   level: true,
   ratingAverage: true,
   ratingCount: true,
@@ -303,6 +304,7 @@ export type CatalogCourse = ReturnType<typeof mapCatalogCourse> & {
   title: string;
   slug: string;
   subtitle: string | null;
+  thumbnailUrl: string | null;
   level: CourseLevel;
   ratingAverage: number;
   ratingCount: number;
@@ -471,6 +473,7 @@ export async function getPublishedCourseBySlug(slug: string) {
       slug: true,
       subtitle: true,
       description: true,
+      thumbnailUrl: true,
       level: true,
       language: true,
       ratingAverage: true,

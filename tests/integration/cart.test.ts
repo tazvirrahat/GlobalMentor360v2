@@ -236,6 +236,7 @@ describe("checkout quote", () => {
         courseId: freeId,
         title: "Free",
         slug: "free",
+        thumbnailUrl: null,
         addedAt: new Date(),
         prices: [
           { amount: 0, currency: "USD" },

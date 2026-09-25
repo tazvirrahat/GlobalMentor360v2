@@ -5,6 +5,7 @@ function line(overrides: Partial<CartLine> & Pick<CartLine, "courseId">): CartLi
   return {
     title: overrides.courseId,
     slug: overrides.courseId,
+    thumbnailUrl: null,
     addedAt: new Date(),
     prices: [],
     isFree: false,

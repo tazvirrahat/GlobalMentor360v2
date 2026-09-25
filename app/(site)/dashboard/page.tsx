@@ -4,6 +4,7 @@ import { Hourglass } from "lucide-react";
 import { CertificateChip } from "@/components/course/certificate";
 import { ContinueCard } from "@/components/course/continue-card";
 import { CoverMark } from "@/components/course/cover-mark";
+import { courseImageUrl } from "@/lib/course-image";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -27,7 +28,12 @@ function CourseEntry({ entry, archived }: { entry: MyLearningEntry; archived: bo
   return (
     <li className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:gap-5">
       <div className="flex min-w-0 flex-1 gap-4">
-        <CoverMark title={entry.title} slug={entry.slug} size={48} />
+        <CoverMark
+          title={entry.title}
+          slug={entry.slug}
+          imageUrl={courseImageUrl(entry.courseId, entry.thumbnailUrl)}
+          size={48}
+        />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Link
             href={`/learn/${entry.slug}` as Route}

@@ -1,4 +1,5 @@
 import type { Metadata, Route } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { cache, type ReactNode } from "react";
 import { notFound } from "next/navigation";
@@ -12,6 +13,7 @@ import { ReviewList } from "@/components/site/review-list";
 import { StarRating } from "@/components/site/star-rating";
 import { Button } from "@/components/ui/button";
 import { addCourseToCart } from "@/app/(site)/cart/actions";
+import { courseImageUrl } from "@/lib/course-image";
 import { getPublishedCourseBySlug } from "@/lib/courses";
 import { isEnrolled } from "@/lib/entitlement";
 import { courseLevelLabel } from "@/lib/labels";
@@ -114,6 +116,7 @@ export default async function CourseLandingPage({ params, searchParams }: Params
   const languageName = LANGUAGE.of(course.language) ?? course.language;
 
   const primary = <PrimaryAction course={course} enrolled={enrolled} />;
+  const imageUrl = courseImageUrl(course.id, course.thumbnailUrl);
   const instructorHref =
     course.instructor.slug && course.instructor.profilePublic
       ? (`/instructors/${course.instructor.slug}` as Route)
@@ -189,6 +192,17 @@ export default async function CourseLandingPage({ params, searchParams }: Params
             aria-label="Get this course"
             className="flex h-fit flex-col gap-5 self-start rounded-lg border border-rule bg-surface p-5 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1"
           >
+            {imageUrl ? (
+              // The h1 names the course, so the picture is decorative.
+              <Image
+                src={imageUrl}
+                alt=""
+                width={640}
+                height={360}
+                unoptimized
+                className="-mx-5 -mt-5 aspect-video w-[calc(100%+2.5rem)] max-w-none rounded-t-lg border-b border-rule bg-wash object-cover"
+              />
+            ) : null}
             <CoursePrice isFree={course.isFree} price={course.price} className="text-3xl" />
             <div className="flex flex-col gap-2">
               {primary}
