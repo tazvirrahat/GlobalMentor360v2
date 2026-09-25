@@ -147,6 +147,40 @@ test.describe("studio exploratory QA", () => {
     });
   });
 
+  test("dragging a lesson by its grip reorders the section", async ({ page }) => {
+    await signIn(page, SEED.instructor, "/studio");
+    await page.getByRole("button", { name: "New course" }).click();
+    await page.getByRole("textbox", { name: "Title", exact: true }).fill(`QA Drag ${STAMP}`);
+    await page.getByRole("button", { name: "Create draft" }).click();
+    await page.getByRole("navigation", { name: "Course editor" }).getByRole("link", { name: "Curriculum" }).click();
+    await page.getByLabel("New section title").fill("Drag section");
+    await page.getByRole("button", { name: "Add section" }).click();
+    for (const title of ["First lesson", "Second lesson"]) {
+      await page.getByLabel("New item title").fill(title);
+      await page.getByRole("button", { name: "Add lecture" }).click();
+      await expect(page.getByRole("link", { name: title })).toBeVisible({ timeout: 15_000 });
+    }
+
+    // Item rows, not the section row that contains them (it has the section heading).
+    const rows = page
+      .getByRole("listitem")
+      .filter({ has: page.getByRole("link", { name: /(First|Second) lesson/ }) })
+      .filter({ hasNot: page.getByRole("heading") });
+    const second = rows.filter({ hasText: "Second lesson" });
+    const first = rows.filter({ hasText: "First lesson" });
+    const grip = second.getByTitle("Drag to reorder");
+    const target = await first.boundingBox();
+    await grip.hover();
+    await page.mouse.down();
+    await page.mouse.move(target!.x + target!.width / 2, target!.y + 4, { steps: 8 });
+    await page.mouse.up();
+
+    const order = () => rows.getByRole("link").allTextContents();
+    await expect.poll(order).toEqual(["Second lesson", "First lesson"]);
+    await page.reload();
+    await expect.poll(order).toEqual(["Second lesson", "First lesson"]);
+  });
+
   test("instructor cannot create a catalog-wide coupon; course-scoped create works", async ({
     page,
   }) => {
