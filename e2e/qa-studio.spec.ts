@@ -22,7 +22,7 @@ test.describe("studio exploratory QA", () => {
   test("studio nav reaches courses, questions, coupons, and announcements", async ({ page }) => {
     await signIn(page, SEED.instructor, "/studio");
     await expect(page).toHaveURL(/\/studio$/);
-    await expect(page.getByRole("heading", { name: "Studio", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Courses" })).toBeVisible();
     await paginateUntilVisible(page, page.getByRole("link", { name: /typescript foundations/i }));
 
     const nav = page.getByRole("navigation", { name: "Studio" });
@@ -48,7 +48,7 @@ test.describe("studio exploratory QA", () => {
 
     await nav.getByRole("link", { name: "Courses" }).click();
     await expect(page).toHaveURL(/\/studio$/);
-    await expect(page.getByRole("heading", { name: "Studio", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Courses" })).toBeVisible();
     await paginateUntilVisible(page, page.getByRole("link", { name: /typescript foundations/i }));
 
     // From the public site, Studio lives in the account menu.
@@ -56,13 +56,14 @@ test.describe("studio exploratory QA", () => {
     await page.getByRole("button", { name: /account menu/i }).click();
     await page.getByRole("menuitem", { name: "Studio" }).click();
     await expect(page).toHaveURL(/\/studio$/);
-    await expect(page.getByRole("heading", { name: "Studio", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Courses" })).toBeVisible();
   });
 
   test("landing editor, curriculum, quiz, article, and video upload UI", async ({ page }) => {
     await signIn(page, SEED.instructor, "/studio");
 
     const title = `QA Studio Draft ${STAMP}`;
+    await page.getByRole("button", { name: "New course" }).click();
     await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
     await page.getByRole("button", { name: "Create draft" }).click();
 
@@ -159,6 +160,7 @@ test.describe("studio exploratory QA", () => {
   test("announcement composer submits with the default course selected", async ({ page }) => {
     await signIn(page, SEED.instructor, "/studio");
     const draftTitle = `QA Announce Draft ${STAMP}`;
+    await page.getByRole("button", { name: "New course" }).click();
     await page.getByRole("textbox", { name: "Title", exact: true }).fill(draftTitle);
     await page.getByRole("button", { name: "Create draft" }).click();
     await expect(page.getByRole("heading", { name: draftTitle })).toBeVisible({ timeout: 20_000 });
