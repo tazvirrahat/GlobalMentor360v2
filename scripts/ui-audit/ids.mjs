@@ -26,6 +26,11 @@ export async function lookupIds() {
       [learner.id],
     );
     const cert = await one(`SELECT serial FROM certificates WHERE "userId" = $1 LIMIT 1`, [learner.id]);
+    // The instructor of the audited course, for their public page.
+    const instructor = await one(
+      `SELECT u.slug FROM users u JOIN courses c ON c."instructorId" = u.id
+        WHERE c.slug = 'typescript-foundations' AND u.slug IS NOT NULL AND u."profilePublic" LIMIT 1`,
+    );
     // A published course the learner has not bought, for the checkout page.
     const buy = await one(
       `SELECT c.slug FROM courses c
@@ -45,6 +50,7 @@ export async function lookupIds() {
       buyCourse: buy.slug ?? null,
       order: order.id ?? null,
       cert: cert.serial ?? null,
+      instructorSlug: instructor.slug ?? null,
     };
   } finally {
     await client.end();
@@ -62,6 +68,7 @@ export function buildRoutes(ids) {
     ["public", "sign-up", "/sign-up"],
     ["public", "forgot", "/forgot-password"],
     ["public", "certificate", need(ids.cert, `/certificates/${ids.cert}`)],
+    ["public", "instructor", need(ids.instructorSlug, `/instructors/${ids.instructorSlug}`)],
     ["public", "not-found", "/courses/this-does-not-exist"],
     ["learner", "dashboard", "/dashboard"],
     ["learner", "account", "/account"],

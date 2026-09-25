@@ -24,6 +24,14 @@ test.describe("learner critical path", () => {
     await expect(page.getByRole("link", { name: /typescript foundations/i })).toBeVisible();
   });
 
+  test("a course page links to its instructor's page", async ({ page }) => {
+    await page.goto("/courses/typescript-foundations");
+    await page.getByRole("link", { name: "Dana Instructor" }).first().click();
+    await expect(page).toHaveURL(/\/instructors\/dana-instructor$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Dana Instructor" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /typescript foundations/i })).toBeVisible();
+  });
+
   test("sign-in reaches the dashboard", async ({ page }) => {
     await page.goto("/sign-in");
     await page.getByLabel("Email").fill("learner@example.com");

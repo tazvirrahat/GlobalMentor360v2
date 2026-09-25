@@ -430,6 +430,17 @@ export async function listPublishedCourses(filters: CatalogFilters = {}): Promis
   };
 }
 
+/** One instructor's published courses in the catalog row shape, most popular first (the instructor page). */
+export async function listInstructorPublishedCourses(instructorId: string, take = 50): Promise<CatalogCourse[]> {
+  const rows = await db.course.findMany({
+    where: { instructorId, status: "PUBLISHED" },
+    orderBy: [{ enrollmentCount: "desc" }, { publishedAt: "desc" }],
+    take,
+    select: CATALOG_SELECT,
+  });
+  return rows.map(mapCatalogCourse);
+}
+
 /** The languages actually present in the catalog, so the filter offers no dead options. */
 export async function listCatalogLanguages(): Promise<string[]> {
   const rows = await db.course.findMany({
@@ -467,7 +478,7 @@ export async function getPublishedCourseBySlug(slug: string) {
       enrollmentCount: true,
       publishedAt: true,
       updatedAt: true,
-      instructor: { select: { name: true, headline: true, bio: true } },
+      instructor: { select: { name: true, headline: true, bio: true, slug: true, profilePublic: true } },
       primaryCategory: { select: { name: true, slug: true } },
       objectives: { orderBy: { position: "asc" }, select: { text: true } },
       requirements: { orderBy: { position: "asc" }, select: { text: true } },

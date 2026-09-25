@@ -367,6 +367,20 @@ async function main() {
     password: SEED_PASSWORD,
     roles: ["LEARNER", "INSTRUCTOR"],
   });
+  // The public instructor page (/instructors/dana-instructor). Only fills what
+  // is empty, so a profile edited in the studio survives a re-seed.
+  if (!instructor.slug || !instructor.headline) {
+    await db.user.update({
+      where: { id: instructor.id },
+      data: {
+        slug: instructor.slug ?? "dana-instructor",
+        headline: instructor.headline ?? "Software engineer and data trainer",
+        bio:
+          instructor.bio ??
+          "I have built web apps and reporting pipelines for twelve years, most recently leading a small data team.\n\nMy courses are short on purpose: each lesson solves one problem you will meet at work, and every quiz checks the thing you need to remember.",
+      },
+    });
+  }
 
   await ensureUser({
     name: "Alex Admin",
