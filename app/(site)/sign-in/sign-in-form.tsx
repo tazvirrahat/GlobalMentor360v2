@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { MailWarning } from "lucide-react";
 import { EmailDeliveryNote } from "@/components/auth/email-delivery-note";
 import { FieldError } from "@/components/site/field-error";
+import { ACCOUNT_SUSPENDED } from "@/lib/auth-errors";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,11 @@ export function SignInForm({ next }: { next: string | null }) {
     setPending(false);
 
     if (signInError) {
+      // A suspended account (lib/auth refuses its session) is told so plainly.
+      if (signInError.code === ACCOUNT_SUSPENDED) {
+        setError("This account is suspended. Contact support if you think this is a mistake.");
+        return;
+      }
       // 403 / FORBIDDEN: credentials were right but the email isn't verified yet.
       // The server re-sends the verification link on this attempt (sendOnSignIn).
       if (signInError.status === 403) {

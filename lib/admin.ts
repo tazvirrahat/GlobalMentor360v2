@@ -1,5 +1,6 @@
 import type { Role } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { grantEnrollment } from "@/lib/enrollment";
 import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
 import { recomputeCourseRating } from "@/lib/reviews";
 import { readinessChecks } from "@/lib/studio";
@@ -88,6 +89,96 @@ export async function setUserRole(
     },
   });
 
+  return { ok: true };
+}
+
+type AdminResult = { ok: true } | { ok: false; message: string };
+
+/** One person for their admin page: who they are, their roles and status, and what they are enrolled in. */
+export async function getAdminUser(userId: string) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      emailVerified: true,
+      status: true,
+      createdAt: true,
+      roles: { select: { role: true } },
+      enrollments: {
+        orderBy: { enrolledAt: "desc" },
+        select: {
+          id: true,
+          source: true,
+          enrolledAt: true,
+          revokedAt: true,
+          course: { select: { id: true, title: true, slug: true } },
+        },
+      },
+    },
+  });
+  if (!user) return null;
+  const owned = new Set(user.enrollments.filter((row) => !row.revokedAt).map((row) => row.course.id));
+  const grantable = await db.course.findMany({
+    where: { status: "PUBLISHED", id: { notIn: [...owned] } },
+    orderBy: { title: "asc" },
+    take: 500,
+    select: { id: true, title: true },
+  });
+  return { ...user, grantable };
+}
+
+/**
+ * Suspends or restores an account. Suspending signs the person out at once
+ * (their sessions are deleted; getCurrentUser already ignores a non-ACTIVE
+ * account, and lib/auth refuses new sessions). Nobody suspends themselves or
+ * the last active admin.
+ */
+export async function setUserStatus(actorId: string, userId: string, status: "ACTIVE" | "SUSPENDED"): Promise<AdminResult> {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, status: true, roles: { select: { role: true } } },
+  });
+  if (!user || user.status === "DELETED") return { ok: false, message: "User not found." };
+  if (status === "SUSPENDED") {
+    if (userId === actorId) return { ok: false, message: "You cannot suspend your own account." };
+    if (user.roles.some((row) => row.role === "ADMIN")) {
+      const activeAdmins = await db.userRole.count({ where: { role: "ADMIN", user: { status: "ACTIVE" } } });
+      if (activeAdmins <= 1) return { ok: false, message: "The last active admin cannot be suspended." };
+    }
+  }
+  if (user.status === status) return { ok: true };
+
+  await db.$transaction([
+    db.user.update({ where: { id: userId }, data: { status } }),
+    ...(status === "SUSPENDED" ? [db.session.deleteMany({ where: { userId } })] : []),
+    db.auditLog.create({
+      data: { actorId, action: status === "SUSPENDED" ? "user.suspend" : "user.unsuspend", targetType: "user", targetId: userId },
+    }),
+  ]);
+  return { ok: true };
+}
+
+/**
+ * Gives someone a published course without payment. grantEnrollment stays the
+ * only write that opens a course (invariant 7); this adds the checks and the
+ * audit row naming the admin.
+ */
+export async function grantCourse(actorId: string, userId: string, courseId: string): Promise<AdminResult> {
+  const [user, course, existing] = await Promise.all([
+    db.user.findUnique({ where: { id: userId }, select: { status: true } }),
+    db.course.findUnique({ where: { id: courseId }, select: { status: true } }),
+    db.enrollment.findUnique({ where: { userId_courseId: { userId, courseId } }, select: { revokedAt: true } }),
+  ]);
+  if (!user || user.status === "DELETED") return { ok: false, message: "User not found." };
+  if (!course || course.status !== "PUBLISHED") return { ok: false, message: "Only a published course can be given." };
+  if (existing && !existing.revokedAt) return { ok: false, message: "They already have this course." };
+
+  await grantEnrollment(userId, courseId, "GRANT");
+  await db.auditLog.create({
+    data: { actorId, action: "enrollment.grant", targetType: "course", targetId: courseId, metadata: { userId } },
+  });
   return { ok: true };
 }
 

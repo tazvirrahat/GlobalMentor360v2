@@ -18,11 +18,16 @@ export async function updateUserRoleAction(formData: FormData) {
   const enabled = String(formData.get("enabled") ?? "") === "true";
   if (!ROLES.includes(role)) return;
 
+  // The user page posts its own path back; anything else returns to the list.
+  const returnTo = String(formData.get("returnTo") ?? "");
+  const back = /^\/admin\/users\/[A-Za-z0-9-]+$/.test(returnTo) ? returnTo : "/admin/users";
+
   const result = await setUserRole(admin.id, userId, role, enabled);
   if (!result.ok) {
-    redirect(`/admin/users?error=${encodeURIComponent(result.message)}` as Route);
+    redirect(`${back}?error=${encodeURIComponent(result.message)}` as Route);
   }
   revalidatePath("/admin/users");
+  revalidatePath(`/admin/users/${userId}`);
 }
 
 export async function publishCourseAction(formData: FormData) {
