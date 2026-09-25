@@ -2,6 +2,7 @@ import type { Route } from "next";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app/page-header";
 import { db } from "@/lib/db";
+import { lectureFileName } from "@/lib/lecture-files";
 import { requireRole } from "@/lib/session";
 import { isStorageConfigured } from "@/lib/storage";
 import { getOwnedItemForEditing } from "@/lib/studio";
@@ -9,12 +10,26 @@ import { tryDrainMediaConvertEventQueue } from "@/lib/video";
 import { LectureEditor } from "./lecture-editor";
 import { CaptionUpload } from "./caption-upload";
 import { QuizBuilder } from "./quiz-builder";
+import { LectureFilePanel, type LectureFileInfo } from "./lecture-file-panel";
 import { ResourcesPanel } from "./resources-panel";
 
 export const metadata = { title: "Edit item | Studio" };
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ courseId: string; itemId: string }> };
+
+function lectureFile(lecture: {
+  contentType: string;
+  durationSeconds: number;
+  asset: { provider: string; originalKey: string | null } | null;
+}): LectureFileInfo | null {
+  if ((lecture.contentType !== "AUDIO" && lecture.contentType !== "FILE") || !lecture.asset?.originalKey) return null;
+  return {
+    kind: lecture.contentType,
+    name: lectureFileName(lecture.asset.originalKey),
+    durationSeconds: lecture.contentType === "AUDIO" ? lecture.durationSeconds || null : null,
+  };
+}
 
 export default async function ItemEditorPage({ params }: Params) {
   const { courseId, itemId } = await params;
@@ -44,8 +59,14 @@ export default async function ItemEditorPage({ params }: Params) {
       {item.type === "LECTURE" && item.lecture ? (
         <div className="flex flex-col gap-6">
           <LectureEditor itemId={item.id} title={item.title} lecture={item.lecture} />
+          <LectureFilePanel
+            itemId={item.id}
+            file={lectureFile(item.lecture)}
+            hasVideo={item.lecture.contentType === "VIDEO"}
+            storageReady={isStorageConfigured()}
+          />
           <ResourcesPanel itemId={item.id} resources={resources} storageReady={isStorageConfigured()} />
-          {item.lecture.asset ? (
+          {item.lecture.contentType === "VIDEO" && item.lecture.asset ? (
             <CaptionUpload itemId={item.id} captions={item.lecture.asset.captions} />
           ) : null}
         </div>

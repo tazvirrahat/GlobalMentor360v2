@@ -53,6 +53,22 @@ export async function presignDownload(key: string, filename: string): Promise<st
   );
 }
 
+/** A GET the browser shows in place (an audio or PDF lesson), under its own name if saved. */
+export async function presignInline(key: string, filename: string, contentType?: string): Promise<string> {
+  const { client, bucket } = appBucket();
+  const ascii = filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  return getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ResponseContentDisposition: `inline; filename="${ascii}"`,
+      ...(contentType ? { ResponseContentType: contentType } : {}),
+    }),
+    { expiresIn: DOWNLOAD_TTL_SECONDS },
+  );
+}
+
 /** A plain GET for something the page shows (an image), not a download. */
 export async function presignView(key: string, expiresIn = DOWNLOAD_TTL_SECONDS): Promise<string> {
   const { client, bucket } = appBucket();

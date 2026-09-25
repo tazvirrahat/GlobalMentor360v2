@@ -15,6 +15,8 @@ import { StatusBadge } from "@/components/course/status-badge";
 
 const initial: VideoActionState = { status: "idle" };
 
+const CONTENT_LABELS: Record<string, string> = { VIDEO: "Video", AUDIO: "Audio", FILE: "PDF", ARTICLE: "Article" };
+
 export type LectureVideoInfo = {
   contentType: string;
   durationSeconds: number;
@@ -108,7 +110,10 @@ export function LectureVideoPanel({
 
   if (!lecture) return null;
 
-  const asset = lecture.asset;
+  // Audio and PDF lessons keep their file on the lecture editor page; here they
+  // only say what they are, and "Use a video instead" replaces the file.
+  const fileLesson = lecture.contentType === "AUDIO" || lecture.contentType === "FILE";
+  const asset = fileLesson ? null : lecture.asset;
   const busy = phase.name === "uploading" || phase.name === "finalizing";
 
   async function upload(file: File) {
@@ -149,9 +154,9 @@ export function LectureVideoPanel({
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
       <span className="flex items-center gap-1.5 text-graphite">
         <Clapperboard className="size-4" aria-hidden />
-        {lecture.contentType === "VIDEO" ? "Video" : "Article"}
+        {CONTENT_LABELS[lecture.contentType] ?? "Article"}
       </span>
-      {asset?.status === "READY" && lecture.durationSeconds > 0 ? (
+      {(asset?.status === "READY" || lecture.contentType === "AUDIO") && lecture.durationSeconds > 0 ? (
         <span className="text-graphite">{formatDuration(lecture.durationSeconds)}</span>
       ) : null}
 
@@ -188,7 +193,7 @@ export function LectureVideoPanel({
             onClick={() => inputRef.current?.click()}
           >
             <Upload aria-hidden />
-            {asset ? "Replace video" : "Add video"}
+            {fileLesson ? "Use a video instead" : asset ? "Replace video" : "Add video"}
           </Button>
           {asset &&
           (asset.status === "UPLOADING" ||
