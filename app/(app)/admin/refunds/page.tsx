@@ -1,15 +1,24 @@
+import type { Route } from "next";
+import { ListFooter } from "@/components/app/list-footer";
+import { PageHeader } from "@/components/app/page-header";
+import { SearchBox } from "@/components/app/search-box";
+import { Price } from "@/components/course/price";
 import { EmptyState } from "@/components/site/empty-state";
 import { FlashAlert } from "@/components/site/flash-alert";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { formatDate } from "@/lib/format";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { formatDateMedium, formatPrice } from "@/lib/format";
 import { showingRange } from "@/lib/pagination";
 import { listRefundableOrders, REFUND_PAGE_SIZE } from "@/lib/refunds";
 import { requireRole } from "@/lib/session";
-import { refundOrderAction } from "../actions";
-import { PageNav } from "@/components/site/page-nav";
-import { Price } from "@/components/course/price";
+import { RefundDialog } from "./refund-dialog";
 
 export const metadata = { title: "Refunds | Admin" };
 export const dynamic = "force-dynamic";
@@ -17,95 +26,108 @@ export const dynamic = "force-dynamic";
 export default async function AdminRefundsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; page?: string }>;
+  searchParams: Promise<{ error?: string; page?: string; q?: string }>;
 }) {
   await requireRole("ADMIN");
-  const { error, page: rawPage } = await searchParams;
-  const { items: orders, total, page, pageCount } = await listRefundableOrders(rawPage);
+  const { error, page: rawPage, q } = await searchParams;
+  const query = q?.trim() || undefined;
+  const { items: orders, total, page, pageCount } = await listRefundableOrders(query, rawPage);
   const range = showingRange(page, REFUND_PAGE_SIZE, total);
 
-  const pager = (
-    <>
-      {orders.length > 0 ? (
-        <p className="text-sm tabular-nums text-muted-foreground">
-          Showing {range.from}–{range.to} of {total}
-        </p>
-      ) : null}
-      <PageNav pathname="/admin/refunds" page={page} pageCount={pageCount} />
-    </>
-  );
-
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="font-heading text-3xl font-semibold tracking-tight">Refunds</h1>
-      <p className="mt-1 text-muted-foreground">
-        Record a refund and revoke course access. Money is returned out of band —
-        this does not call Stripe or bKash.
-      </p>
+    <main className="flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <PageHeader
+        title="Refunds"
+        description="Recording a refund removes the learner's access. Send the money back through Stripe or bKash yourself."
+      />
       {error ? <FlashAlert title="Could not refund">{error}</FlashAlert> : null}
 
+      <SearchBox
+        action={"/admin/refunds" as Route}
+        label="Search paid orders"
+        placeholder="Learner name or email, or course title"
+        value={query}
+      />
+
       {orders.length === 0 ? (
-        <EmptyState
-          className="mt-8"
-          title="No paid orders"
-          message="Paid orders appear here so you can record a refund and revoke access."
-        />
+        query ? (
+          <EmptyState title="No paid orders match" message={`Nothing matches “${query}”. Try another search.`} />
+        ) : (
+          <EmptyState title="No paid orders" message="Paid orders appear here so you can record a refund." />
+        )
       ) : (
-        <div className="mt-4 min-w-0 space-y-2">
-          {pager}
-          <div className="w-0 min-w-full overflow-x-auto rounded-lg border bg-card shadow-sm">
-            <ul>
+        <>
+          <Table className="md:min-w-[46rem]">
+            <TableCaption>Paid orders</TableCaption>
+            <colgroup>
+              <col />
+              <col className="hidden w-56 md:table-column" />
+              <col className="hidden w-32 md:table-column" />
+              <col className="hidden w-28 md:table-column" />
+              <col className="w-28 md:w-32" />
+            </colgroup>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Course</TableHead>
+                <TableHead className="hidden md:table-cell">Learner</TableHead>
+                <TableHead className="hidden md:table-cell">Paid</TableHead>
+                <TableHead className="hidden text-right md:table-cell">Amount</TableHead>
+                <TableHead>
+                  <span className="sr-only">Refund</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {orders.map((order) => {
                 const courses = order.items.map((item) => item.course.title).join(", ") || "Order";
+                const paid = order.paidAt ?? order.createdAt;
                 return (
-                  <li key={order.id} className="border-b px-3 py-2 last:border-b-0 hover:bg-muted/50">
-                    <div className="flex min-w-[40rem] items-center gap-x-3">
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className="truncate"
-                          title={`${courses} · ${order.user.name} · ${order.user.email}`}
-                        >
-                          <span className="font-medium">{courses}</span>
-                          <span className="text-muted-foreground">
-                            {" "}
-                            · {order.user.name} · {order.user.email} ·{" "}
-                            <span className="tabular-nums">
-                              {formatDate(order.paidAt ?? order.createdAt)}
-                            </span>
+                  <TableRow key={order.id}>
+                    <TableCell>
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="font-medium text-ink">{courses}</span>
+                        <span className="flex flex-col text-sm text-graphite md:hidden">
+                          <span className="break-all">{order.user.email}</span>
+                          <span>
+                            <Price amount={order.total} currency={order.currency} className="text-ink" /> paid{" "}
+                            {formatDateMedium(paid)}
                           </span>
-                        </p>
-                      </div>
-                      <p className="text-right font-semibold tabular-nums">
-                        <Price amount={order.total} currency={order.currency} />
-                      </p>
-                      <form
-                        action={refundOrderAction}
-                        className="flex min-w-[16rem] flex-[2] items-center gap-2"
-                      >
-                        <input type="hidden" name="orderId" value={order.id} />
-                        <Label htmlFor={`reason-${order.id}`} className="sr-only">
-                          Reason
-                        </Label>
-                        <Input
-                          id={`reason-${order.id}`}
-                          name="reason"
-                          required
-                          maxLength={200}
-                          placeholder="Reason"
-                          className="h-8 min-w-[10rem] flex-1"
-                        />
-                        <Button type="submit" size="sm" variant="destructive">
-                          Refund and revoke access
-                        </Button>
-                      </form>
-                    </div>
-                  </li>
+                        </span>
+                      </span>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="flex min-w-0 flex-col">
+                        <span className="text-ink">{order.user.name}</span>
+                        <span className="text-sm break-all text-graphite">{order.user.email}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell className="hidden text-graphite md:table-cell">
+                      <time dateTime={paid.toISOString()}>{formatDateMedium(paid)}</time>
+                    </TableCell>
+                    <TableCell className="hidden text-right font-semibold md:table-cell">
+                      <Price amount={order.total} currency={order.currency} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <RefundDialog
+                        orderId={order.id}
+                        learner={order.user.email}
+                        summary={`${order.user.name} paid ${formatPrice(order.total, order.currency)} for ${courses}.`}
+                      />
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </ul>
-          </div>
-          {pager}
-        </div>
+            </TableBody>
+          </Table>
+          <ListFooter
+            range={range}
+            total={total}
+            pathname="/admin/refunds"
+            params={{ q: query }}
+            page={page}
+            pageCount={pageCount}
+          />
+        </>
       )}
     </main>
   );

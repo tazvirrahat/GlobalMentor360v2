@@ -26,7 +26,7 @@ async function cartBadgeCount(page: Page) {
 }
 
 async function adminCourseRow(page: Page, title: string) {
-  return page.locator("li").filter({ hasText: title });
+  return page.getByRole("row").filter({ hasText: title });
 }
 
 async function ensureCoursePublished(page: Page, title: string) {
@@ -84,7 +84,7 @@ test.describe("admin exploratory QA", () => {
     await expect(page).toHaveURL(/\/admin\/courses/);
     await expect(page.getByRole("heading", { level: 1, name: "Courses" })).toBeVisible();
     await adminSearch(page, "SQL for Analysts");
-    await expect(page.getByText("SQL for Analysts")).toBeVisible();
+    await expect(page.getByText("SQL for Analysts", { exact: true })).toBeVisible();
 
     await adminNav.locator('a[href="/admin/reviews"]').click();
     await expect(page).toHaveURL(/\/admin\/reviews/);
@@ -106,7 +106,7 @@ test.describe("admin exploratory QA", () => {
     await signIn(page, SEED.admin, "/admin/users");
     await adminSearch(page, SEED.admin.email);
 
-    const adminCard = page.locator("li").filter({ hasText: SEED.admin.email });
+    const adminCard = page.getByRole("row").filter({ has: page.getByText(SEED.admin.email, { exact: true }) });
     await adminCard.getByRole("button", { name: /remove admin/i }).click();
     await expect(page.getByRole("alert")).toBeVisible();
     await expect(page.getByText(/cannot remove your own admin role/i)).toBeVisible();
@@ -117,7 +117,7 @@ test.describe("admin exploratory QA", () => {
     await page.getByRole("button", { name: "Search" }).click();
     await expect(page).toHaveURL(new RegExp(`q=${encodeURIComponent(SEED.learner.email)}`));
 
-    const learnerCard = page.locator("li").filter({ hasText: `· ${SEED.learner.email}` });
+    const learnerCard = page.getByRole("row").filter({ has: page.getByText(SEED.learner.email, { exact: true }) });
     await expect(learnerCard).toBeVisible();
     const makeInstructor = learnerCard.getByRole("button", { name: /make instructor/i });
     const removeInstructor = learnerCard.getByRole("button", { name: /remove instructor/i });
@@ -126,7 +126,7 @@ test.describe("admin exploratory QA", () => {
       await expect(makeInstructor).toBeVisible();
     }
     await makeInstructor.click();
-    await expect(learnerCard.getByText("INSTRUCTOR", { exact: true })).toBeVisible();
+    await expect(learnerCard.getByText("Instructor", { exact: true }).filter({ visible: true })).toBeVisible();
     await learnerCard.getByRole("button", { name: /remove instructor/i }).click();
     await expect(makeInstructor).toBeVisible();
   });
@@ -152,20 +152,20 @@ test.describe("admin exploratory QA", () => {
 
     await context.clearCookies();
     await signIn(page, SEED.admin, "/admin/reviews");
-    const card = page.locator("li").filter({ hasText: "QA-ADMIN hide/restore probe." });
+    const card = page.getByRole("row").filter({ hasText: "QA-ADMIN hide/restore probe." });
     await paginateUntilVisible(page, card);
     await card.getByRole("button", { name: "Hide" }).click();
     await paginateUntilVisible(page, card);
-    await expect(card.getByText("HIDDEN")).toBeVisible();
+    await expect(card.getByText("Hidden", { exact: true }).filter({ visible: true })).toBeVisible();
 
     await page.goto("/courses/typescript-foundations");
     await expect(page.getByText("QA-ADMIN hide/restore probe.")).toHaveCount(0);
 
     await signIn(page, SEED.admin, "/admin/reviews");
-    const hidden = page.locator("li").filter({ hasText: "QA-ADMIN hide/restore probe." });
+    const hidden = page.getByRole("row").filter({ hasText: "QA-ADMIN hide/restore probe." });
     await paginateUntilVisible(page, hidden);
-    await hidden.getByRole("button", { name: "Restore" }).click();
-    await expect(hidden.getByText("VISIBLE")).toBeVisible();
+    await hidden.getByRole("button", { name: "Show" }).click();
+    await expect(hidden.getByText("Shown", { exact: true }).filter({ visible: true })).toBeVisible();
   });
 
   test("unpublishing a course drops it from the learner cart badge", async ({ page, context }) => {
@@ -188,9 +188,10 @@ test.describe("admin exploratory QA", () => {
     await context.clearCookies();
     await signIn(page, SEED.admin, "/admin/courses");
     await adminSearch(page, "SQL for Analysts");
-    const sql = page.locator("li").filter({ hasText: "SQL for Analysts" });
+    const sql = page.getByRole("row").filter({ hasText: "SQL for Analysts" });
     await sql.getByRole("button", { name: "Unpublish", exact: true }).click();
-    await expect(sql.getByText("Unpublished", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await sql.getByRole("button", { name: "Yes, unpublish" }).click();
+    await expect(sql.getByText("Unpublished", { exact: true }).filter({ visible: true })).toBeVisible({ timeout: 15_000 });
     await expect(sql.getByRole("button", { name: "Publish", exact: true })).toBeVisible();
 
     try {
@@ -300,12 +301,14 @@ test.describe("admin exploratory QA", () => {
     await expect(sqlLink.first()).toBeVisible();
 
     await page.goto("/admin/refunds");
-    const order = page.locator("li").filter({ hasText: SEED.admin.email }).filter({
+    const order = page.getByRole("row").filter({ hasText: SEED.admin.email }).filter({
       hasText: /sql for analysts/i,
     });
     await paginateUntilVisible(page, order);
-    await order.getByLabel("Reason").fill("QA refund — revoke access.");
-    await order.getByRole("button", { name: "Refund and revoke access" }).click();
+    await order.getByRole("button", { name: /^refund/i }).click();
+    const refund = page.getByRole("dialog", { name: /refund this order/i });
+    await refund.getByLabel("Reason").fill("QA refund — revoke access.");
+    await refund.getByRole("button", { name: "Refund and revoke access" }).click();
     await expect(order).toHaveCount(0, { timeout: 20_000 });
 
     await page.goto("/dashboard");

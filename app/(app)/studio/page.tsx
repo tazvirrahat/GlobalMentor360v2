@@ -118,7 +118,6 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
                           className="inline-flex min-h-8 items-center gap-1 rounded-sm text-sm font-medium text-ink underline decoration-control underline-offset-4 hover:decoration-ink focus-ring"
                         >
                           Course page <ExternalLink className="size-3.5" aria-hidden />
-                          <span className="sr-only">for {course.title}</span>
                         </Link>
                       ) : null}
                     </TableCell>

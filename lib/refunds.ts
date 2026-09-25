@@ -19,8 +19,24 @@ import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
 
 export const REFUND_PAGE_SIZE = 20;
 
-export async function listRefundableOrders(page?: string | number) {
-  const where = { status: "PAID" as const };
+/**
+ * Paid orders an admin can refund, newest payment first. `query` matches the
+ * learner's name or email, or a course title, case-insensitively.
+ */
+export async function listRefundableOrders(query?: string, page?: string | number) {
+  const q = query?.trim();
+  const where = {
+    status: "PAID" as const,
+    ...(q
+      ? {
+          OR: [
+            { user: { email: { contains: q, mode: "insensitive" as const } } },
+            { user: { name: { contains: q, mode: "insensitive" as const } } },
+            { items: { some: { course: { title: { contains: q, mode: "insensitive" as const } } } } },
+          ],
+        }
+      : {}),
+  };
   const total = await db.order.count({ where });
   const current = clampPage(page ?? 1, total, REFUND_PAGE_SIZE);
   const { skip, take } = skipTake(current, REFUND_PAGE_SIZE);
