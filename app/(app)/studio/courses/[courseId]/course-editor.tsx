@@ -300,7 +300,7 @@ export function CourseEditor({
           <p className="text-sm text-graphite">
             {published
               ? "This course is on sale. Unpublishing takes it out of the catalog."
-              : "The course goes on sale when you publish it. Every item below has to be done first."}
+              : "The course goes on sale once it's published. Every item below has to be done first."}
           </p>
         </div>
         {publishPanel}

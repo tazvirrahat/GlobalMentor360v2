@@ -197,3 +197,55 @@ test.describe("studio exploratory QA", () => {
     await expect(sent.getByText(/typescript foundations/i)).toBeVisible();
   });
 });
+
+test.describe("course review", () => {
+  test.describe.configure({ timeout: 120_000 });
+
+  test("instructor submits a course, admin returns it with a note, instructor reads it", async ({ page, context }) => {
+    const title = `QA Review ${STAMP}`;
+    await signIn(page, SEED.instructor, "/studio");
+    await page.getByRole("button", { name: "New course" }).click();
+    await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
+    await page.getByRole("button", { name: "Create draft" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible({ timeout: 20_000 });
+    const editorUrl = page.url().split("?")[0]!;
+
+    // Make it ready: a subtitle, a price, one section with one lecture.
+    await page.getByLabel("Subtitle").fill("Ready for a reviewer");
+    const nav = page.getByRole("navigation", { name: "Course editor" });
+    await nav.getByRole("link", { name: "Pricing" }).click();
+    await page.getByLabel("Price").fill("1500");
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("status")).toHaveText(/saved/i, { timeout: 15_000 });
+
+    await nav.getByRole("link", { name: "Curriculum" }).click();
+    await page.getByLabel("New section title").fill("Only section");
+    await page.getByRole("button", { name: "Add section" }).click();
+    await expect(page.getByRole("heading", { name: "Only section" })).toBeVisible({ timeout: 15_000 });
+    await page.getByLabel("New item title").fill("Only lecture");
+    await page.getByRole("button", { name: "Add lecture" }).click();
+    await expect(page.getByRole("link", { name: "Only lecture" })).toBeVisible({ timeout: 15_000 });
+
+    await page.goto(`${editorUrl}?tab=publish`);
+    await page.getByRole("button", { name: "Submit for review" }).click();
+    await expect(page.getByText(/sent for review/i)).toBeVisible({ timeout: 15_000 });
+
+    await context.clearCookies();
+    await signIn(page, SEED.admin, "/admin/courses");
+    const queue = page.getByRole("region", { name: /waiting for review/i });
+    const row = queue.getByRole("row").filter({ hasText: title });
+    await expect(row).toBeVisible();
+    await row.getByRole("button", { name: /^return/i }).click();
+    const dialog = page.getByRole("dialog", { name: /return this course/i });
+    await dialog.getByLabel("What needs to change").fill("Add a second lecture with an example.");
+    await dialog.getByRole("button", { name: "Return with note" }).click();
+    await expect(dialog).toBeHidden({ timeout: 20_000 });
+    await expect(page.getByRole("button", { name: /return .*qa review/i })).toHaveCount(0);
+
+    await context.clearCookies();
+    await signIn(page, SEED.instructor, `${new URL(editorUrl).pathname}?tab=publish`);
+    await expect(page.getByText("Returned for changes")).toBeVisible();
+    await expect(page.getByText("Add a second lecture with an example.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Submit for review" })).toBeVisible();
+  });
+});

@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/course/status-badge";
 import { ConfirmSubmit } from "@/components/site/confirm-submit";
 import { EmptyState } from "@/components/site/empty-state";
 import { FlashAlert } from "@/components/site/flash-alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -19,10 +20,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ADMIN_PAGE_SIZE, listAdminCourses } from "@/lib/admin";
+import { listReviewQueue } from "@/lib/course-review";
+import { formatDateMedium } from "@/lib/format";
 import { showingRange } from "@/lib/pagination";
 import { courseSellabilityWarning } from "@/lib/payments";
 import { requireRole } from "@/lib/session";
 import { publishCourseAction } from "../actions";
+import { ReviewActions } from "./review-actions";
 
 export const metadata = { title: "Courses | Admin" };
 
@@ -34,13 +38,61 @@ export default async function AdminCoursesPage({
   await requireRole("ADMIN");
   const { q, error, page: rawPage } = await searchParams;
   const query = q?.trim() || undefined;
-  const { items: courses, total, page, pageCount } = await listAdminCourses(query, rawPage);
+  const [{ items: courses, total, page, pageCount }, queue] = await Promise.all([
+    listAdminCourses(query, rawPage),
+    listReviewQueue(),
+  ]);
   const range = showingRange(page, ADMIN_PAGE_SIZE, total);
 
   return (
     <main className="flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       <PageHeader title="Courses" description="Every course on the site, from every instructor. Publish or take one down." />
       {error ? <FlashAlert title="Could not update course">{error}</FlashAlert> : null}
+
+      {queue.length > 0 ? (
+        <section aria-labelledby="review-heading" className="flex flex-col gap-3">
+          <h2 id="review-heading" className="flex items-center gap-2 text-lg font-semibold">
+            Waiting for review <Badge variant="warning">{queue.length}</Badge>
+          </h2>
+          <Table className="md:min-w-[44rem]">
+            <TableCaption>Courses waiting for review</TableCaption>
+            <colgroup>
+              <col />
+              <col className="hidden w-36 md:table-column" />
+              <col className="w-48 md:w-64" />
+            </colgroup>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Course</TableHead>
+                <TableHead className="hidden md:table-cell">Submitted</TableHead>
+                <TableHead>
+                  <span className="sr-only">Review</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {queue.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-medium text-ink">{row.title}</span>
+                      <span className="text-sm text-graphite">{row.instructorName}</span>
+                    </span>
+                  </TableCell>
+                  <TableCell className="hidden text-graphite md:table-cell">
+                    {row.reviewRequestedAt ? (
+                      <time dateTime={row.reviewRequestedAt.toISOString()}>{formatDateMedium(row.reviewRequestedAt)}</time>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <ReviewActions courseId={row.id} title={row.title} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      ) : null}
 
       <SearchBox
         action={"/admin/courses" as Route}

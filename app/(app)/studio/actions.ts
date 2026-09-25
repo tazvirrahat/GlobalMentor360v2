@@ -8,7 +8,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import { requireRole } from "@/lib/session";
+import { hasRole, requireRole } from "@/lib/session";
+import { submitForReview, withdrawReview } from "@/lib/course-review";
 import { getOwnedCourse, readinessChecks, slugify, uniqueSlug } from "@/lib/studio";
 
 export type ActionState =
@@ -259,6 +260,14 @@ export async function setPublished(_prev: ActionState, formData: FormData): Prom
   const owned = await getOwnedCourse(courseId, user.id);
   if (!owned) return { status: "error", message: "Course not found." };
 
+  // Instructors send a course to review; admins, who do the reviewing, publish directly.
+  if (publish && !(await hasRole(user.id, "ADMIN"))) {
+    const result = await submitForReview(user.id, owned.id);
+    if (!result.ok) return { status: "error", message: result.message };
+    revalidatePath(`/studio/courses/${owned.id}`);
+    return { status: "done", message: "Sent for review. You'll get a notification when it's approved or returned." };
+  }
+
   if (publish) {
     const checks = await readinessChecks(owned.id);
     const failed = checks.filter((check) => !check.ok);
@@ -284,4 +293,14 @@ export async function setPublished(_prev: ActionState, formData: FormData): Prom
   revalidatePath(`/studio/courses/${owned.id}`);
 
   return { status: "done", message: publish ? "Published." : "Unpublished." };
+}
+
+/** Takes a course out of the review queue, back to Draft. */
+export async function withdrawFromReview(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const courseId = String(formData.get("courseId") ?? "");
+  const result = await withdrawReview(user.id, courseId);
+  if (!result.ok) return { status: "error", message: result.message };
+  revalidatePath(`/studio/courses/${courseId}`);
+  return { status: "done", message: "Withdrawn. The course is a draft again." };
 }

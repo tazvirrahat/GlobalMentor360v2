@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { adminSetCoursePublished, setReviewVisibility, setUserRole } from "@/lib/admin";
 import type { Role } from "@/generated/prisma/enums";
+import { approveReview, returnReview } from "@/lib/course-review";
 import { processAdminRefund } from "@/lib/refunds";
 import { requireRole } from "@/lib/session";
 
@@ -59,4 +60,21 @@ export async function refundOrderAction(formData: FormData) {
   revalidatePath("/admin/refunds");
   revalidatePath("/dashboard");
   revalidatePath("/orders");
+}
+
+export async function approveReviewAction(formData: FormData) {
+  const admin = await requireRole("ADMIN");
+  const courseId = String(formData.get("courseId") ?? "");
+  const result = await approveReview(admin.id, courseId);
+  if (!result.ok) redirect(`/admin/courses?error=${encodeURIComponent(result.message)}` as Route);
+  revalidatePath("/admin/courses");
+  revalidatePath("/courses");
+}
+
+export async function returnReviewAction(formData: FormData) {
+  const admin = await requireRole("ADMIN");
+  const courseId = String(formData.get("courseId") ?? "");
+  const result = await returnReview(admin.id, courseId, String(formData.get("note") ?? ""));
+  if (!result.ok) redirect(`/admin/courses?error=${encodeURIComponent(result.message)}` as Route);
+  revalidatePath("/admin/courses");
 }
