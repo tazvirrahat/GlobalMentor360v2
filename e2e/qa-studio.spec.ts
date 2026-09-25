@@ -73,6 +73,10 @@ test.describe("studio exploratory QA", () => {
     await expect(editorNav.getByRole("link", { name: "Details" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByLabel("Subtitle")).toBeVisible();
     await expect(page.getByLabel("Description")).toBeVisible();
+    // No cloud storage locally: the image field says so and keeps the letter tile.
+    const imageField = page.getByRole("group", { name: "Course image" });
+    await expect(imageField).toContainText("need cloud storage");
+    await expect(imageField.getByRole("button")).toHaveCount(0);
     await editorNav.getByRole("link", { name: "Landing page" }).click();
     await expect(page).toHaveURL(/tab=landing/);
     await expect(page.getByText("What you'll learn")).toBeVisible();
