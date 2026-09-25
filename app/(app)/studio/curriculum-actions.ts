@@ -347,6 +347,42 @@ export async function moveSection(_prev: CurriculumState, formData: FormData): P
   return { status: "done", message: "Moved." };
 }
 
+/** The new order must be exactly the rows that are there now: nothing missing, added or repeated. */
+function sameMembers(current: { id: string }[], ids: string[]) {
+  const wanted = new Set(ids);
+  return wanted.size === ids.length && ids.length === current.length && current.every((row) => wanted.has(row.id));
+}
+
+const STALE = "The list changed since you opened it. Reload the page and try again.";
+
+/** Drag reorder of a course's sections: the whole new order in one write. */
+export async function reorderSections(input: { courseId: string; ids: string[] }): Promise<CurriculumState> {
+  const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const course = await assertOwned(String(input.courseId ?? ""), user.id);
+  if (!course) return { status: "error", message: "Course not found." };
+  const current = await db.section.findMany({ where: { courseId: course.id }, select: { id: true } });
+  if (!Array.isArray(input.ids) || !sameMembers(current, input.ids)) return { status: "error", message: STALE };
+
+  await db.$transaction(async (tx) => resequence(tx, "section", input.ids.map((id) => ({ id }))));
+  revalidatePath(`/studio/courses/${course.id}/curriculum`);
+  revalidatePath(`/courses/${course.slug}`);
+  return { status: "done", message: "Moved." };
+}
+
+/** Drag reorder of a section's lectures and quizzes: the whole new order in one write. */
+export async function reorderItems(input: { sectionId: string; ids: string[] }): Promise<CurriculumState> {
+  const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const section = await ownedSection(String(input.sectionId ?? ""), user.id);
+  if (!section) return { status: "error", message: "Section not found." };
+  const current = await db.curriculumItem.findMany({ where: { sectionId: section.id }, select: { id: true } });
+  if (!Array.isArray(input.ids) || !sameMembers(current, input.ids)) return { status: "error", message: STALE };
+
+  await db.$transaction(async (tx) => resequence(tx, "item", input.ids.map((id) => ({ id }))));
+  revalidatePath(`/studio/courses/${section.courseId}/curriculum`);
+  revalidatePath(`/courses/${section.course.slug}`);
+  return { status: "done", message: "Moved." };
+}
+
 const renameSectionSchema = z.object({
   sectionId: z.string().min(1),
   title: z.string().trim().min(1, "Give the section a title.").max(200),

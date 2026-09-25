@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import type { Route } from "next";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Eye, EyeOff, FileText, ListChecks, Pencil, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, FileText, GripVertical, ListChecks, Pencil, Trash2, TriangleAlert } from "lucide-react";
 import { ConfirmSubmit } from "@/components/site/confirm-submit";
 import { FieldError } from "@/components/site/field-error";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +18,12 @@ import {
   moveItem,
   moveSection,
   renameSection,
+  reorderItems,
+  reorderSections,
   togglePreview,
   type CurriculumState,
 } from "../../../curriculum-actions";
+import { useDragOrder } from "./use-drag-order";
 import { LectureVideoPanel, type LectureVideoInfo } from "./video-upload";
 
 const initial: CurriculumState = { status: "idle" };
@@ -71,7 +74,7 @@ function AddItemForm({ sectionId }: { sectionId: string }) {
   const [state, action, pending] = useActionState(addItem, initial);
 
   return (
-    <form action={action} className="flex flex-col gap-1.5 border-t border-rule bg-wash/40 px-4 py-3">
+    <form action={action} className="flex flex-col gap-1.5 rounded-b-lg border-t border-rule bg-wash/40 px-4 py-3">
       <input type="hidden" name="sectionId" value={sectionId} />
       <Label htmlFor={`item-${sectionId}`}>New item title</Label>
       <div className="flex flex-wrap items-center gap-2">
@@ -136,7 +139,56 @@ function MoveButtons({
   );
 }
 
-function ItemRow({ courseId, item, isFirst, isLast }: { courseId: string; item: Item; isFirst: boolean; isLast: boolean }) {
+type DragProps = {
+  row: ReturnType<ReturnType<typeof useDragOrder>["row"]>;
+  grip: ReturnType<ReturnType<typeof useDragOrder>["grip"]>;
+  lineBefore: boolean;
+  lineAfter: boolean;
+  dragging: boolean;
+};
+
+/**
+ * The mouse grip. Decorative on purpose: the Up/Down buttons are the keyboard,
+ * touch and single-pointer way to reorder (WCAG 2.5.7), so the grip is hidden
+ * from assistive tech and on screens without a fine pointer, where HTML5 drag
+ * does not work anyway.
+ */
+function Grip({ grip }: { grip: DragProps["grip"] }) {
+  return (
+    <span
+      {...grip}
+      aria-hidden
+      title="Drag to reorder"
+      className="-ml-1 hidden size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-sm text-graphite hover:bg-wash active:cursor-grabbing pointer-fine:flex"
+    >
+      <GripVertical className="size-4" />
+    </span>
+  );
+}
+
+/** Where a dragged row will land: a line above or below this one. */
+function DropLine({ drag, offset = "-top-px" }: { drag: DragProps; offset?: string }) {
+  return (
+    <>
+      {drag.lineBefore ? <span aria-hidden className={`pointer-events-none absolute inset-x-0 ${offset} z-10 h-0.5 bg-ink`} /> : null}
+      {drag.lineAfter ? <span aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-px z-10 h-0.5 bg-ink" /> : null}
+    </>
+  );
+}
+
+function ItemRow({
+  courseId,
+  item,
+  isFirst,
+  isLast,
+  drag,
+}: {
+  courseId: string;
+  item: Item;
+  isFirst: boolean;
+  isLast: boolean;
+  drag: DragProps;
+}) {
   const [, move] = useActionState(moveItem, initial);
   const [, toggle, toggling] = useActionState(togglePreview, initial);
   const [, remove] = useActionState(deleteItem, initial);
@@ -144,9 +196,11 @@ function ItemRow({ courseId, item, isFirst, isLast }: { courseId: string; item: 
   const emptyQuiz = quiz && item.assessment?._count.questions === 0;
 
   return (
-    <li className="flex flex-col gap-2 px-4 py-3">
+    <li {...drag.row} className={`relative flex flex-col gap-2 px-4 py-3 ${drag.dragging ? "opacity-50" : ""}`}>
+      <DropLine drag={drag} />
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex min-w-0 flex-1 basis-full items-center gap-2.5 sm:basis-auto">
+          <Grip grip={drag.grip} />
           {quiz ? (
             <ListChecks className="size-4 shrink-0 text-graphite" aria-hidden />
           ) : (
@@ -195,13 +249,13 @@ function ItemRow({ courseId, item, isFirst, isLast }: { courseId: string; item: 
       </div>
 
       {emptyQuiz ? (
-        <p role="status" className="flex items-center gap-1.5 pl-6.5 text-sm font-medium text-seal">
+        <p role="status" className="flex items-center gap-1.5 pl-6.5 text-sm font-medium text-seal pointer-fine:pl-16">
           <TriangleAlert className="size-4 shrink-0" aria-hidden />
           No questions yet. An empty quiz lets every learner pass, so add questions before publishing.
         </p>
       ) : null}
       {item.type === "LECTURE" ? (
-        <div className="pl-6.5">
+        <div className="pl-6.5 pointer-fine:pl-16">
           <LectureVideoPanel itemId={item.id} lecture={item.lecture} />
         </div>
       ) : null}
@@ -269,18 +323,23 @@ function SectionBlock({
   section,
   index,
   count,
+  drag,
 }: {
   courseId: string;
   section: Section;
   index: number;
   count: number;
+  drag: DragProps;
 }) {
   const [, move] = useActionState(moveSection, initial);
   const [, remove] = useActionState(deleteSection, initial);
+  const items = useDragOrder(section.items, (ids) => reorderItems({ sectionId: section.id, ids }));
 
   return (
-    <li className="overflow-hidden rounded-lg border border-rule bg-surface">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-4 py-3">
+    <li {...drag.row} className={`relative rounded-lg border border-rule bg-surface ${drag.dragging ? "opacity-50" : ""}`}>
+      <DropLine drag={drag} offset="-top-2.5" />
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-lg border-b border-rule px-4 py-3">
+        <Grip grip={drag.grip} />
         <SectionTitle section={section} index={index} />
         <div className="flex items-center">
           <MoveButtons
@@ -311,17 +370,29 @@ function SectionBlock({
         <p className="px-4 py-3 text-sm text-graphite">Nothing in this section yet. Add a lecture or a quiz below.</p>
       ) : (
         <ol className="divide-y divide-rule">
-          {section.items.map((item, itemIndex) => (
+          {items.ordered.map((item, itemIndex) => (
             <ItemRow
               key={item.id}
               courseId={courseId}
               item={item}
               isFirst={itemIndex === 0}
-              isLast={itemIndex === section.items.length - 1}
+              isLast={itemIndex === items.ordered.length - 1}
+              drag={{
+                row: items.row(item.id, itemIndex),
+                grip: items.grip(item.id),
+                lineBefore: items.insertAt === itemIndex,
+                lineAfter: items.insertAt === items.ordered.length && itemIndex === items.ordered.length - 1,
+                dragging: items.dragging === item.id,
+              }}
             />
           ))}
         </ol>
       )}
+      {items.error ? (
+        <div className="px-4 pb-3">
+          <FieldError message={items.error} />
+        </div>
+      ) : null}
 
       <AddItemForm sectionId={section.id} />
     </li>
@@ -329,14 +400,33 @@ function SectionBlock({
 }
 
 export function SectionList({ courseId, sections }: { courseId: string; sections: Section[] }) {
+  const sectionsDrag = useDragOrder(sections, (ids) => reorderSections({ courseId, ids }));
   if (sections.length === 0) {
     return <p className="text-graphite">No sections yet. Add the first one below.</p>;
   }
 
   return (
     <ol className="flex flex-col gap-4">
-      {sections.map((section, index) => (
-        <SectionBlock key={section.id} courseId={courseId} section={section} index={index} count={sections.length} />
+      {sectionsDrag.error ? (
+        <li className="list-none">
+          <FieldError message={sectionsDrag.error} />
+        </li>
+      ) : null}
+      {sectionsDrag.ordered.map((section, index) => (
+        <SectionBlock
+          key={section.id}
+          courseId={courseId}
+          section={section}
+          index={index}
+          count={sectionsDrag.ordered.length}
+          drag={{
+            row: sectionsDrag.row(section.id, index),
+            grip: sectionsDrag.grip(section.id),
+            lineBefore: sectionsDrag.insertAt === index,
+            lineAfter: sectionsDrag.insertAt === sectionsDrag.ordered.length && index === sectionsDrag.ordered.length - 1,
+            dragging: sectionsDrag.dragging === section.id,
+          }}
+        />
       ))}
     </ol>
   );

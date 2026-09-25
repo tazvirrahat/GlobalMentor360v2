@@ -26,3 +26,18 @@ export function pickEditorTab(raw: string | string[] | undefined): CourseEditorT
 export function listRowLabel(noun: string, index: number): string {
   return `${noun} ${index + 1}`;
 }
+
+/**
+ * A drag reorder's result: `id` moved to `insertAt`, a slot in the full list
+ * (0 = before the first row, length = after the last). Unknown ids leave the
+ * order as it is.
+ */
+export function moveId(ids: readonly string[], id: string, insertAt: number): string[] {
+  const from = ids.indexOf(id);
+  if (from < 0) return [...ids];
+  const rest = ids.filter((other) => other !== id);
+  // Removing the row shifts every later slot up by one.
+  const to = Math.max(0, Math.min(rest.length, insertAt > from ? insertAt - 1 : insertAt));
+  rest.splice(to, 0, id);
+  return rest;
+}
