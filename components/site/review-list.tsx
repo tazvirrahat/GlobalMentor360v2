@@ -43,6 +43,16 @@ export function ReviewList({ reviews }: { reviews: CourseReview[] }) {
               {review.body}
             </p>
           ) : null}
+          {review.response ? (
+            <div className="ml-4 flex flex-col gap-1 border-l-2 border-rule pl-4">
+              <p className="text-sm text-graphite">
+                <span className="font-semibold text-ink">Response from {review.response.responderName}</span>
+                {" · "}
+                <time dateTime={review.response.createdAt.toISOString()}>{formatDateMedium(review.response.createdAt)}</time>
+              </p>
+              <p className="whitespace-pre-line text-base text-ink">{review.response.body}</p>
+            </div>
+          ) : null}
         </li>
       ))}
     </ul>

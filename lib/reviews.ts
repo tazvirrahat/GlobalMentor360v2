@@ -3,7 +3,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { ModerationStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { canReview } from "@/lib/entitlement";
-import { clampPage, pageCount, skipTake } from "@/lib/pagination";
+import { notify } from "@/lib/notifications";
+import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
+import { REVIEW_REPLY_MAX } from "@/lib/review-rules";
 
 /**
  * Course reviews and the rating aggregates every catalog surface renders.
@@ -296,6 +298,8 @@ export async function saveReview(input: {
   return { ok: true, summary };
 }
 
+export type ReviewReply = { body: string; createdAt: Date; responderName: string };
+
 export type CourseReview = {
   id: string;
   rating: number;
@@ -303,6 +307,8 @@ export type CourseReview = {
   createdAt: Date;
   updatedAt: Date;
   authorName: string;
+  /** The instructor's reply, shown under the review. */
+  response: ReviewReply | null;
 };
 
 export type OwnReview = {
@@ -372,6 +378,7 @@ export async function getCourseReviewPanel(
       createdAt: true,
       updatedAt: true,
       user: { select: { name: true } },
+      response: { select: { body: true, createdAt: true, responder: { select: { name: true } } } },
     },
   });
 
@@ -384,10 +391,117 @@ export async function getCourseReviewPanel(
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       authorName: row.user.name,
+      response: row.response
+        ? { body: row.response.body, createdAt: row.response.createdAt, responderName: row.response.responder.name }
+        : null,
     })),
     ownReview: own,
     page: current,
     pageCount: pageCount(summary.count, REVIEW_PAGE_SIZE),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Instructor replies (review_responses: one per review)
+// ---------------------------------------------------------------------------
+
+type ReplyResult = { ok: true } | { ok: false; message: string };
+
+/** The review, found through the course's instructor, so nobody else can reply. */
+function ownedReview(instructorId: string, reviewId: string) {
+  return db.review.findFirst({
+    where: { id: reviewId, course: { instructorId } },
+    select: { id: true, userId: true, course: { select: { title: true, slug: true } }, response: { select: { id: true } } },
+  });
+}
+
+/**
+ * The course's instructor replies to a review, or edits their reply. The
+ * reviewer is notified of the first reply (not of edits).
+ */
+export async function saveReviewResponse(instructorId: string, reviewId: string, rawBody: string): Promise<ReplyResult> {
+  const body = rawBody.trim();
+  if (!body) return { ok: false, message: "Write a reply first." };
+  if (body.length > REVIEW_REPLY_MAX) return { ok: false, message: `Replies can be up to ${REVIEW_REPLY_MAX} characters.` };
+  const review = await ownedReview(instructorId, reviewId);
+  if (!review) return { ok: false, message: "Review not found." };
+
+  await db.reviewResponse.upsert({
+    where: { reviewId: review.id },
+    create: { reviewId: review.id, responderId: instructorId, body },
+    update: { body },
+  });
+  if (!review.response) {
+    await notify(review.userId, "review_reply", {
+      title: "The instructor replied to your review",
+      body: review.course.title,
+      href: `/courses/${review.course.slug}#reviews`,
+    });
+  }
+  return { ok: true };
+}
+
+export async function deleteReviewResponse(instructorId: string, reviewId: string): Promise<ReplyResult> {
+  const review = await ownedReview(instructorId, reviewId);
+  if (!review) return { ok: false, message: "Review not found." };
+  await db.reviewResponse.deleteMany({ where: { reviewId: review.id } });
+  return { ok: true };
+}
+
+export type InstructorReview = {
+  id: string;
+  rating: number;
+  body: string | null;
+  createdAt: Date;
+  authorName: string;
+  course: { title: string; slug: string };
+  response: { body: string; createdAt: Date } | null;
+};
+
+export const INSTRUCTOR_REVIEW_PAGE_SIZE = 20;
+
+/** Visible reviews of an instructor's courses, newest first; optionally only those without a reply. */
+export async function listInstructorReviews(
+  instructorId: string,
+  options: { unansweredOnly?: boolean; page?: string | number } = {},
+): Promise<Paged<InstructorReview> & { unanswered: number }> {
+  const base = { status: "VISIBLE" as const, course: { instructorId } };
+  const where = options.unansweredOnly ? { ...base, response: { is: null } } : base;
+  const [total, unanswered] = await Promise.all([
+    db.review.count({ where }),
+    db.review.count({ where: { ...base, response: { is: null } } }),
+  ]);
+  const current = clampPage(options.page, total, INSTRUCTOR_REVIEW_PAGE_SIZE);
+  const { skip, take } = skipTake(current, INSTRUCTOR_REVIEW_PAGE_SIZE);
+  const rows = await db.review.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    skip,
+    take,
+    select: {
+      id: true,
+      rating: true,
+      body: true,
+      createdAt: true,
+      user: { select: { name: true } },
+      course: { select: { title: true, slug: true } },
+      response: { select: { body: true, createdAt: true } },
+    },
+  });
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      rating: row.rating,
+      body: row.body,
+      createdAt: row.createdAt,
+      authorName: row.user.name,
+      course: row.course,
+      response: row.response,
+    })),
+    total,
+    page: current,
+    pageCount: pageCount(total, INSTRUCTOR_REVIEW_PAGE_SIZE),
+    unanswered,
   };
 }
 

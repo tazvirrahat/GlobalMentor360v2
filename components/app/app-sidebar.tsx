@@ -28,6 +28,7 @@ type Item = { href: string; label: string; icon: LucideIcon };
 const STUDIO: Item[] = [
   { href: "/studio", label: "Courses", icon: BookOpen },
   { href: "/studio/qa", label: "Questions", icon: MessagesSquare },
+  { href: "/studio/reviews", label: "Reviews", icon: Star },
   { href: "/studio/announcements", label: "Announcements", icon: Megaphone },
   { href: "/studio/coupons", label: "Coupons", icon: TicketPercent },
   { href: "/studio/profile", label: "Your profile", icon: UserRound },

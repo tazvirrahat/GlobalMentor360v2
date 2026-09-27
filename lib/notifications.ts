@@ -11,7 +11,7 @@ import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
  * a Q&A reply, or an announcement — the same rule as lib/analytics.
  */
 
-export type NotificationType = "enrollment" | "announcement" | "qa_reply" | "payment" | "course_review";
+export type NotificationType = "enrollment" | "announcement" | "qa_reply" | "payment" | "course_review" | "review_reply";
 
 export type NotificationPayload = {
   title: string;
