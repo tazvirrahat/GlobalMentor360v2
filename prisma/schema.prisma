@@ -54,9 +54,16 @@ model User {
   bio           String?    @db.Text
   websiteUrl    String?
   locale        String     @default("en")
-  timezone      String     @default("UTC")
+  /// IANA zone for dates; null = the site's time zone (lib/site.ts).
+  timezone      String?
   status        UserStatus @default(ACTIVE)
   profilePublic Boolean    @default(true)
+  // Notification preferences (account page). Enrollments, payments, refunds
+  // and course-review decisions always notify and have no switch.
+  notifyAnnouncements Boolean @default(true)
+  emailAnnouncements  Boolean @default(true)
+  notifyQaReplies     Boolean @default(true)
+  notifyReviewReplies Boolean @default(true)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -230,6 +237,9 @@ model Course {
   // Denormalised aggregates, recomputed on review write. Display only.
   ratingAverage     Float        @default(0)
   ratingCount       Int          @default(0)
+  /// Recency-weighted mean for ranking ("Highest rated"): Σ wᵢrᵢ / Σ wᵢ, wᵢ = 0.5^(age / 365 d).
+  /// See recomputeCourseRating in lib/reviews.ts; kept fresh by `npm run ratings:recompute`.
+  ratingScore       Float        @default(0)
   enrollmentCount   Int          @default(0)
   publishedAt       DateTime?
   // Review before publishing: when the instructor submitted it, and the

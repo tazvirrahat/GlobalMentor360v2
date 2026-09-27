@@ -28,6 +28,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:test:prepare": "tsx scripts/test-db-prepare.ts",
+    "ratings:recompute": "tsx scripts/recompute-ratings.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

@@ -62,7 +62,8 @@ export const auth = betterAuth({
     additionalFields: {
       headline: { type: "string", required: false },
       locale: { type: "string", required: false, defaultValue: "en" },
-      timezone: { type: "string", required: false, defaultValue: "UTC" },
+      // null = the site's time zone; set from the account page.
+      timezone: { type: "string", required: false },
     },
     changeEmail: {
       enabled: true,

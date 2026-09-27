@@ -62,15 +62,34 @@ export type RatingSummary = {
 };
 
 /**
+ * Recency weighting for ranking (spec §12 "recency weighting in the
+ * aggregate"). A review's weight halves every RATING_HALF_LIFE_DAYS, counted
+ * from its last edit, and Course.ratingScore = Σ wᵢ·rᵢ / Σ wᵢ over visible
+ * reviews. "Highest rated" sorts by that score, so a course whose recent
+ * learners are happier climbs and one coasting on old praise slips.
+ *
+ * The displayed average stays the flat mean below, for the reasons given
+ * there: it has to agree with the histogram under it, and it is only ever
+ * rewritten on a review write. The score, which only orders the catalog, is
+ * refreshed on every review write and daily by `npm run ratings:recompute`.
+ */
+export const RATING_HALF_LIFE_DAYS = 365;
+
+/** A review's weight at a given age: 1 when new, ½ after a half-life, ¼ after two. */
+export function recencyWeight(ageDays: number): number {
+  return 0.5 ** (Math.max(0, ageDays) / RATING_HALF_LIFE_DAYS);
+}
+
+/**
  * Turns grouped rating counts into the numbers the page renders.
  *
  * Pure, and separate from the query, because the interesting cases are the ones
  * a database round trip makes tedious to reach: no reviews at all, one review,
  * and a rating outside 1-5 that predates the guard above.
  *
- * A flat mean, and deferring recency weighting is a decision rather than an
- * oversight. FEATURES.md section F lists "rating aggregation, distribution
- * histogram, recency weighting" on one P0 line; the first two ship here.
+ * A flat mean on purpose. FEATURES.md section F lists "rating aggregation,
+ * distribution histogram, recency weighting" on one P0 line; the weighting
+ * lives in the ranking score above rather than in this headline number.
  *
  * The obstacle is not choosing a decay curve, it is where the number is stored.
  * A time-weighted mean is a function of now(), and Course.ratingAverage is only
@@ -85,9 +104,9 @@ export type RatingSummary = {
  * it, which counts every review once: a 4.6 above bars that visibly average 4.1
  * reads as a bug, and a star summary has no room to explain the difference.
  *
- * A flat mean is the number a learner believes they are being shown. Revisit
- * when there is a half-life someone can defend and a job that keeps the
- * denormalised column true between writes.
+ * A flat mean is the number a learner believes they are being shown; the
+ * weighted one orders the catalog (Course.ratingScore) and is kept true by the
+ * daily recompute.
  */
 export function summariseRatings(buckets: readonly RatingBucket[]): RatingSummary {
   const counts = new Map<number, number>();
@@ -197,13 +216,35 @@ export async function recomputeCourseRating(
       buckets.map((bucket) => ({ rating: bucket.rating, count: bucket._count._all })),
     );
 
+    // The ranking score (see RATING_HALF_LIFE_DAYS): computed in SQL so the
+    // weights use the database's clock, the same one the daily recompute uses.
+    const [score] = await tx.$queryRaw<{ score: number | null }[]>`
+      SELECT
+        SUM(r.rating * power(0.5, EXTRACT(EPOCH FROM ((now() AT TIME ZONE 'UTC') - r."updatedAt")) / 86400.0 / ${RATING_HALF_LIFE_DAYS}))
+          / NULLIF(SUM(power(0.5, EXTRACT(EPOCH FROM ((now() AT TIME ZONE 'UTC') - r."updatedAt")) / 86400.0 / ${RATING_HALF_LIFE_DAYS})), 0)
+          AS score
+      FROM reviews r
+      WHERE r."courseId" = ${courseId} AND r.status = 'VISIBLE'
+    `;
+
     await tx.course.update({
       where: { id: courseId },
-      data: { ratingAverage: summary.average, ratingCount: summary.count },
+      data: { ratingAverage: summary.average, ratingCount: summary.count, ratingScore: Number(score?.score ?? 0) },
     });
 
     return summary;
   });
+}
+
+/**
+ * Refreshes every published course's ranking score. The weights depend on
+ * the date, so a course nobody has reviewed lately drifts until this runs:
+ * schedule `npm run ratings:recompute` daily.
+ */
+export async function recomputeAllCourseRatings(): Promise<number> {
+  const courses = await db.course.findMany({ where: { ratingCount: { gt: 0 } }, select: { id: true } });
+  for (const course of courses) await recomputeCourseRating(course.id);
+  return courses.length;
 }
 
 export type ReviewWriteResult =

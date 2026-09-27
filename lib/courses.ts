@@ -106,11 +106,12 @@ export const CATALOG_PAGE_SIZE = 24;
  */
 const DB_ORDER: Record<
   Exclude<CatalogSort, "price-low" | "price-high" | "relevance">,
-  Prisma.CourseOrderByWithRelationInput
+  Prisma.CourseOrderByWithRelationInput | Prisma.CourseOrderByWithRelationInput[]
 > = {
   newest: { publishedAt: "desc" },
   popular: { enrollmentCount: "desc" },
-  rating: { ratingAverage: "desc" },
+  // Recency-weighted (lib/reviews.ts RATING_HALF_LIFE_DAYS), then how many rated.
+  rating: [{ ratingScore: "desc" }, { ratingCount: "desc" }],
 };
 
 const CATALOG_SELECT = {
@@ -249,7 +250,7 @@ function catalogOrderClause(sort: CatalogSort, search: string): Prisma.Sql {
     return Prisma.sql`ORDER BY c."enrollmentCount" DESC, c."publishedAt" DESC NULLS LAST`;
   }
   if (sort === "rating") {
-    return Prisma.sql`ORDER BY c."ratingAverage" DESC, c."publishedAt" DESC NULLS LAST`;
+    return Prisma.sql`ORDER BY c."ratingScore" DESC, c."ratingCount" DESC, c."publishedAt" DESC NULLS LAST`;
   }
   return Prisma.sql`ORDER BY c."publishedAt" DESC NULLS LAST`;
 }
