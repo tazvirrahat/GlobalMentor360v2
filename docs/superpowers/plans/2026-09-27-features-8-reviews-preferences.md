@@ -40,30 +40,30 @@
 
 ### Task 1: Instructor replies
 
-- [ ] `saveReviewResponse(instructorId, reviewId, body)` (course owner only, 1–2,000 chars, upsert, notify on first reply), `deleteReviewResponse`.
-- [ ] Studio › Reviews (sidebar "Reviews"): filter, paged 20, stars + author + date + text, reply form / edit / delete.
-- [ ] Course page: reply under the review.
-- [ ] Integration tests; e2e: the instructor replies and the course page shows it.
-- [ ] Commit `Let instructors reply to reviews`.
+- [x] `saveReviewResponse(instructorId, reviewId, body)` (course owner only, 1–2,000 chars, upsert, notify on first reply), `deleteReviewResponse`.
+- [x] Studio › Reviews (sidebar "Reviews"): filter, paged 20, stars + author + date + text, reply form / edit / delete.
+- [x] Course page: reply under the review.
+- [x] Integration tests; e2e: the instructor replies and the course page shows it.
+- [x] Commit `Let instructors reply to reviews`.
 
 ### Task 2: Recency-weighted ranking
 
-- [ ] Migration part: `ratingScore` with backfill.
-- [ ] `recencyWeight(ageDays)` pure + test; SQL score in `recomputeCourseRating`; `recomputeAllCourseRatings()` + script.
-- [ ] "Highest rated" sort uses the score.
-- [ ] Integration test: an old 5 and a new 1 rank below a new 5 and an old 1.
-- [ ] Commit `Rank courses by a recency-weighted rating`.
+- [x] Migration part: `ratingScore` with backfill.
+- [x] `recencyWeight(ageDays)` pure + test; SQL score in `recomputeCourseRating`; `recomputeAllCourseRatings()` + script.
+- [x] "Highest rated" sort uses the score.
+- [x] Integration test: an old 5 and a new 1 rank below a new 5 and an old 1.
+- [x] Commit `Rank courses by a recency-weighted rating`.
 
 ### Task 3: Account preferences
 
-- [ ] Migration part: preferences and `timezone`.
-- [ ] Formatters take a time zone (default: the site's); `getViewerTimeZone()`; call sites pass it (certificates keep the site's).
-- [ ] Preferences section: time zone select (common zones first, then all), four notification checkboxes, Save.
-- [ ] `notify` / `notifyMany` / announcement email honour the switches.
-- [ ] Integration tests; e2e: turn off question replies, save, reload, still off.
-- [ ] Commit `Add time zone and notification preferences`.
+- [x] Migration part: preferences and `timezone`.
+- [x] Formatters take a time zone (default: the site's); `getViewerTimeZone()`; call sites pass it (certificates keep the site's).
+- [x] Preferences section: time zone select (common zones first, then all), four notification checkboxes, Save.
+- [x] `notify` / `notifyMany` / announcement email honour the switches.
+- [x] Integration tests; e2e: turn off question replies, save, reload, still off.
+- [x] Commit `Add time zone and notification preferences`.
 
 ### Task 4: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
-- [ ] Progress log row; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
+- [x] Progress log row; commit; push.
