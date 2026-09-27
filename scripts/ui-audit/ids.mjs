@@ -90,6 +90,7 @@ export function buildRoutes(ids) {
       need(ids.courseId && ids.article, `/studio/courses/${ids.courseId}/curriculum/${ids.article}`),
     ],
     ["instructor", "studio-qa", "/studio/qa"],
+    ["instructor", "studio-reviews", "/studio/reviews"],
     ["instructor", "studio-announce", "/studio/announcements"],
     ["instructor", "studio-coupons", "/studio/coupons"],
     ["admin", "admin-payments", "/admin/payments"],

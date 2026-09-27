@@ -181,6 +181,32 @@ test.describe("studio exploratory QA", () => {
     await expect.poll(order).toEqual(["Second lesson", "First lesson"]);
   });
 
+  test("instructor replies to a review and the course page shows it", async ({ page }) => {
+    const reply = `Thanks for the review ${STAMP}.`;
+    await signIn(page, SEED.instructor, "/studio/reviews");
+    await expect(page.getByRole("heading", { level: 1, name: "Reviews" })).toBeVisible();
+    const review = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "TypeScript Foundations" }) }).first();
+    const form = review.getByRole("textbox");
+    if ((await form.count()) === 0) {
+      // A reply left by an earlier run: edit it instead.
+      await review.getByRole("button", { name: /edit reply/i }).click();
+    }
+    await review.getByRole("textbox").fill(reply);
+    await review.getByRole("button", { name: /post reply|save reply/i }).click();
+    await expect(review.getByText(reply)).toBeVisible({ timeout: 15_000 });
+
+    await page.goto("/courses/typescript-foundations#reviews");
+    await expect(page.getByText(reply)).toBeVisible();
+    await expect(page.getByText(/response from dana instructor/i).first()).toBeVisible();
+
+    // Leave the seed as it was.
+    await page.goto("/studio/reviews");
+    const again = page.getByRole("listitem").filter({ hasText: reply });
+    await again.getByRole("button", { name: "Delete reply" }).click();
+    await again.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(page.getByText(reply)).toHaveCount(0, { timeout: 15_000 });
+  });
+
   test("instructor cannot create a catalog-wide coupon; course-scoped create works", async ({
     page,
   }) => {
