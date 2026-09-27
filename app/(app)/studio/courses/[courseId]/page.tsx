@@ -17,6 +17,7 @@ import { CourseEditor } from "./course-editor";
 import { CourseImageField } from "./course-image-field";
 import { PromoVideoField } from "./promo-video-field";
 import { PublishForm } from "./publish-form";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 
 export const metadata = { title: "Edit course | Studio" };
 export const dynamic = "force-dynamic";
@@ -30,6 +31,7 @@ export default async function CourseEditorPage({ params, searchParams }: Params)
   const { courseId } = await params;
   const { tab } = await searchParams;
   const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const timeZone = await getViewerTimeZone();
 
   // Returns null for another instructor's course as well as a missing one, so a
   // 404 is the correct response either way — and it doesn't confirm existence.
@@ -85,7 +87,7 @@ export default async function CourseEditorPage({ params, searchParams }: Params)
         status={course.status}
         ready={ready}
         canPublishDirectly={isAdmin}
-        reviewRequestedLabel={course.reviewRequestedAt ? formatDateMedium(course.reviewRequestedAt) : null}
+        reviewRequestedLabel={course.reviewRequestedAt ? formatDateMedium(course.reviewRequestedAt, timeZone) : null}
       />
       {published ? (
         <p className="text-sm text-graphite">Changes you save to a live course show on its page straight away.</p>

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { isTimeZone } from "@/lib/time-zones";
 
 export type AccountState =
   | { status: "idle" }
@@ -118,4 +119,30 @@ export async function revokeOtherSessionsAction(): Promise<AccountState> {
 
   revalidatePath("/account");
   return { status: "done", message: "Signed out of other devices." };
+}
+
+/**
+ * Time zone and notification switches. An empty time zone means "the site's"
+ * (stored as null), so a later change of the site's zone reaches them too.
+ */
+export async function updatePreferencesAction(_prev: AccountState, formData: FormData): Promise<AccountState> {
+  const user = await getCurrentUser();
+  if (!user) return { status: "error", message: "You need to sign in first." };
+
+  const zone = String(formData.get("timezone") ?? "");
+  if (zone && !isTimeZone(zone)) return { status: "error", message: "Pick a time zone from the list." };
+  const on = (name: string) => formData.get(name) === "on";
+
+  await db.user.update({
+    where: { id: user.id },
+    data: {
+      timezone: zone || null,
+      notifyAnnouncements: on("notifyAnnouncements"),
+      emailAnnouncements: on("emailAnnouncements"),
+      notifyQaReplies: on("notifyQaReplies"),
+      notifyReviewReplies: on("notifyReviewReplies"),
+    },
+  });
+  revalidatePath("/", "layout");
+  return { status: "done", message: "Preferences saved." };
 }

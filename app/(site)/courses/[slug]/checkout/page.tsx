@@ -22,6 +22,7 @@ import { availableRails, BKASH_CURRENCY, getBkashMerchantNumber, STRIPE_CURRENCY
 import { requireUser } from "@/lib/session";
 import { siteToday } from "@/lib/site";
 import { startStripeCheckout, submitBkashPayment } from "./actions";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 
 type Params = {
   params: Promise<{ slug: string }>;
@@ -56,6 +57,7 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
   if (!course) notFound();
 
   const user = await requireUser(`/courses/${slug}/checkout`);
+  const timeZone = await getViewerTimeZone();
 
   if (await isEnrolled(user.id, course.id)) {
     return (
@@ -160,7 +162,7 @@ export default async function CheckoutPage({ params, searchParams }: Params) {
             <p className="flex flex-wrap items-center gap-x-1.5">
               You submitted transaction
               {pending.bkashTransactionId ? <Serial value={pending.bkashTransactionId} size="sm" /> : null}
-              on {formatDate(pending.createdAt)}.
+              on {formatDate(pending.createdAt, timeZone)}.
             </p>
             <p>The course opens as soon as the payment is confirmed. You will get a notification.</p>
           </AlertDescription>

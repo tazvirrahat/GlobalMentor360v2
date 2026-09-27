@@ -39,12 +39,28 @@ function asPayload(value: Prisma.JsonValue): NotificationPayload {
   };
 }
 
+/**
+ * Replies can be switched off on the account page. (Announcements have their
+ * own switches, applied where the recipient list is built in lib/announcements;
+ * enrollments, payments and course-review decisions always notify.)
+ */
+async function wantsReply(userId: string, type: NotificationType): Promise<boolean> {
+  if (type !== "qa_reply" && type !== "review_reply") return true;
+  const prefs = await db.user.findUnique({
+    where: { id: userId },
+    select: { notifyQaReplies: true, notifyReviewReplies: true },
+  });
+  if (!prefs) return true;
+  return type === "qa_reply" ? prefs.notifyQaReplies : prefs.notifyReviewReplies;
+}
+
 async function write(
   userId: string,
   type: NotificationType,
   payload: NotificationPayload,
 ): Promise<void> {
   try {
+    if (!(await wantsReply(userId, type))) return;
     await db.notification.create({
       data: {
         userId,

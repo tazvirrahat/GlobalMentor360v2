@@ -7,7 +7,7 @@ function authorInitials(name: string) {
   return parts.map((part) => part[0] ?? "").join("").toUpperCase() || "?";
 }
 
-export function ReviewList({ reviews }: { reviews: CourseReview[] }) {
+export function ReviewList({ reviews, timeZone }: { reviews: CourseReview[]; timeZone?: string }) {
   if (reviews.length === 0) {
     return (
       <p className="text-sm text-graphite">
@@ -31,7 +31,7 @@ export function ReviewList({ reviews }: { reviews: CourseReview[] }) {
             <span className="text-sm font-semibold text-ink">{review.authorName}</span>
             <span className="text-sm text-graphite">
               <time dateTime={review.createdAt.toISOString()}>
-                {formatDateMedium(review.createdAt)}
+                {formatDateMedium(review.createdAt, timeZone)}
               </time>
               {/* An edited review carries a date that is no longer when it was
                   written, and a reader weighing recency deserves to know. */}
@@ -48,7 +48,7 @@ export function ReviewList({ reviews }: { reviews: CourseReview[] }) {
               <p className="text-sm text-graphite">
                 <span className="font-semibold text-ink">Response from {review.response.responderName}</span>
                 {" · "}
-                <time dateTime={review.response.createdAt.toISOString()}>{formatDateMedium(review.response.createdAt)}</time>
+                <time dateTime={review.response.createdAt.toISOString()}>{formatDateMedium(review.response.createdAt, timeZone)}</time>
               </p>
               <p className="whitespace-pre-line text-base text-ink">{review.response.body}</p>
             </div>

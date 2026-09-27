@@ -10,8 +10,11 @@ import type { CourseAnnouncement } from "@/lib/announcements";
  */
 export function AnnouncementsPanel({
   announcements,
+  timeZone,
 }: {
   announcements: CourseAnnouncement[];
+  /** The viewer's (getViewerTimeZone). */
+  timeZone: string;
 }) {
   if (announcements.length === 0) {
     return <p className="text-graphite">No announcements from the instructor yet.</p>;
@@ -29,7 +32,7 @@ export function AnnouncementsPanel({
               <h3 className="text-base font-semibold">{announcement.subject}</h3>
               {announcement.sentAt ? (
                 <time dateTime={announcement.sentAt.toISOString()} className="text-sm text-graphite">
-                  {formatDate(announcement.sentAt)}
+                  {formatDate(announcement.sentAt, timeZone)}
                 </time>
               ) : null}
             </div>

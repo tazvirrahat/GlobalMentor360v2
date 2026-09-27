@@ -8,8 +8,11 @@ import { db } from "@/lib/db";
 import { formatDateMedium, formatDateTime } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 import { describeUserAgent } from "@/lib/user-agent";
-import { ChangeEmailForm, ChangeNameForm, ChangePasswordForm, RevokeOthersForm } from "./account-forms";
+import { getSite } from "@/lib/site";
+import { allTimeZones, COMMON_TIME_ZONES, isTimeZone, timeZoneLabel } from "@/lib/time-zones";
+import { ChangeEmailForm, ChangeNameForm, ChangePasswordForm, PreferencesForm, RevokeOthersForm } from "./account-forms";
 import { revokeSessionAction } from "./actions";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 
 export const metadata = { title: "Account" };
 export const dynamic = "force-dynamic";
@@ -22,6 +25,7 @@ const SECTIONS = [
   { id: "email", label: "Email" },
   { id: "password", label: "Password" },
   { id: "devices", label: "Devices" },
+  { id: "preferences", label: "Preferences" },
 ] as const;
 
 function Section({
@@ -54,7 +58,7 @@ function Section({
 
 type DeviceRowData = { id: string; token: string; ipAddress: string | null; userAgent: string | null; updatedAt: Date };
 
-function DeviceRow({ row, current }: { row: DeviceRowData; current: boolean }) {
+function DeviceRow({ row, current, timeZone }: { row: DeviceRowData; current: boolean; timeZone: string }) {
   const device = describeUserAgent(row.userAgent);
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -67,7 +71,7 @@ function DeviceRow({ row, current }: { row: DeviceRowData; current: boolean }) {
           {current && device !== "Unknown device" ? <span>{device}</span> : null}
           <span className="break-all">{row.ipAddress ?? "IP address unknown"}</span>
           <span>
-            Last active <time dateTime={row.updatedAt.toISOString()}>{formatDateTime(row.updatedAt)}</time>
+            Last active <time dateTime={row.updatedAt.toISOString()}>{formatDateTime(row.updatedAt, timeZone)}</time>
           </span>
         </p>
       </div>
@@ -90,6 +94,7 @@ function DeviceRow({ row, current }: { row: DeviceRowData; current: boolean }) {
  */
 export default async function AccountPage() {
   const user = await requireUser("/account");
+  const timeZone = await getViewerTimeZone();
   const session = await auth.api.getSession({ headers: await headers() });
   const currentToken = session?.session.token;
 
@@ -102,7 +107,17 @@ export default async function AccountPage() {
       select: { id: true, token: true, ipAddress: true, userAgent: true, updatedAt: true },
     }),
     db.session.count({ where: sessionWhere }),
-    db.user.findUnique({ where: { id: user.id }, select: { createdAt: true } }),
+    db.user.findUnique({
+      where: { id: user.id },
+      select: {
+        createdAt: true,
+        timezone: true,
+        notifyAnnouncements: true,
+        emailAnnouncements: true,
+        notifyQaReplies: true,
+        notifyReviewReplies: true,
+      },
+    }),
   ]);
 
   const currentRow = sessions.find((row) => row.token === currentToken);
@@ -117,7 +132,7 @@ export default async function AccountPage() {
           {profile ? (
             <>
               {", member since "}
-              <time dateTime={profile.createdAt.toISOString()}>{formatDateMedium(profile.createdAt)}</time>
+              <time dateTime={profile.createdAt.toISOString()}>{formatDateMedium(profile.createdAt, timeZone)}</time>
             </>
           ) : null}
         </p>
@@ -163,7 +178,7 @@ export default async function AccountPage() {
           >
             <ul className="flex flex-col divide-y divide-rule border-y border-rule">
               {ordered.slice(0, SESSION_PREVIEW).map((row) => (
-                <DeviceRow key={row.id} row={row} current={row.token === currentToken} />
+                <DeviceRow key={row.id} row={row} current={row.token === currentToken} timeZone={timeZone} />
               ))}
             </ul>
             {ordered.length > SESSION_PREVIEW ? (
@@ -173,7 +188,7 @@ export default async function AccountPage() {
                 </summary>
                 <ul className="mt-2 flex flex-col divide-y divide-rule border-y border-rule">
                   {ordered.slice(SESSION_PREVIEW).map((row) => (
-                    <DeviceRow key={row.id} row={row} current={false} />
+                    <DeviceRow key={row.id} row={row} current={false} timeZone={timeZone} />
                   ))}
                 </ul>
               </details>
@@ -185,6 +200,23 @@ export default async function AccountPage() {
             ) : null}
             {sessionTotal > 1 ? <RevokeOthersForm /> : null}
           </Section>
+
+          {profile ? (
+            <Section id="preferences" title="Preferences">
+              <PreferencesForm
+                preferences={{
+                  timezone: profile.timezone && isTimeZone(profile.timezone) ? profile.timezone : null,
+                  notifyAnnouncements: profile.notifyAnnouncements,
+                  emailAnnouncements: profile.emailAnnouncements,
+                  notifyQaReplies: profile.notifyQaReplies,
+                  notifyReviewReplies: profile.notifyReviewReplies,
+                }}
+                siteZoneLabel={timeZoneLabel(getSite().timeZone)}
+                common={COMMON_TIME_ZONES.map((zone) => ({ value: zone, label: timeZoneLabel(zone) }))}
+                all={allTimeZones().map((zone) => ({ value: zone, label: zone.replace(/_/g, " ") }))}
+              />
+            </Section>
+          ) : null}
         </div>
       </div>
     </main>

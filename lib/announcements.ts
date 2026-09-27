@@ -178,7 +178,10 @@ export async function sendAnnouncement(input: {
 
   const recipients = await db.enrollment.findMany({
     where: { courseId: course.id, revokedAt: null },
-    select: { userId: true, user: { select: { email: true, name: true } } },
+    select: {
+      userId: true,
+      user: { select: { email: true, name: true, notifyAnnouncements: true, emailAnnouncements: true } },
+    },
     take: MAX_INLINE_RECIPIENTS + 1,
   });
 
@@ -209,8 +212,9 @@ export async function sendAnnouncement(input: {
     select: { id: true },
   });
 
+  // Each learner's switches from the account page: the bell, and email, separately.
   await notifyMany(
-    recipients.map((row) => row.userId),
+    recipients.filter((row) => row.user.notifyAnnouncements).map((row) => row.userId),
     "announcement",
     {
       title: input.subject,
@@ -222,8 +226,9 @@ export async function sendAnnouncement(input: {
   const base = getSite().url;
   let emailFailures = 0;
 
-  for (let index = 0; index < recipients.length; index += EMAIL_CONCURRENCY) {
-    const batch = recipients.slice(index, index + EMAIL_CONCURRENCY);
+  const emailRecipients = recipients.filter((row) => row.user.emailAnnouncements);
+  for (let index = 0; index < emailRecipients.length; index += EMAIL_CONCURRENCY) {
+    const batch = emailRecipients.slice(index, index + EMAIL_CONCURRENCY);
 
     const settled = await Promise.allSettled(
       batch.map((row) =>

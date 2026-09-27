@@ -22,6 +22,7 @@ import { courseSellabilityWarning } from "@/lib/payments";
 import { requireRole } from "@/lib/session";
 import { listInstructorCourses, STUDIO_COURSE_PAGE_SIZE } from "@/lib/studio";
 import { NewCourseDialog } from "./new-course-dialog";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 
 export const metadata = { title: "Courses | Studio" };
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export const dynamic = "force-dynamic";
 /** The instructor's own courses (spec §6 Studio), newest edit first. */
 export default async function StudioPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const timeZone = await getViewerTimeZone();
   const { page: rawPage } = await searchParams;
   const [{ items: courses, total, page, pageCount }, categories] = await Promise.all([
     listInstructorCourses(user.id, rawPage),
@@ -109,7 +111,7 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums md:table-cell">{course.enrollmentCount}</TableCell>
                     <TableCell className="hidden text-graphite md:table-cell">
-                      <time dateTime={course.updatedAt.toISOString()}>{formatDateMedium(course.updatedAt)}</time>
+                      <time dateTime={course.updatedAt.toISOString()}>{formatDateMedium(course.updatedAt, timeZone)}</time>
                     </TableCell>
                     <TableCell className="hidden text-right md:table-cell">
                       {course.status === "PUBLISHED" ? (
