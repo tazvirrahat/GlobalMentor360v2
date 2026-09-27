@@ -24,6 +24,7 @@ import { EMPTY_QA_PANEL, getCourseQaPanel } from "@/lib/qa";
 import { getCurrentUser, requireUser } from "@/lib/session";
 import { getSite } from "@/lib/site";
 import { isStorageConfigured } from "@/lib/storage";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 import { AnnouncementsPanel } from "../announcements-panel";
 import { CompleteLectureForm } from "../complete-lecture-form";
 import { BookmarkButton, NotesPanel } from "../notes-panel";
@@ -105,6 +106,7 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
   }
 
   const enrolled = Boolean(user && course.enrolled);
+  const timeZone = await getViewerTimeZone();
   const qaPage = first(query.qaPage);
   const videoAsset =
     current.lecture?.contentType === "VIDEO" && current.lecture.asset?.status === "READY" ? current.lecture.asset : null;
@@ -249,6 +251,7 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
           slug={course.slug}
           panel={qaPanel}
           params={qaParams}
+          timeZone={timeZone}
         />
       ),
     });
@@ -273,7 +276,7 @@ export default async function LearnItemPage({ params, searchParams }: Params) {
         value: "announcements",
         label: "Announcements",
         count: announcements.length,
-        panel: <AnnouncementsPanel announcements={announcements} />,
+        panel: <AnnouncementsPanel announcements={announcements} timeZone={timeZone} />,
       });
     }
   }

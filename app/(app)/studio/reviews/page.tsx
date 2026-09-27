@@ -11,6 +11,7 @@ import { INSTRUCTOR_REVIEW_PAGE_SIZE, listInstructorReviews } from "@/lib/review
 import { requireRole } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { ReviewReply } from "./review-reply";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 
 export const metadata = { title: "Reviews | Studio" };
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ type Params = { searchParams: Promise<{ unanswered?: string; page?: string }> };
 /** What learners said about the instructor's courses, with a reply under each. */
 export default async function StudioReviewsPage({ searchParams }: Params) {
   const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const timeZone = await getViewerTimeZone();
   const query = await searchParams;
   const unansweredOnly = query.unanswered === "1";
   const list = await listInstructorReviews(user.id, { unansweredOnly, page: query.page });
@@ -70,7 +72,7 @@ export default async function StudioReviewsPage({ searchParams }: Params) {
                   <StarRating value={review.rating} starClassName="size-3.5" />
                   <span className="text-sm font-semibold text-ink">{review.authorName}</span>
                   <span className="text-sm text-graphite">
-                    <time dateTime={review.createdAt.toISOString()}>{formatDateMedium(review.createdAt)}</time>
+                    <time dateTime={review.createdAt.toISOString()}>{formatDateMedium(review.createdAt, timeZone)}</time>
                   </span>
                   {review.response ? null : <Badge variant="warning">No reply yet</Badge>}
                 </div>
@@ -91,7 +93,7 @@ export default async function StudioReviewsPage({ searchParams }: Params) {
                 <ReviewReply
                   reviewId={review.id}
                   authorName={review.authorName}
-                  reply={review.response ? { body: review.response.body, dateLabel: formatDateMedium(review.response.createdAt) } : null}
+                  reply={review.response ? { body: review.response.body, dateLabel: formatDateMedium(review.response.createdAt, timeZone) } : null}
                 />
               </li>
             ))}

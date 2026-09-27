@@ -22,6 +22,7 @@ import { showingRange } from "@/lib/pagination";
 import { getPlayerLockedItemIds } from "@/lib/progress";
 import { getCourseReviewPanel, REVIEW_PAGE_SIZE } from "@/lib/reviews";
 import { getCurrentUser } from "@/lib/session";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 import { enrollFree } from "./enroll-free-action";
 import { PromoDialog } from "./promo-dialog";
 import { PurchaseBar } from "./purchase-bar";
@@ -425,7 +426,7 @@ export default async function CourseLandingPage({ params, searchParams }: Params
                 goes through with its status, so a hidden review says so. */}
             {enrolled ? <ReviewForm courseId={course.id} existing={ownReview} /> : null}
 
-            <ReviewList reviews={reviews} />
+            <ReviewList reviews={reviews} timeZone={await getViewerTimeZone()} />
 
             {summary.count > REVIEW_PAGE_SIZE ? (
               <p className="text-sm text-graphite">

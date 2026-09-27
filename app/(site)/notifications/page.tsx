@@ -7,15 +7,15 @@ import { formatTimeOfDay, groupByDay } from "@/lib/day-groups";
 import { listNotifications, NOTIFICATION_PAGE_SIZE } from "@/lib/notifications";
 import { showingRange } from "@/lib/pagination";
 import { requireUser } from "@/lib/session";
-import { getSite } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { markAllRead, markOneRead, openNotification } from "./actions";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 
 export const metadata: Metadata = { title: "Notifications" };
 export const dynamic = "force-dynamic";
 
 /**
- * The bell's full list, grouped by the site's calendar day. Unread items carry
+ * The bell's full list, grouped by calendar day in the viewer's time zone. Unread items carry
  * an ink dot (and "Unread" for screen readers); opening one marks it read.
  */
 export default async function NotificationsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
@@ -23,7 +23,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   const { page: rawPage } = await searchParams;
   const { items, unreadCount, page, pageCount, total } = await listNotifications(user.id, rawPage);
   const range = showingRange(page, NOTIFICATION_PAGE_SIZE, total);
-  const { timeZone } = getSite();
+  const timeZone = await getViewerTimeZone();
   const groups = groupByDay(items, new Date(), timeZone);
 
   return (

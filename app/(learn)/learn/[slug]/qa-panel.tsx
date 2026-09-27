@@ -6,7 +6,7 @@ import { earlierRepliesCopy, THREAD_PAGE_SIZE, type QaPanel as QaPanelData, type
 import { AskQuestionForm } from "./ask-question-form";
 import { ReplyForm } from "./reply-form";
 
-function Thread({ thread }: { thread: QaThread }) {
+function Thread({ thread, timeZone }: { thread: QaThread; timeZone: string }) {
   return (
     <li className="flex flex-col gap-3 py-4">
       <div className="flex flex-col gap-1">
@@ -16,7 +16,7 @@ function Thread({ thread }: { thread: QaThread }) {
         </div>
         <p className="flex flex-wrap gap-x-3 text-sm text-graphite">
           <span>{thread.authorName}</span>
-          <time dateTime={thread.createdAt.toISOString()}>{formatDateMedium(thread.createdAt)}</time>
+          <time dateTime={thread.createdAt.toISOString()}>{formatDateMedium(thread.createdAt, timeZone)}</time>
         </p>
       </div>
 
@@ -36,7 +36,7 @@ function Thread({ thread }: { thread: QaThread }) {
                 {/* Attribution of one answer, not the P1 "answered by
                     instructor" thread badge, which sorts and filters the list. */}
                 {reply.isInstructor ? <Badge variant="outline">Instructor</Badge> : null}
-                <time dateTime={reply.createdAt.toISOString()}>{formatDateMedium(reply.createdAt)}</time>
+                <time dateTime={reply.createdAt.toISOString()}>{formatDateMedium(reply.createdAt, timeZone)}</time>
               </p>
               <p className="text-base whitespace-pre-line text-ink">{reply.body}</p>
             </li>
@@ -71,7 +71,9 @@ export function QaPanel({
   slug,
   panel,
   params,
+  timeZone,
 }: {
+  timeZone: string;
   courseId: string;
   curriculumItemId: string;
   lectureTitle: string;
@@ -100,7 +102,7 @@ export function QaPanel({
       ) : (
         <ul className="flex flex-col divide-y divide-rule border-y border-rule">
           {threads.map((thread) => (
-            <Thread key={thread.id} thread={thread} />
+            <Thread key={thread.id} thread={thread} timeZone={timeZone} />
           ))}
         </ul>
       )}

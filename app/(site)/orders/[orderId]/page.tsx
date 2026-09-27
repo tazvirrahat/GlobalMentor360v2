@@ -12,6 +12,7 @@ import { formatDateMedium } from "@/lib/format";
 import { getLearnerOrder } from "@/lib/orders";
 import { requireUser } from "@/lib/session";
 import { getSite } from "@/lib/site";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 
 export const metadata: Metadata = { title: "Receipt" };
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ function Row({ label, children, strong = false }: { label: string; children: Rea
 export default async function ReceiptPage({ params }: Params) {
   const { orderId } = await params;
   const user = await requireUser(`/orders/${orderId}`);
+  const timeZone = await getViewerTimeZone();
 
   // Scoped to this learner inside the lookup, so another learner's order id is
   // a 404 rather than a receipt showing what they paid.
@@ -81,7 +83,7 @@ export default async function ReceiptPage({ params }: Params) {
               <Serial value={order.id} copyLabel="order number" size="sm" />
             </p>
             <p className="text-sm text-graphite">
-              <time dateTime={order.createdAt.toISOString()}>{formatDateMedium(order.createdAt)}</time>
+              <time dateTime={order.createdAt.toISOString()}>{formatDateMedium(order.createdAt, timeZone)}</time>
             </p>
           </div>
           <StatusBadge kind="order" status={order.status} />
@@ -133,7 +135,7 @@ export default async function ReceiptPage({ params }: Params) {
                     <StatusBadge kind="payment" status={payment.status} />
                     {payment.paidAt ? (
                       <time className="text-graphite" dateTime={payment.paidAt.toISOString()}>
-                        Paid {formatDateMedium(payment.paidAt)}
+                        Paid {formatDateMedium(payment.paidAt, timeZone)}
                       </time>
                     ) : null}
                   </p>

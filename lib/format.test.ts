@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDuration, formatHoursMinutes, formatLessonMinutes, formatPrice, formatPriceParts } from "./format";
+import { formatDateMedium, formatDuration, formatHoursMinutes, formatLessonMinutes, formatPrice, formatPriceParts } from "./format";
 
 describe("formatLessonMinutes", () => {
   it("rounds to whole minutes and never says 0", () => {
@@ -47,5 +47,15 @@ describe("formatDuration", () => {
     expect(formatDuration(new Date("2026-09-25T11:15:00Z"), now)).toBe("45 minutes");
     expect(formatDuration(new Date("2026-09-25T09:00:00Z"), now)).toBe("3 hours");
     expect(formatDuration(new Date("2026-09-23T11:00:00Z"), now)).toBe("2 days");
+  });
+});
+
+describe("date time zones", () => {
+  // 20:00 UTC on 24 Sept is already 25 Sept in Dhaka.
+  const late = new Date("2026-09-24T20:00:00Z");
+  it("uses the site's time zone by default, and the one given otherwise", () => {
+    expect(formatDateMedium(late)).toBe(formatDateMedium(late, "Asia/Dhaka"));
+    expect(formatDateMedium(late, "Asia/Dhaka")).toMatch(/^25 /);
+    expect(formatDateMedium(late, "UTC")).toMatch(/^24 /);
   });
 });

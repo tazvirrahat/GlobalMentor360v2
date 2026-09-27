@@ -7,6 +7,8 @@
  * produces.
  */
 
+import { getSite } from "@/lib/site";
+
 const DATE_LOCALE = "en-GB";
 
 function priceFormat(amount: number, currency: string) {
@@ -45,29 +47,28 @@ export function formatHoursMinutes(totalSeconds: number): string {
   return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
 }
 
-export function formatDate(date: Date): string {
-  return date.toLocaleDateString(DATE_LOCALE);
+// Dates render in a named time zone, never the server's: the site's by default
+// (lib/site.ts), or the viewer's where a page passes getViewerTimeZone().
+const siteZone = () => getSite().timeZone;
+
+export function formatDate(date: Date, timeZone: string = siteZone()): string {
+  return date.toLocaleDateString(DATE_LOCALE, { timeZone });
 }
 
-export function formatDateTime(date: Date): string {
-  return date.toLocaleString(DATE_LOCALE);
+export function formatDateTime(date: Date, timeZone: string = siteZone()): string {
+  return date.toLocaleString(DATE_LOCALE, { timeZone });
 }
 
-const DATE_MEDIUM = new Intl.DateTimeFormat(DATE_LOCALE, {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
-
-export function formatDateMedium(date: Date): string {
-  return DATE_MEDIUM.format(date);
+export function formatDateMedium(date: Date, timeZone: string = siteZone()): string {
+  return new Intl.DateTimeFormat(DATE_LOCALE, { day: "numeric", month: "short", year: "numeric", timeZone }).format(date);
 }
 
-export function formatDateLong(date: Date): string {
+export function formatDateLong(date: Date, timeZone: string = siteZone()): string {
   return date.toLocaleDateString(DATE_LOCALE, {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone,
   });
 }
 

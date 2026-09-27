@@ -8,6 +8,7 @@ import { formatDateMedium } from "@/lib/format";
 import { listLearnerOrders, ORDER_PAGE_SIZE } from "@/lib/orders";
 import { showingRange } from "@/lib/pagination";
 import { requireUser } from "@/lib/session";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 
 export const metadata: Metadata = { title: "Orders" };
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 /** Every order this learner placed, newest first, with its status in the colour it means. */
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const user = await requireUser("/orders");
+  const timeZone = await getViewerTimeZone();
   const { page: rawPage } = await searchParams;
   const { items: orders, page, pageCount, total } = await listLearnerOrders(user.id, rawPage);
   const range = showingRange(page, ORDER_PAGE_SIZE, total);
@@ -72,7 +74,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                     {order.items.map((item) => item.courseTitle).join(", ") || "Order"}
                   </td>
                   <td className="py-3 pr-4 text-graphite">
-                    <time dateTime={order.createdAt.toISOString()}>{formatDateMedium(order.createdAt)}</time>
+                    <time dateTime={order.createdAt.toISOString()}>{formatDateMedium(order.createdAt, timeZone)}</time>
                   </td>
                   <td className="py-3 pr-4 text-right">
                     <Price amount={order.total} currency={order.currency} className="font-semibold" />
@@ -102,7 +104,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                   <Price amount={order.total} currency={order.currency} className="font-semibold" />
                   <StatusBadge kind="order" status={order.status} />
                   <time className="text-graphite" dateTime={order.createdAt.toISOString()}>
-                    {formatDateMedium(order.createdAt)}
+                    {formatDateMedium(order.createdAt, timeZone)}
                   </time>
                 </div>
                 <Link

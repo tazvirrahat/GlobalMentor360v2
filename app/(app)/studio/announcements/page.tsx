@@ -13,6 +13,7 @@ import { formatDateMedium } from "@/lib/format";
 import { showingRange } from "@/lib/pagination";
 import { requireRole } from "@/lib/session";
 import { Composer } from "./composer";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 
 export const metadata: Metadata = { title: "Announcements | Studio" };
 
@@ -24,6 +25,7 @@ export default async function AnnouncementsPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const timeZone = await getViewerTimeZone();
   const { page: rawPage } = await searchParams;
   const [courses, sentPage] = await Promise.all([
     listAnnouncableCourses(user.id),
@@ -67,7 +69,7 @@ export default async function AnnouncementsPage({
                         <span>{announcement.course.title}</span>
                         {announcement.sentAt ? (
                           <time dateTime={announcement.sentAt.toISOString()}>
-                            Sent {formatDateMedium(announcement.sentAt)}
+                            Sent {formatDateMedium(announcement.sentAt, timeZone)}
                           </time>
                         ) : (
                           <span>Not sent</span>

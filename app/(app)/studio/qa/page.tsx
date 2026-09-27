@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { InboxReplyForm } from "./inbox-reply-form";
 import { ListFooter } from "@/components/app/list-footer";
 import { PageHeader } from "@/components/app/page-header";
+import { getViewerTimeZone } from "@/lib/viewer-time";
 
 export const metadata: Metadata = { title: "Q&A | Studio" };
 export const dynamic = "force-dynamic";
@@ -59,6 +60,7 @@ function buildHref(
 
 export default async function StudioQaPage({ searchParams }: Params) {
   const user = await requireRole("INSTRUCTOR", "ADMIN");
+  const timeZone = await getViewerTimeZone();
   const query = await searchParams;
 
   const unansweredOnly = query.unanswered === "1";
@@ -199,7 +201,7 @@ export default async function StudioQaPage({ searchParams }: Params) {
                       <span>{thread.courseTitle}</span>
                       <span>{thread.lectureTitle ?? "About the whole course"}</span>
                       <span>
-                        <time dateTime={thread.createdAt.toISOString()}>{formatDateMedium(thread.createdAt)}</time>
+                        <time dateTime={thread.createdAt.toISOString()}>{formatDateMedium(thread.createdAt, timeZone)}</time>
                       </span>
                       <span>
                         {thread.replyCount} {thread.replyCount === 1 ? "reply" : "replies"}

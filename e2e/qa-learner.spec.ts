@@ -177,6 +177,26 @@ test.describe("learner QA — public catalog", () => {
 });
 
 test.describe("learner QA — session and library", () => {
+  test("account preferences save a time zone and notification switches", async ({ page }) => {
+    await signIn(page, SEED.learner, "/account#preferences");
+    const zone = page.getByLabel("Time zone");
+    const replies = page.getByRole("checkbox", { name: "Replies to my questions" });
+    await zone.selectOption("Europe/London");
+    await replies.uncheck();
+    await page.getByRole("button", { name: "Save preferences" }).click();
+    await expect(page.getByText("Preferences saved.")).toBeVisible({ timeout: 15_000 });
+
+    await page.reload();
+    await expect(zone).toHaveValue("Europe/London");
+    await expect(replies).not.toBeChecked();
+
+    // Put the seed back.
+    await zone.selectOption("");
+    await replies.check();
+    await page.getByRole("button", { name: "Save preferences" }).click();
+    await expect(page.getByText("Preferences saved.")).toBeVisible({ timeout: 15_000 });
+  });
+
   test("sign-in reaches My Learning with the seeded enrollment", async ({ page }) => {
     const diag = attachDiagnostics(page);
     await signIn(page, SEED.learner, "/dashboard");
