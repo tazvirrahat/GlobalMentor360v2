@@ -36,21 +36,21 @@
 
 ### Task 1: Suspend and grant
 
-- [ ] `setUserStatus(actorId, userId, "ACTIVE" | "SUSPENDED")`: not yourself, not the last active admin; deletes sessions on suspend; audit.
-- [ ] `session.create.before` hook throws `APIError("FORBIDDEN")` with the suspended message for a non-ACTIVE user.
-- [ ] `grantCourse(actorId, userId, courseId)`: published course, no active enrollment, `grantEnrollment(..., "GRANT")`, audit.
-- [ ] `/admin/users/[userId]`: overview, roles, status with Suspend (asks first) / Unsuspend, enrollments (course, source, date), "Give a course" form.
-- [ ] Integration tests; e2e: admin suspends a fresh account, it cannot sign in and sees why; unsuspend; grant a course and the learner sees it in My learning.
-- [ ] Commit `Let admins suspend accounts and give courses`.
+- [x] `setUserStatus(actorId, userId, "ACTIVE" | "SUSPENDED")`: not yourself, not the last active admin; deletes sessions on suspend; audit.
+- [x] `session.create.before` hook throws `APIError("FORBIDDEN")` with the suspended message for a non-ACTIVE user.
+- [x] `grantCourse(actorId, userId, courseId)`: published course, no active enrollment, `grantEnrollment(..., "GRANT")`, audit.
+- [x] `/admin/users/[userId]`: overview, roles, status with Suspend (asks first) / Unsuspend, enrollments (course, source, date), "Give a course" form.
+- [x] Integration tests; e2e: admin suspends a fresh account, it cannot sign in and sees why; unsuspend; grant a course and the learner sees it in My learning.
+- [x] Commit `Let admins suspend accounts and give courses`.
 
 ### Task 2: Feature on the home page
 
-- [ ] Migration; `setCourseFeatured(actorId, courseId, featured)`; admin course page toggle.
-- [ ] `listHomeCourses(limit)`: featured published first, then popular, no duplicates.
-- [ ] Integration test for the order; e2e: feature a course and it leads the home list.
-- [ ] Commit `Let admins feature courses on the home page`.
+- [x] Migration; `setCourseFeatured(actorId, courseId, featured)`; admin course page toggle.
+- [x] `listHomeCourses(limit)`: featured published first, then popular, no duplicates.
+- [x] Integration test for the order; e2e: feature a course and it leads the home list.
+- [x] Commit `Let admins feature courses on the home page`.
 
 ### Task 3: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary (the user page added to the audit).
-- [ ] Progress log row; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary (the user page added to the audit).
+- [x] Progress log row; commit; push.
