@@ -36,21 +36,21 @@
 
 ### Task 1: The grant and the block
 
-- [ ] Cookie helpers with unit tests (round trip, tampering, expiry).
-- [ ] `startViewAs` / `stopViewAs` / `resolveViewAs` with the guards and audit rows; integration tests.
-- [ ] `getCurrentUser` honours a valid grant.
-- [ ] `proxy.ts` blocks writes while a grant is live; allows stop and sign-out.
-- [ ] Playback over GET routes; the player uses them.
-- [ ] Commit `Let admins view the site as a learner, read-only`.
+- [x] Cookie helpers with unit tests (round trip, tampering, expiry).
+- [x] `startViewAs` / `stopViewAs` / `resolveViewAs` with the guards and audit rows; integration tests.
+- [x] `getCurrentUser` honours a valid grant.
+- [x] `proxy.ts` blocks writes while a grant is live; allows stop and sign-out.
+- [x] Playback over GET routes; the player uses them.
+- [x] Commit `Let admins view the site as a learner, read-only`.
 
 ### Task 2: The admin control and the banner
 
-- [ ] Admin user page: "View as {name}" (hidden for admins, yourself, suspended accounts), with a line saying what it does.
-- [ ] Stop route; banner in the root layout.
-- [ ] e2e: admin views as the seed learner, sees their My learning, an attempted write is refused, Stop returns to the admin user page, and the audit rows exist.
-- [ ] Commit `Show who you are viewing as, with a way out`.
+- [x] Admin user page: "View as {name}" (hidden for admins, yourself, suspended accounts), with a line saying what it does.
+- [x] Stop route; banner in the root layout.
+- [x] e2e: admin views as the seed learner, sees their My learning, an attempted write is refused, Stop returns to the admin user page, and the audit rows exist.
+- [x] Commit `Show who you are viewing as, with a way out`.
 
 ### Task 3: Checks
 
-- [ ] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
-- [ ] Progress log row; `docs/PRODUCT-STATUS.md`; commit; push.
+- [x] lint, typecheck, unit, `db:test:prepare --fresh`, SQL suites, flows, e2e, build, `ui-audit` + summary.
+- [x] Progress log row; `docs/PRODUCT-STATUS.md`; commit; push.
