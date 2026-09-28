@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export type PlayerTabSpec = { value: PlayerTab; label: string; count?: number; panel: ReactNode };
 
 /**
- * Overview, Q&A, Notes and Announcements under the lesson (spec §5). Radix
+ * Overview, Q&A, Notes and Announcements under the lesson. Radix
  * gives the ARIA tabs pattern (arrow keys, Home/End); only the selected panel
  * is mounted; the choice is mirrored into ?tab= with history.replaceState, so
  * it deep-links and survives a reload without a server round trip.

@@ -1,6 +1,6 @@
 /**
  * One place that says what each status is called and which colour it wears.
- * Colours mean one thing each (spec §4): verified = done or paid, caution =
+ * Colours mean one thing each: verified = done or paid, caution =
  * pending or needs action, seal = failed or rejected, neutral = everything
  * that is simply over (refunded, unpublished).
  */

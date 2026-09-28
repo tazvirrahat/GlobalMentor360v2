@@ -2,8 +2,7 @@
 @import "tw-animate-css";
 
 /*
- * GlobalMentor360 tokens. Source of truth:
- * docs/superpowers/specs/2026-09-25-ui-ux-overhaul-design.md §4.
+ * GlobalMentor360 design tokens.
  * lib/design-tokens.test.ts proves the contrast of every pairing and fails if
  * a palette value here drifts.
  *

@@ -1,5 +1,5 @@
 /**
- * The palette from docs/superpowers/specs/2026-09-25-ui-ux-overhaul-design.md §4.
+ * The product palette.
  * app/globals.css is the runtime source; this module exists so the contrast of
  * every pairing the UI uses is proven by a test, and so globals.css cannot drift.
  */

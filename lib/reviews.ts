@@ -64,8 +64,7 @@ export type RatingSummary = {
 };
 
 /**
- * Recency weighting for ranking (spec §12 "recency weighting in the
- * aggregate"). A review's weight halves every RATING_HALF_LIFE_DAYS, counted
+ * Recency weighting for ranking. A review's weight halves every RATING_HALF_LIFE_DAYS, counted
  * from its last edit, and Course.ratingScore = Σ wᵢ·rᵢ / Σ wᵢ over visible
  * reviews. "Highest rated" sorts by that score, so a course whose recent
  * learners are happier climbs and one coasting on old praise slips.

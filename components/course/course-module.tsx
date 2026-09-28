@@ -43,7 +43,7 @@ type CompactProps = {
 };
 
 /**
- * A course's lessons, the same way everywhere (spec §7): done rows get the
+ * A course's lessons, the same way everywhere: done rows get the
  * verified tick, the learner's current lesson sits on the highlighter band (the
  * only use of --mark), locked rows are graphite with a lock, and a quiz that
  * gates the next lessons says so.

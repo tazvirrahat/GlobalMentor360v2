@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * An empty list: what is missing and what to do next. A plain panel — no icon
- * in a tinted disc (spec §4 bans that look).
+ * in a tinted disc.
  */
 export function EmptyState({
   title,

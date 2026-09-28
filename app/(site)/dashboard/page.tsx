@@ -90,7 +90,7 @@ function Empty({ title, message }: { title: string; message: string }) {
 }
 
 /**
- * My learning (spec §6): where you left off, anything waiting on payment, then
+ * My learning: where you left off, anything waiting on payment, then
  * your courses in tabs that open on the first non-empty one. Account, orders
  * and sign-out live in the account menu, not here.
  */

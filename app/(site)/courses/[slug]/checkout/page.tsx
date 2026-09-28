@@ -44,7 +44,7 @@ function Shell({ title, subtitle, children }: { title: string; subtitle?: string
 }
 
 /**
- * Buying one course (spec §6): the bKash sequence (review, pay, submit the
+ * Buying one course: the bKash sequence (review, pay, submit the
  * transaction ID) and, when card payments are configured and the course has a
  * USD price, Stripe as a second option. The learner's name and email are never
  * asked for: they are known (WCAG 3.3.7).

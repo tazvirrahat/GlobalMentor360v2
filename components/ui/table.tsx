@@ -3,7 +3,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * The one table style (spec §5 app shell): fixed columns so rows line up
+ * The one table style: fixed columns so rows line up
  * whatever their content, a header that stays in view on desktop, a `wash`
  * row hover. Phones scroll the table sideways inside its container; from lg
  * the container stops clipping so the sticky header can follow the page.

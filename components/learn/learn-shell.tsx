@@ -21,7 +21,7 @@ export type LearnShellProps = {
 };
 
 /**
- * Focus mode for the player (spec §5): its own top bar, the curriculum as a
+ * Focus mode for the player: its own top bar, the curriculum as a
  * rail on desktop and a sheet on phones, and the lesson first. No site header
  * or footer.
  */

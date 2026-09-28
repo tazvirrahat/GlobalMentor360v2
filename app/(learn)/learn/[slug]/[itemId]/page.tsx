@@ -74,7 +74,7 @@ function Article({ body }: { body: string }) {
 }
 
 /**
- * The player (spec §5): the lesson first, one row of actions under it, then
+ * The player: the lesson first, one row of actions under it, then
  * Overview / Q&A / Notes / Announcements as tabs. The shell (top bar, rail,
  * contents sheet) is LearnShell.
  */

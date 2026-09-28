@@ -27,7 +27,7 @@ import { getViewerTimeZone } from "@/lib/viewer-time";
 export const metadata = { title: "Courses | Studio" };
 export const dynamic = "force-dynamic";
 
-/** The instructor's own courses (spec §6 Studio), newest edit first. */
+/** The instructor's own courses, newest edit first. */
 export default async function StudioPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const user = await requireRole("INSTRUCTOR", "ADMIN");
   const timeZone = await getViewerTimeZone();

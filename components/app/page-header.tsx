@@ -5,7 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * The top of every studio and admin page (spec §5 app shell): an optional back
+ * The top of every studio and admin page: an optional back
  * link, the page's h1 with its status beside it, one line of description, and
  * the page's actions on the right — one primary at most.
  */

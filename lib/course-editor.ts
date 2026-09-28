@@ -1,5 +1,5 @@
 /**
- * The course editor's tabs (spec §6 Studio). Details, Landing page and Pricing
+ * The course editor's tabs. Details, Landing page and Pricing
  * share one form and one Save; Publish has its own action. Curriculum and
  * Analytics are separate routes shown in the same nav.
  */

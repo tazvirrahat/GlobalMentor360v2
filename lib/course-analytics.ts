@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getSite } from "@/lib/site";
 
 /**
- * One course's numbers for its instructor (spec §12 item 4), read from the
+ * One course's numbers for its instructor, read from the
  * tables that hold the facts: enrollments, course_progress, reviews and
  * item_progress. analytics_events is not used here: it records only a few
  * event names so far, and recordEvent drops a write rather than fail the

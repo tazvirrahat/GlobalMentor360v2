@@ -74,7 +74,7 @@ function amountText(prices: EditableCourse["prices"], currency: string) {
 }
 
 /**
- * The course editor (spec §6 Studio). Details, Landing page and Pricing are one
+ * The course editor. Details, Landing page and Pricing are one
  * form with one Save — the panels stay mounted when hidden, so switching tabs
  * never loses an edit — and Publish is its own panel with its own action.
  * The tab lives in `?tab=`, updated with replaceState.

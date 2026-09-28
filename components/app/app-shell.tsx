@@ -17,7 +17,7 @@ type Props = {
 };
 
 /**
- * Studio and admin (spec §5): a 240px sidebar on desktop; below lg a slim top
+ * Studio and admin: a 240px sidebar on desktop; below lg a slim top
  * bar whose Menu opens the same sidebar as a sheet. No marketing footer.
  */
 export function AppShell({ children, ...sidebar }: Props) {

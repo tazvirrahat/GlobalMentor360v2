@@ -64,7 +64,7 @@ function BkashProof({ payment }: { payment: QueueRow }) {
 
 /**
  * bKash payments waiting for a person to match them against the bKash account
- * (spec §6 Admin): oldest first, one row each, Approve or Reject.
+ *: oldest first, one row each, Approve or Reject.
  */
 export default async function AdminPaymentsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   // Redirects non-admins. bKash approval is the one action that turns money into

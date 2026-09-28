@@ -9,7 +9,7 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        // Colour carries meaning (spec section 4): verified = done or paid, caution = pending,
+        // Colour carries meaning: verified = done or paid, caution = pending,
         // seal = failed or destructive, mark = "you are here". Everything else is neutral.
         default: "bg-wash text-ink",
         secondary: "bg-wash text-ink",

@@ -1,136 +1,141 @@
 # GlobalMentor360
 
-A **single-organization online academy** — we own all content. No third-party
-instructors, no revenue share, no marketplace mechanics. Mentorship features
-(1:1 booking, live sessions, cohorts) are planned for a later phase.
+An online learning platform for Bangladesh. Learners browse courses, pay in taka
+with bKash (or by card through Stripe), watch video and article lessons, pass
+section quizzes, and receive a certificate that anyone can verify online.
+Instructors build courses in a studio; admins approve payments and manage the
+catalog.
 
-## Status
+## Features
 
-The buy → watch → complete spine works end to end. Human-facing status (what
-you can click today, what still needs a domain/email/Stripe) is
-[docs/PRODUCT-STATUS.md](docs/PRODUCT-STATUS.md). Several P0 features from
-[docs/FEATURES.md](docs/FEATURES.md) are not built yet — that catalog is the
-wishlist, not the running app.
+**Learners**
+- Course catalog with full-text search, filters (subject, level, price, rating, language, duration) and sorting
+- Course pages with curriculum, free preview lessons, FAQ, instructor profile and reviews
+- Cart, coupons, bKash checkout (transaction ID verified by an admin) and Stripe card checkout
+- Lesson player: HLS video with captions, transcripts and quality selection, article lessons, notes, Q&A and announcements
+- Lessons unlock in order; each section can end with a quiz
+- Progress tracking, "My learning" dashboard, orders and printable receipts
+- Certificates with a public verification page and PDF download
+- Account settings, sessions, notification preferences
 
-| Area | Status |
+**Instructors**
+- Course editor: details, landing page, pricing, thumbnail and promo video
+- Curriculum builder with drag-and-drop (and keyboard) reordering
+- Video upload (resumable) with automatic transcoding, lesson files and links, quiz builder
+- Q&A inbox, announcements, coupons, review replies, course analytics
+- Public instructor profile
+
+**Admins**
+- Payment verification queue (approve / reject bKash payments)
+- Refunds, users (suspend, grant access, read-only "view as"), courses (review, feature)
+- Categories and topics, video processing status, review moderation
+
+## Tech stack
+
+| Area | Technology |
 |---|---|
-| Auth (Better Auth: email/password, required email verification, password reset, roles) | Working |
-| Catalog + search | Working — Postgres full-text (+ trigram/ILIKE fallback), filters (level, category, price, rating, language) and sort |
-| Course landing with Buy / Enrol free | Working — links free-preview lectures |
-| bKash manual checkout + admin verification | Working — learner submits a trx ID; `/admin/payments` is Approve/Reject of **that** proof, not a student/course picker. Set `BKASH_MERCHANT_NUMBER` so checkout can show where to send money |
-| Stripe Checkout (automatic rail) | Working when credentials are set |
-| Authoring studio: course, curriculum, video upload | Working |
-| Authoring studio: quiz builder, article body, per-answer explanations | Working |
-| Authoring studio: landing-page editor | Partial — objectives, requirements, audience editable in settings; thumbnail upload **not built** |
-| AWS video upload / MediaConvert / CloudFront | Provider wired; needs rotated AWS keys |
-| Course player + quiz-gated unlock | Working |
-| Progress + certificates | Working — public verify page + on-the-fly PDF at `/certificates/[serial]/pdf` (`pdfKey` unused) |
-| My Learning dashboard | Working |
-| Course reviews + rating aggregation + histogram | Working — recency weighting deferred |
-| Course Q&A (threaded, per lecture and per course) | Working |
-| Instructor Q&A inbox | Working |
-| Course announcements + email | Working — capped at 500 recipients until a queue exists |
-| Order history + receipts | Working |
-| Cart, multi-item checkout | Working — `/cart` mixes free + paid; paid checks out via bKash (or a 100% coupon) |
-| Admin | Working — payments queue, refunds, users (roles), courses (publish), reviews (hide/restore); no taxonomy editor |
-| Coupons | Working — studio (course-scoped) + admin (site-wide), applied at bKash checkout |
-| Product event pipeline | Working — events recorded; no dashboard yet |
-| Engagement + revenue dashboards | **Not built** |
+| Framework | [Next.js 16](https://nextjs.org) (App Router), React 19, TypeScript |
+| Styling | Tailwind CSS 4, Radix UI components |
+| Database | PostgreSQL 16 with [Prisma 7](https://www.prisma.io) |
+| Authentication | [Better Auth](https://www.better-auth.com) (email and password, email verification, roles) |
+| Video | AWS S3, MediaConvert (HLS), CloudFront signed URLs, SQS |
+| Email | Amazon SES |
+| Payments | bKash (manual verification), Stripe Checkout |
+| Testing | Vitest (unit and integration), Playwright (end-to-end), axe-core (accessibility) |
 
-Prices display bKash-first: when a course has a BDT price, that is the price the
-catalog, landing and course pages show (Stripe hides itself without keys, so the
-USD price led learners to a checkout that couldn't take it).
+## Project structure
 
-## Stack
-
-- **Next.js 16** (App Router) + React 19 + TypeScript — APIs in `app/api/`; there is no Express server
-- **Postgres 16** via Prisma 7
-- **Better Auth** (open source, self-hosted — no Supabase)
-- **Tailwind CSS v4** + shadcn/ui
-- **Payments:** Stripe (automatic) + bKash manual admin-verify
-- **Video:** AWS S3 → MediaConvert → CloudFront signed URLs
+```
+app/
+  (site)/          Public pages and learner account: home, catalog, course, cart, checkout, dashboard
+  (learn)/         Lesson player
+  (app)/studio/    Instructor studio
+  (app)/admin/     Admin console
+  api/             Route handlers: auth, webhooks (Stripe, video), captions, uploads
+components/
+  ui/              Base components (buttons, inputs, dialogs, tabs, tables)
+  course/          Course cards, curriculum, certificate, prices
+  site/            Header, footer, navigation, shared page pieces
+lib/               Domain logic: courses, enrollment, progress, payments, reviews, email, video
+prisma/            Schema, migrations, seed data and SQL constraint tests
+tests/integration/ Database-backed integration tests
+e2e/               Playwright end-to-end tests
+scripts/           Maintenance and verification scripts, UI accessibility audit
+docs/              Technical specification and product documentation
+```
 
 ## Getting started
 
+### Prerequisites
+
+- Node.js 20 or newer
+- Docker (for the local PostgreSQL database), or any PostgreSQL 16 server
+
+### Setup
+
 ```bash
+# 1. Install dependencies
 npm install
-cp .env.example .env
-# fill BETTER_AUTH_SECRET (npx @better-auth/cli secret)
+
+# 2. Start PostgreSQL
 docker compose up -d
-npm run db:generate && npm run db:migrate && npm run db:seed
+
+# 3. Create your environment file and fill in the values
+cp .env.example .env
+
+# 4. Create the database tables
+npm run db:migrate
+
+# 5. Load sample courses and accounts
+npm run db:seed
+
+# 6. Start the development server
 npm run dev
 ```
 
-Use `npm run db:migrate`, not `npm run db:push`. `db:push` makes the database
-match `schema.prisma` and **drops** `courses.search_vector` (a generated
-tsvector plus GIN indexes that exist only in SQL migrations). Catalog
-full-text search breaks until you re-apply that migration.
+Open http://localhost:3000.
 
-Seed accounts — identify them by **email** (re-seed does not rename an existing
-`User.name`; do not rename those rows). Password for all three:
-`dev-password-12345`.
+AWS, Stripe and bKash settings are optional for local development. Without an
+email sender configured, emails are printed to the terminal.
 
-| Email | Roles |
+### Sample accounts
+
+After seeding, all accounts use the password `dev-password-12345`:
+
+| Email | Role |
 |---|---|
-| `learner@example.com` | learner (enrolled in the sample course) |
-| `instructor@example.com` | learner, instructor |
-| `admin@example.com` | learner, admin |
+| `learner@example.com` | Learner (one course completed, one in progress) |
+| `instructor@example.com` | Instructor |
+| `admin@example.com` | Admin |
 
-| Command | Does |
+## Scripts
+
+| Command | Description |
 |---|---|
-| `npm run dev` | Dev server on :3000 |
-| `npm run build` | Production build |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run lint` | ESLint |
-| `npm run test` | Vitest unit suite — needs no database |
-| `npm run test:db` | Every database-backed suite (needs Postgres) |
-| `npm run test:db:flows` | Integration tests: payment rails, authoring, Q&A, reviews, orders |
-| `npm run test:e2e` | Playwright critical path (needs `npm run dev`) |
-| `npm run db:migrate` | Apply migrations (`db:push` drops `search_vector` — don't) |
-| `npm run db:seed` | Taxonomy, staff/learner accounts, sample course |
-| `npm run db:studio` | Browse the database |
+| `npm run dev` | Start the development server |
+| `npm run build` / `npm start` | Production build and server |
+| `npm run lint` / `npm run typecheck` | ESLint and TypeScript checks |
+| `npm test` | Unit tests |
+| `npm run db:test:prepare` | Create and seed the separate test database |
+| `npm run test:db` | Database constraint and integration tests |
+| `npm run test:e2e` | End-to-end tests (Playwright) |
+| `npm run ui-audit` | Accessibility and layout audit of every page |
+| `npm run db:migrate` | Apply database migrations |
+| `npm run db:seed` | Load sample data |
 
-### Stripe (local)
+Tests run against a separate `globalmentor360_test` database and never touch
+development data.
 
-```bash
-stripe listen --forward-to localhost:3000/api/webhooks/stripe
-```
+## Deployment
 
-Put the webhook signing secret into `STRIPE_WEBHOOK_SECRET` and a test secret key
-into `STRIPE_SECRET_KEY`. Without them the card rail hides itself at checkout.
-
-### Email (AWS SES)
-
-The AWS account is in the **SES sandbox** (production sending access was
-denied): only verified identities/recipients can receive mail. Leave
-`EMAIL_FROM` empty locally and read verification links from the **dev server
-console**. Production refuses that fallback, so real sign-ups need working
-mail.
-
-### AWS video
-
-Reuse the existing `globalmentor360-mumbai` bucket / MediaConvert role /
-CloudFront distribution in `ap-south-1` (identifiers are in `.env.example`).
-**Rotate the access keys and CloudFront key pair first** — the previous
-prototype committed them to git history. P0 content protection is CloudFront
-signed URLs; DRM is deferred.
-
-Studio “Check status” and opening the curriculum list drain MediaConvert
-COMPLETE/ERROR from SQS. `POST /api/video/webhook` is implemented but **waits
-for a public HTTPS domain** — AWS cannot reach localhost. Do not create an
-EventBridge Connection until that origin exists (it stores the secret in
-Secrets Manager even if unused).
+The app runs as a Node.js server (`npm run build` then `npm start`) with a
+PostgreSQL database. On a production server, apply migrations with
+`npx prisma migrate deploy`. Environment variables are listed in
+`.env.example`. Video, email and payments require AWS, SES, Stripe and bKash
+credentials, and the Stripe and video webhooks need a public HTTPS domain.
 
 ## Documentation
 
-| Document | Contents |
-|---|---|
-| [docs/PRODUCT-STATUS.md](docs/PRODUCT-STATUS.md) | What is actually in the running app |
-| [docs/FEATURES.md](docs/FEATURES.md) | Feature catalog, phases P0–P3 |
-| [docs/TECH-SPEC.md](docs/TECH-SPEC.md) | Data model, invariants, stack, verification |
-| [docs/PRIOR-ART.md](docs/PRIOR-ART.md) | Lessons from the old prototype |
-
-## Commercial model
-
-Per-course purchase — buy once, keep forever. Free preview lectures and
-price-0 courses are supported. Subscriptions are out of scope.
+- [Technical specification](docs/TECH-SPEC.md)
+- [Feature catalog](docs/FEATURES.md)
+- [Product status](docs/PRODUCT-STATUS.md)

@@ -1,7 +1,7 @@
 import { PageNav } from "@/components/site/page-nav";
 
 /**
- * Under a table, never above it (spec §5): where you are in the list, then the
+ * Under a table, never above it: where you are in the list, then the
  * pager. Renders nothing for a list that fits on one page.
  */
 export function ListFooter({

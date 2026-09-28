@@ -34,7 +34,7 @@ function CourseHeading({ level, className, children }: { level: HeadingLevel; cl
 }
 
 /**
- * The certificate: the one special object (spec §4). The only thing with a hard
+ * The certificate: the one special object. The only thing with a hard
  * edge and a solid offset shadow, the only place bottle green is a surface, the
  * only place the red seal appears. `full` on its own page, `card` as a sample
  * on the home page and at the moment a course is completed.

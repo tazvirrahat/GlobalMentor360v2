@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export const dynamic = "force-dynamic";
 
 /**
- * The certificate's permanent public record (spec §6): the certificate itself,
+ * The certificate's permanent public record: the certificate itself,
  * the ways to share it, and in plain words what it proves. An unknown number
  * is a real 404 (same as /pdf); the UI for that is ../not-found.tsx.
  */

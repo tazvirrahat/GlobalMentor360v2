@@ -3,7 +3,7 @@ import { slugify } from "@/lib/studio";
 import { COURSE_TAG_MAX, TAXONOMY_NAME_MAX } from "@/lib/taxonomy-rules";
 
 /**
- * The catalog's taxonomy, edited by admins (spec §12 item 5): categories (a
+ * The catalog's taxonomy, edited by admins: categories (a
  * subject and its subcategories, two levels), topics and skills. Every write
  * is audited. Slugs come from the name once and stay put on rename, so links
  * keep working. A category that still holds courses or subcategories cannot

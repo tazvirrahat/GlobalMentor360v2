@@ -4,7 +4,7 @@ import { LECTURE_FILE_PROVIDER } from "@/lib/lecture-files";
 import { drainMediaConvertEventQueue, video, VideoProviderError } from "@/lib/video";
 
 /**
- * The video pipeline as staff see it (spec §12 item 6): how many assets sit in
+ * The video pipeline as staff see it: how many assets sit in
  * each state, which ones need a person, and the two things a person can do —
  * check an asset against the provider, or retry a failed transcode. Also the
  * reconcile the studio's "Check status" runs for an instructor's own lecture.

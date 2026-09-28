@@ -78,7 +78,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 const LINK = "rounded-sm underline decoration-control underline-offset-4 hover:decoration-ink focus-ring";
 
 /**
- * The course landing page (spec §6): what the course is, what it costs and how
+ * The course landing page: what the course is, what it costs and how
  * to get it, what is in it, and what learners said.
  */
 export default async function CourseLandingPage({ params, searchParams }: Params) {

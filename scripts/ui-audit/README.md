@@ -1,7 +1,6 @@
 # UI audit
 
-Checks the running app against the accessibility and layout bar in
-`docs/superpowers/specs/2026-09-25-ui-ux-overhaul-design.md` §8 and §11.
+Checks the running app against the project's WCAG 2.2 AA accessibility and layout bar.
 
 Needs the dev server on `http://localhost:3000` (override with `BASE=`) and a seeded
 database (`npm run db:seed`). Signs in as the three seed accounts through the auth API.

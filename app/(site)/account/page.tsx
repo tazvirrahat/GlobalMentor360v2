@@ -88,7 +88,7 @@ function DeviceRow({ row, current, timeZone }: { row: DeviceRowData; current: bo
 }
 
 /**
- * Account (spec §6): profile, email, password and signed-in devices, each
+ * Account: profile, email, password and signed-in devices, each
  * saving on its own with an inline confirmation. Links to My learning and
  * Orders live in the account menu, not here.
  */

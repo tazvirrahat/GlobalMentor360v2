@@ -56,7 +56,7 @@ globalmentor360/
 # one-off workspace move script — never commit
 finish-move.ps1
 
-# claude worktrees
+# local editor and tool folders
 .claude/
 
 .cursor
@@ -70,3 +70,8 @@ design-review/
 # one-off scratch files
 tmp-*
 _tmp-*
+
+# local notes
+AGENTS.md
+CLAUDE.md
+docs/superpowers/

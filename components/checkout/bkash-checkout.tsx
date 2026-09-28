@@ -71,7 +71,7 @@ function Field({
 }
 
 /**
- * The bKash checkout as the sequence it is (spec §6): 1 review the order,
+ * The bKash checkout as the sequence it is: 1 review the order,
  * 2 send the money, 3 submit the transaction ID. After a successful submit the
  * steps give way to the pending notice. A coupon that covers the whole price
  * skips step 2 and enrols straight away.

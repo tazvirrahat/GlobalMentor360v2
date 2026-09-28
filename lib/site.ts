@@ -8,8 +8,7 @@
  * arrives, `getSite()` resolves the tenant (by request host, most likely) and
  * returns its own SiteConfig, and pages, emails, the certificate PDF and serials
  * follow without edits. Data scoping (an organization id on courses, users,
- * coupons, orders) is the other half and is described in
- * docs/superpowers/specs/2026-09-25-ui-ux-overhaul-design.md §16.
+ * coupons, orders) is the other half and is left for when a second academy exists.
  */
 export type SiteConfig = {
   /** Brand as written everywhere: header, footer, emails, certificates. */

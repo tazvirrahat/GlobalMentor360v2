@@ -3,7 +3,7 @@ import { notify, notifyMany } from "@/lib/notifications";
 import { readinessChecks } from "@/lib/studio";
 
 /**
- * Review before publishing (spec §12). An instructor who is not an admin
+ * Review before publishing. An instructor who is not an admin
  * submits a finished course; an admin approves it (it goes live) or returns it
  * with a note. Every transition checks the course's current state, writes an
  * audit row and tells the other side. Admins publish directly elsewhere

@@ -10,7 +10,7 @@ describe("formatPrice", () => {
   });
 
   it("formats BDT minor units as taka", () => {
-    // 599000 poisha: the narrow ৳ symbol, no "BDT", no ".00" (spec §4).
+    // 599000 poisha: the narrow ৳ symbol, no "BDT", no ".00".
     expect(formatPrice(599000, "BDT")).toBe("৳5,990");
   });
 
