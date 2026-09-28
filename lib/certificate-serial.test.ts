@@ -26,4 +26,8 @@ describe("normalizeSerial", () => {
     expect(normalizeSerial("XX999-1A2B-3C4D-5E6F-7A8B", "GM360")).toBeNull();
     expect(normalizeSerial("1A2B3C4D5E6F7A8G", "GM360")).toBeNull();
   });
+
+  it("treats a link with broken percent-encoding as not a serial instead of throwing", () => {
+    expect(normalizeSerial("https://learn.example.com/certificates/%ZZ", "GM360")).toBeNull();
+  });
 });
