@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { IBM_Plex_Mono, Schibsted_Grotesk } from "next/font/google";
 import { MotionProvider } from "@/components/site/motion-provider";
+import { ViewAsBanner } from "@/components/site/view-as-banner";
 import { getSite } from "@/lib/site";
 import "./globals.css";
 
@@ -48,6 +49,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="flex min-h-dvh min-w-0 flex-col overflow-x-clip font-sans">
         {/* Chrome lives in the route groups: (site) top bar + footer, (learn)
             focus mode, (app) sidebar. See the spec, section 5. */}
+        {/* Only while an admin views the site as someone (read-only). */}
+        <ViewAsBanner />
         <MotionProvider>{children}</MotionProvider>
       </body>
     </html>

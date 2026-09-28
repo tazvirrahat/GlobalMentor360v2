@@ -424,6 +424,41 @@ test.describe("admin exploratory QA", () => {
     await expect(page.getByRole("button", { name: "Feature on the home page" })).toBeVisible({ timeout: 15_000 });
   });
 
+  test("admin views the site as a learner, read-only, then stops", async ({ page }) => {
+    await signIn(page, SEED.admin, "/admin/users");
+    await adminSearch(page, SEED.learner.email);
+    await page.getByRole("row").filter({ has: page.getByText(SEED.learner.email, { exact: true }) }).getByRole("link").first().click();
+    await page.getByRole("button", { name: /^View as / }).click();
+
+    await expect(page).toHaveURL(/\/dashboard/);
+    const banner = page.getByRole("region", { name: "Viewing as someone else" });
+    await expect(banner).toContainText("view only");
+    await expect(page.getByRole("link", { name: /typescript foundations/i }).first()).toBeVisible();
+
+    // Every write is refused while viewing: a server action is a POST.
+    const refused = await page.request.post("/dashboard", { headers: { "next-action": "any" }, data: "[]" });
+    expect(refused.status()).toBe(403);
+    expect(await refused.text()).toMatch(/read-only/i);
+    // Admin pages see the learner, who is not an admin.
+    await page.goto("/admin/users");
+    await expect(page).not.toHaveURL(/\/admin\//);
+
+    await page.goto("/dashboard");
+    await banner.getByRole("button", { name: "Stop viewing" }).click();
+    await expect(page).toHaveURL(/\/admin\/users\/[^/]+$/);
+    await expect(page.getByRole("region", { name: "Viewing as someone else" })).toHaveCount(0);
+    const allowed = await page.request.get("/admin/users");
+    expect(allowed.ok()).toBeTruthy();
+
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    const { rows } = await client.query<{ action: string }>(
+      `SELECT action FROM audit_logs WHERE action LIKE 'impersonation.%' AND "createdAt" > now() - interval '5 minutes' ORDER BY "createdAt"`,
+    );
+    await client.end();
+    expect(rows.map((row) => row.action)).toEqual(expect.arrayContaining(["impersonation.start", "impersonation.stop"]));
+  });
+
   test("admin tables do not overflow at 375 or 1280", async ({ page }) => {
     await signIn(page, SEED.admin, "/admin/users");
 

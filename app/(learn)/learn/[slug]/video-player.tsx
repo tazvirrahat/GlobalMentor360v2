@@ -6,8 +6,8 @@ import type { Route } from "next";
 import type Hls from "hls.js";
 import { Loader2 } from "lucide-react";
 import { qualityOptions, type QualityOption } from "@/lib/player";
-import { getPromoPlayback } from "@/app/(site)/courses/[slug]/promo-actions";
-import { getSignedPlayback, reportWatchProgress } from "./actions";
+import type { Playback } from "@/lib/playback";
+import { reportWatchProgress } from "./actions";
 import { onSeekRequest, publishTime } from "./player-clock";
 
 const SPEED_KEY = "gm360.playbackSpeed";
@@ -147,7 +147,16 @@ export function VideoPlayer(
       setLoading(true);
       setError(null);
 
-      const signed = promoCourseId ? await getPromoPlayback(promoCourseId) : await getSignedPlayback(itemId ?? "");
+      // GET, not a server action: it must keep working in the read-only "view as" mode.
+      const source = promoCourseId
+        ? `/api/playback/promo/${encodeURIComponent(promoCourseId)}`
+        : `/api/playback/lecture/${encodeURIComponent(itemId ?? "")}`;
+      let signed: Playback;
+      try {
+        signed = (await (await fetch(source, { cache: "no-store" })).json()) as Playback;
+      } catch {
+        signed = { ok: false, message: "Video is unavailable right now. Please try again shortly." };
+      }
       if (cancelled) return;
 
       if (!signed.ok) {
@@ -242,11 +251,12 @@ export function VideoPlayer(
     if (!force && now - lastReportRef.current < 15_000) return null;
     lastReportRef.current = now;
 
+    // Refused while an admin is viewing as someone (read-only); that is fine.
     return reportWatchProgress({
       itemId,
       slug,
       positionSeconds: Math.floor(el.currentTime),
-    });
+    }).catch(() => null);
   }
 
   async function onEnded() {

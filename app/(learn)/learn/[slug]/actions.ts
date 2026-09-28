@@ -4,9 +4,7 @@ import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { db } from "@/lib/db";
 import {
-  canAccessItemMedia,
   getContinueTargetItemId,
   markLectureComplete,
   submitQuizAttempt,
@@ -14,7 +12,6 @@ import {
   type QuizSubmission,
 } from "@/lib/progress";
 import { getCurrentUser } from "@/lib/session";
-import { video } from "@/lib/video";
 
 export type CompleteLectureState = { status: "idle" } | { status: "error"; message: string };
 
@@ -61,53 +58,6 @@ export async function reportWatchProgress(input: {
     revalidatePath("/dashboard");
   }
   return result;
-}
-
-export async function getSignedPlayback(itemId: string) {
-  const user = await getCurrentUser();
-  if (!(await canAccessItemMedia(user?.id ?? null, itemId))) {
-    return { ok: false as const, message: "You don't have access to this lecture." };
-  }
-
-  const lecture = await db.lecture.findFirst({
-    where: { curriculumItemId: itemId },
-    select: {
-      asset: {
-        select: {
-          id: true,
-          providerAssetId: true,
-          status: true,
-          captions: { select: { id: true, language: true }, orderBy: { language: "asc" } },
-        },
-      },
-    },
-  });
-
-  if (!lecture?.asset || lecture.asset.status !== "READY" || !lecture.asset.providerAssetId) {
-    return { ok: false as const, message: "Video is still processing." };
-  }
-
-  try {
-    const playback = video.signPlaybackUrl(lecture.asset.providerAssetId);
-    return {
-      ok: true as const,
-      hlsUrl: playback.hlsUrl,
-      expiresAt: playback.expiresAt.toISOString(),
-      captions: lecture.asset.captions.map((caption) => ({
-        id: caption.id,
-        language: caption.language,
-        src: `/api/captions/${caption.id}`,
-      })),
-    };
-  } catch (error) {
-    // A VideoProviderError names the env vars an operator needs to set. That is
-    // useful in the server log and nowhere near a learner's screen.
-    console.error("Playback signing failed for item %s:", itemId, error);
-    return {
-      ok: false as const,
-      message: "Video is unavailable right now. Please try again shortly.",
-    };
-  }
 }
 
 const quizSchema = z.object({
