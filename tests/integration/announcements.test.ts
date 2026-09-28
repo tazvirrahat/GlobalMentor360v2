@@ -23,7 +23,7 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { publishAnnouncement } = await import("@/app/studio/announcements/actions");
+const { publishAnnouncement } = await import("@/app/(app)/studio/announcements/actions");
 const {
   getLearnerAnnouncements,
   listSentAnnouncements,

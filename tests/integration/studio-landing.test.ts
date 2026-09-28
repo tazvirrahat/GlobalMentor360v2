@@ -19,7 +19,7 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { updateCourse } = await import("@/app/studio/actions");
+const { updateCourse } = await import("@/app/(app)/studio/actions");
 const { db } = await import("@/lib/db");
 
 const run = randomUUID().slice(0, 8);
@@ -120,5 +120,50 @@ describe("updateCourse", () => {
       select: { amount: true },
     });
     expect(price?.amount).toBe(4999);
+  });
+});
+
+describe("updateCourse FAQ", () => {
+  const faqs = () =>
+    db.courseFaq.findMany({ where: { courseId }, orderBy: { position: "asc" }, select: { question: true, answer: true } });
+
+  it("saves questions and answers in order, then replaces them", async () => {
+    const first = await updateCourse(
+      { status: "idle" },
+      settingsForm(
+        { faqEditor: "1" },
+        { faqQuestion: ["Is it self-paced?", "Do I get a certificate?", ""], faqAnswer: ["Yes.", "When you finish.", ""] },
+      ),
+    );
+    expect(first.status).toBe("done");
+    expect(await faqs()).toEqual([
+      { question: "Is it self-paced?", answer: "Yes." },
+      { question: "Do I get a certificate?", answer: "When you finish." },
+    ]);
+
+    await updateCourse(
+      { status: "idle" },
+      settingsForm({ faqEditor: "1" }, { faqQuestion: ["Only this one?"], faqAnswer: ["Yes."] }),
+    );
+    expect(await faqs()).toEqual([{ question: "Only this one?", answer: "Yes." }]);
+  });
+
+  it("refuses a half-filled row and writes nothing", async () => {
+    const result = await updateCourse(
+      { status: "idle" },
+      settingsForm(
+        { faqEditor: "1", subtitle: "Should not be saved" },
+        { faqQuestion: ["A question with no answer"], faqAnswer: [""] },
+      ),
+    );
+    expect(result.status).toBe("error");
+    expect(await faqs()).toEqual([{ question: "Only this one?", answer: "Yes." }]);
+    const course = await db.course.findUniqueOrThrow({ where: { id: courseId }, select: { subtitle: true } });
+    expect(course.subtitle).not.toBe("Should not be saved");
+  });
+
+  it("leaves the FAQ alone when the form has no FAQ editor", async () => {
+    await updateCourse({ status: "idle" }, settingsForm({}, { objectives: ["Learn SQL joins"] }));
+    expect(await faqs()).toEqual([{ question: "Only this one?", answer: "Yes." }]);
   });
 });

@@ -1,5 +1,6 @@
 import type { Role } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { grantEnrollment } from "@/lib/enrollment";
 import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
 import { recomputeCourseRating } from "@/lib/reviews";
 import { readinessChecks } from "@/lib/studio";
@@ -12,7 +13,7 @@ import { readinessChecks } from "@/lib/studio";
  * unrecoverable without a database shell.
  */
 
-export const ADMIN_PAGE_SIZE = 40;
+export const ADMIN_PAGE_SIZE = 20;
 
 export async function listAdminUsers(query?: string, page?: string | number) {
   const where = query
@@ -89,6 +90,127 @@ export async function setUserRole(
   });
 
   return { ok: true };
+}
+
+type AdminResult = { ok: true } | { ok: false; message: string };
+
+/** One person for their admin page: who they are, their roles and status, and what they are enrolled in. */
+export async function getAdminUser(userId: string) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      emailVerified: true,
+      status: true,
+      createdAt: true,
+      roles: { select: { role: true } },
+      enrollments: {
+        orderBy: { enrolledAt: "desc" },
+        select: {
+          id: true,
+          source: true,
+          enrolledAt: true,
+          revokedAt: true,
+          course: { select: { id: true, title: true, slug: true } },
+        },
+      },
+    },
+  });
+  if (!user) return null;
+  const owned = new Set(user.enrollments.filter((row) => !row.revokedAt).map((row) => row.course.id));
+  const grantable = await db.course.findMany({
+    where: { status: "PUBLISHED", id: { notIn: [...owned] } },
+    orderBy: { title: "asc" },
+    take: 500,
+    select: { id: true, title: true },
+  });
+  return { ...user, grantable };
+}
+
+/**
+ * Suspends or restores an account. Suspending signs the person out at once
+ * (their sessions are deleted; getCurrentUser already ignores a non-ACTIVE
+ * account, and lib/auth refuses new sessions). Nobody suspends themselves or
+ * the last active admin.
+ */
+export async function setUserStatus(actorId: string, userId: string, status: "ACTIVE" | "SUSPENDED"): Promise<AdminResult> {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, status: true, roles: { select: { role: true } } },
+  });
+  if (!user || user.status === "DELETED") return { ok: false, message: "User not found." };
+  if (status === "SUSPENDED") {
+    if (userId === actorId) return { ok: false, message: "You cannot suspend your own account." };
+    if (user.roles.some((row) => row.role === "ADMIN")) {
+      const activeAdmins = await db.userRole.count({ where: { role: "ADMIN", user: { status: "ACTIVE" } } });
+      if (activeAdmins <= 1) return { ok: false, message: "The last active admin cannot be suspended." };
+    }
+  }
+  if (user.status === status) return { ok: true };
+
+  await db.$transaction([
+    db.user.update({ where: { id: userId }, data: { status } }),
+    ...(status === "SUSPENDED" ? [db.session.deleteMany({ where: { userId } })] : []),
+    db.auditLog.create({
+      data: { actorId, action: status === "SUSPENDED" ? "user.suspend" : "user.unsuspend", targetType: "user", targetId: userId },
+    }),
+  ]);
+  return { ok: true };
+}
+
+/**
+ * Gives someone a published course without payment. grantEnrollment stays the
+ * only write that opens a course (invariant 7); this adds the checks and the
+ * audit row naming the admin.
+ */
+export async function grantCourse(actorId: string, userId: string, courseId: string): Promise<AdminResult> {
+  const [user, course, existing] = await Promise.all([
+    db.user.findUnique({ where: { id: userId }, select: { status: true } }),
+    db.course.findUnique({ where: { id: courseId }, select: { status: true } }),
+    db.enrollment.findUnique({ where: { userId_courseId: { userId, courseId } }, select: { revokedAt: true } }),
+  ]);
+  if (!user || user.status === "DELETED") return { ok: false, message: "User not found." };
+  if (!course || course.status !== "PUBLISHED") return { ok: false, message: "Only a published course can be given." };
+  if (existing && !existing.revokedAt) return { ok: false, message: "They already have this course." };
+
+  await grantEnrollment(userId, courseId, "GRANT");
+  await db.auditLog.create({
+    data: { actorId, action: "enrollment.grant", targetType: "course", targetId: courseId, metadata: { userId } },
+  });
+  return { ok: true };
+}
+
+/** Puts a published course at the top of the home page's list, or takes it off. Audited. */
+export async function setCourseFeatured(actorId: string, courseId: string, featured: boolean): Promise<AdminResult> {
+  const course = await db.course.findUnique({ where: { id: courseId }, select: { status: true, featuredAt: true } });
+  if (!course) return { ok: false, message: "Course not found." };
+  if (featured && course.status !== "PUBLISHED") return { ok: false, message: "Only a published course can be featured." };
+  await db.course.update({ where: { id: courseId }, data: { featuredAt: featured ? new Date() : null } });
+  await db.auditLog.create({
+    data: { actorId, action: featured ? "course.feature" : "course.unfeature", targetType: "course", targetId: courseId },
+  });
+  return { ok: true };
+}
+
+/** One course for its admin page. */
+export async function getAdminCourse(courseId: string) {
+  return db.course.findUnique({
+    where: { id: courseId },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      status: true,
+      createdAt: true,
+      publishedAt: true,
+      featuredAt: true,
+      enrollmentCount: true,
+      instructor: { select: { name: true, email: true } },
+      prices: { where: { isActive: true }, select: { currency: true, amount: true } },
+    },
+  });
 }
 
 export async function listAdminCourses(query?: string, page?: string | number) {
@@ -170,11 +292,24 @@ export async function adminSetCoursePublished(
   return { ok: true };
 }
 
-export async function listAdminReviews(page?: string | number) {
-  const total = await db.review.count();
+/** Every review, newest first. `query` matches the course title, the learner's name or email, or the text. */
+export async function listAdminReviews(query?: string, page?: string | number) {
+  const q = query?.trim();
+  const where = q
+    ? {
+        OR: [
+          { course: { title: { contains: q, mode: "insensitive" as const } } },
+          { user: { name: { contains: q, mode: "insensitive" as const } } },
+          { user: { email: { contains: q, mode: "insensitive" as const } } },
+          { body: { contains: q, mode: "insensitive" as const } },
+        ],
+      }
+    : {};
+  const total = await db.review.count({ where });
   const current = clampPage(page, total, ADMIN_PAGE_SIZE);
   const { skip, take } = skipTake(current, ADMIN_PAGE_SIZE);
   const items = await db.review.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     skip,
     take,

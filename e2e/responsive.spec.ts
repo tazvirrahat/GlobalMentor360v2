@@ -92,8 +92,11 @@ test.describe("responsive layout shells", () => {
     for (let i = 0; i < count; i += 1) {
       const control = controls.nth(i);
       if (!(await control.isVisible())) continue;
+      const href = await control.getAttribute("href");
+      // Skip-to-content is visually hidden until focused (1px sr-only box).
+      if (href === "#main") continue;
       const box = await control.boundingBox();
-      if (!box) continue;
+      if (!box || box.height < 2) continue;
       expect(
         box.height,
         await control.getAttribute("aria-label") ?? (await control.textContent()) ?? "",

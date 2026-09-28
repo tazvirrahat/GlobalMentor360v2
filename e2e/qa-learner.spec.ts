@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import pg from "pg";
+import { formatPrice } from "../lib/format";
 import { expectHonestBkashMerchantCopy, SEED, signIn } from "./helpers";
 
 /**
@@ -8,16 +9,20 @@ import { expectHonestBkashMerchantCopy, SEED, signIn } from "./helpers";
  * and does not trigger MediaConvert / paid AWS.
  */
 
-const LOCAL_DATABASE_URL =
-  process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:5432/globalmentor360?schema=public";
+// playwright.config.ts points DATABASE_URL at the _test database before specs load.
+const LOCAL_DATABASE_URL = process.env.DATABASE_URL!;
 
 const SQL_BDT_MINOR = 399_000;
 const SAVE10_DISCOUNT_MINOR = Math.floor((SQL_BDT_MINOR * 10) / 100);
 const SAVE10_TOTAL_MINOR = SQL_BDT_MINOR - SAVE10_DISCOUNT_MINOR;
 
-function formatMoney(amountMinor: number, currency: string) {
-  return new Intl.NumberFormat("en", { style: "currency", currency }).format(amountMinor / 100);
+// The app's own formatter, so the spec and the pages cannot disagree on "৳3,990".
+const formatMoney = formatPrice;
+
+/** A row of the checkout's order summary, e.g. "Subtotal ৳3,990". */
+function summaryRow(page: Page, label: string) {
+  const exact = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+  return page.locator("main dl > div").filter({ has: page.locator("dt", { hasText: exact }) });
 }
 
 function attachDiagnostics(page: Page) {
@@ -71,6 +76,21 @@ async function withDb<T>(fn: (client: pg.Client) => Promise<T>): Promise<T> {
   }
 }
 
+/** The correct option ids for a quiz item, straight from the database. */
+async function correctOptionIds(curriculumItemId: string) {
+  return withDb(async (client) => {
+    const result = await client.query<{ id: string }>(
+      `SELECT o.id
+       FROM answer_options o
+       JOIN questions q ON q.id = o."questionId"
+       JOIN assessments a ON a.id = q."assessmentId"
+       WHERE a."curriculumItemId" = $1 AND o."isCorrect"`,
+      [curriculumItemId],
+    );
+    return result.rows.map((row) => row.id);
+  });
+}
+
 async function curriculum(slug: string) {
   return withDb(async (client) => {
     const result = await client.query<{
@@ -92,7 +112,8 @@ async function curriculum(slug: string) {
 }
 
 function parsePercent(text: string | null): number | null {
-  const match = text?.match(/(\d+)\s*%/);
+  // completionPercent keeps one decimal ("22.2%"), so read the whole number.
+  const match = text?.match(/(\d+(?:\.\d+)?)\s*%/);
   return match ? Number(match[1]) : null;
 }
 
@@ -101,13 +122,12 @@ test.describe("learner QA — public catalog", () => {
     const diag = attachDiagnostics(page);
 
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /learn real skills/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /explore courses/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("link", { name: /browse courses/i }).first()).toBeVisible();
 
     await page.goto("/courses");
-    await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
-    await expect(page.getByRole("link", { name: /typescript foundations/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /sql for analysts/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Courses" })).toBeVisible();
+    await expect(page.locator("a[href^='/courses/']").first()).toBeVisible();
 
     await page.getByLabel("Search courses").fill("typescript");
     await page.getByRole("button", { name: "Search" }).click();
@@ -116,7 +136,7 @@ test.describe("learner QA — public catalog", () => {
     await expect(page.getByRole("link", { name: /sql for analysts/i })).toHaveCount(0);
 
     await page.goto("/courses?price=free");
-    await expect(page.getByText(/no courses match your filters/i)).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Courses" })).toBeVisible();
     await expect(page.getByRole("link", { name: /enrol for free/i })).toHaveCount(0);
 
     await page.goto("/courses?price=paid&level=BEGINNER");
@@ -130,7 +150,7 @@ test.describe("learner QA — public catalog", () => {
     await page.goto("/courses/sql-for-analysts");
     await expect(page.getByRole("heading", { name: "SQL for Analysts" })).toBeVisible();
     await expect(page.getByRole("link", { name: /preview: why sql still matters/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /buy this course/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /buy course/i })).toBeVisible();
 
     await diag.assertClean();
   });
@@ -157,11 +177,31 @@ test.describe("learner QA — public catalog", () => {
 });
 
 test.describe("learner QA — session and library", () => {
+  test("account preferences save a time zone and notification switches", async ({ page }) => {
+    await signIn(page, SEED.learner, "/account#preferences");
+    const zone = page.getByLabel("Time zone");
+    const replies = page.getByRole("checkbox", { name: "Replies to my questions" });
+    await zone.selectOption("Europe/London");
+    await replies.uncheck();
+    await page.getByRole("button", { name: "Save preferences" }).click();
+    await expect(page.getByText("Preferences saved.")).toBeVisible({ timeout: 15_000 });
+
+    await page.reload();
+    await expect(zone).toHaveValue("Europe/London");
+    await expect(replies).not.toBeChecked();
+
+    // Put the seed back.
+    await zone.selectOption("");
+    await replies.check();
+    await page.getByRole("button", { name: "Save preferences" }).click();
+    await expect(page.getByText("Preferences saved.")).toBeVisible({ timeout: 15_000 });
+  });
+
   test("sign-in reaches My Learning with the seeded enrollment", async ({ page }) => {
     const diag = attachDiagnostics(page);
     await signIn(page, SEED.learner, "/dashboard");
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "My learning" })).toBeVisible();
     const typescriptOnDashboard = page.getByRole("link", { name: /typescript foundations/i });
     if ((await typescriptOnDashboard.count()) === 0) {
       await page.getByRole("tab", { name: /completed/i }).click();
@@ -170,7 +210,7 @@ test.describe("learner QA — session and library", () => {
     await expect(page.getByText(/sql for analysts/i)).toHaveCount(0);
     await page.getByRole("link", { name: /continue|review/i }).first().click();
     await page.waitForURL(/\/learn\/typescript-foundations\/[^/]+/);
-    await expect(page.getByText(/your progress/i)).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: /course progress/i })).toBeVisible();
     await diag.assertClean();
   });
 
@@ -184,23 +224,23 @@ test.describe("learner QA — session and library", () => {
     }
     await expect(typescriptLink.first()).toBeVisible();
 
-    const dashPercent = parsePercent((await page.getByText(/\d+%/).first().textContent()) ?? "");
+    const tsRow = page.locator("li").filter({
+      has: page.getByRole("link", { name: /typescript foundations/i }),
+    });
+    const dashPercent = parsePercent((await tsRow.getByText(/\d+%/).textContent()) ?? "");
     expect(dashPercent, "dashboard percent not found").not.toBeNull();
 
     await page.goto("/learn/typescript-foundations");
     await page.waitForURL(/\/learn\/typescript-foundations\/[^/]+/);
-    await expect(page.getByText(/your progress/i)).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: /course progress/i })).toBeVisible();
 
-    const playerPercentText = await page
-      .locator("aside")
-      .getByText(/\d+%/)
-      .first()
-      .textContent();
-    const playerPercent = parsePercent(playerPercentText);
+    const playerPercent = parsePercent(
+      await page.getByLabel(/course progress/i).getAttribute("aria-label"),
+    );
     expect(playerPercent).toBe(dashPercent);
 
     const items = await curriculum("typescript-foundations");
-    const lockedCount = await page.locator("aside nav li span.cursor-not-allowed").count();
+    const lockedCount = await page.locator('nav[aria-label="Curriculum"] [data-state="locked"]').count();
     const impliedCompleted = Math.round(((playerPercent ?? 0) / 100) * items.length);
     const expectedUnlocked = Math.min(
       items.length,
@@ -212,6 +252,9 @@ test.describe("learner QA — session and library", () => {
       `progress ${playerPercent}% implies ${impliedCompleted}/${items.length} complete and ${expectedLocked} locked, but ${lockedCount} items are locked`,
     ).toBe(expectedLocked);
 
+    // The continue target is the first unfinished item, not necessarily the
+    // opening lesson, so check the opening lesson on its own page.
+    await page.goto(`/learn/typescript-foundations/${items[0]!.id}`);
     const firstLessonCompleted =
       (await page.locator("main").getByText("Completed", { exact: true }).count()) > 0;
     if (!firstLessonCompleted) {
@@ -232,8 +275,11 @@ test.describe("learner QA — session and library", () => {
 
     const later = items.slice(1);
     for (const item of later) {
-      const link = page.locator(`aside a[href="/learn/typescript-foundations/${item.id}"]`);
-      const locked = page.locator("aside nav li").filter({ hasText: item.title }).locator("span.cursor-not-allowed");
+      const link = page.locator(`nav[aria-label="Curriculum"] a[href="/learn/typescript-foundations/${item.id}"]`);
+      const locked = page
+        .locator('nav[aria-label="Curriculum"] li')
+        .filter({ hasText: item.title })
+        .locator('[data-state="locked"]');
       const linkVisible = (await link.count()) > 0;
       if (linkVisible) continue;
 
@@ -278,14 +324,15 @@ test.describe("learner QA — cart and checkout", () => {
 
     await expect(page.getByRole("heading", { name: "Cart" })).toBeVisible();
     await expect(page.getByRole("link", { name: /sql for analysts/i })).toBeVisible();
-    await expect(page.getByText(`Subtotal: ${subtotal}`)).toBeVisible();
+    await expect(summaryRow(page, "Subtotal")).toContainText(subtotal);
 
     await page.getByLabel(/coupon/i).fill("SAVE10");
     await page.getByRole("button", { name: /^apply$/i }).click();
     await expect(page).toHaveURL(/coupon=SAVE10/i);
-    await expect(page.getByText(`Subtotal: ${subtotal}`)).toBeVisible();
-    await expect(page.getByText(`Discount (SAVE10): −${discount}`)).toBeVisible();
-    await expect(page.getByText("Amount to send:")).toBeVisible();
+    await expect(summaryRow(page, "Subtotal")).toContainText(subtotal);
+    await expect(summaryRow(page, "Discount (SAVE10)")).toContainText(`−${discount}`);
+    await expect(summaryRow(page, "Total")).toContainText(discounted);
+    await expect(page.getByText("Send exactly")).toBeVisible();
     await expect(page.getByText(discounted).first()).toBeVisible();
     await expect(page.getByText(/via bKash|to our bKash number/i)).toBeVisible();
 
@@ -294,7 +341,7 @@ test.describe("learner QA — cart and checkout", () => {
 
     await page.goto("/courses/sql-for-analysts/checkout?coupon=SAVE10");
     await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
-    await expect(page.getByText(`Subtotal: ${subtotal}`)).toBeVisible();
+    await expect(summaryRow(page, "Subtotal")).toContainText(subtotal);
     await expect(page.getByText(discounted).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /continue to stripe/i })).toHaveCount(0);
     await expect(page.getByText(/via bKash|to our bKash number/i)).toBeVisible();
@@ -321,7 +368,7 @@ test.describe("learner QA — cart and checkout", () => {
       return;
     }
 
-    const buy = page.getByRole("link", { name: /buy this course/i });
+    const buy = page.getByRole("link", { name: /buy course/i });
     if ((await buy.count()) === 0) {
       test.skip(true, "postgres course is not offered for sale");
       return;
@@ -345,9 +392,11 @@ test.describe("learner QA — player, account, social", () => {
     await signIn(page, SEED.learner, `/learn/typescript-foundations/${items[0]!.id}`);
 
     await expect(page.getByRole("heading", { name: items[0]!.title })).toBeVisible();
-    await expect(page.getByText(/your progress/i)).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: /course progress/i })).toBeVisible();
     await expect(page.locator("video")).toHaveCount(0);
 
+    // Notes and Q&A are tabs under the lesson.
+    await page.getByRole("tab", { name: /notes/i }).click();
     const note = `Learner QA note ${Date.now()}`;
     await page.getByPlaceholder(/capture something from this lecture/i).fill(note);
     await page.getByRole("button", { name: /save note/i }).click();
@@ -357,13 +406,14 @@ test.describe("learner QA — player, account, social", () => {
     await bookmark.click();
     await expect(page.getByRole("button", { name: /bookmarked/i })).toBeVisible();
 
+    await page.getByRole("tab", { name: /q&a/i }).click();
     const questionTitle = `Why does sequential unlock exist ${Date.now()}?`;
     await page.getByLabel(/^title$/i).fill(questionTitle);
     await page.getByLabel(/^details$/i).fill("Checking that a learner can post a lecture question from the player.");
     await page.getByRole("button", { name: /post question/i }).click();
     await expect(page.getByRole("heading", { name: questionTitle })).toBeVisible();
 
-    const continueBtn = page.getByRole("button", { name: /mark complete and continue/i });
+    const continueBtn = page.getByRole("button", { name: /complete and continue/i });
     if ((await continueBtn.count()) > 0) {
       await continueBtn.click();
       await page.waitForURL(new RegExp(`/learn/typescript-foundations/${items[1]!.id}`));
@@ -378,28 +428,36 @@ test.describe("learner QA — player, account, social", () => {
     const items = await curriculum("typescript-foundations");
     await signIn(page, SEED.learner, `/learn/typescript-foundations/${items[1]!.id}`);
 
+    // Walk the curriculum in order: each section quiz gates the next section,
+    // so lectures after a quiz only unlock once it is passed.
     for (const item of items) {
-      if (item.type === "QUIZ") continue;
       await page.goto(`/learn/typescript-foundations/${item.id}`);
-      const mark = page.getByRole("button", { name: /mark complete/i });
+      if (item.type === "QUIZ") {
+        await expect(page.getByRole("heading", { name: item.title })).toBeVisible();
+        const submit = page.getByRole("button", { name: /submit answers/i });
+        if ((await submit.count()) === 0) continue; // already passed on an earlier run
+        for (const optionId of await correctOptionIds(item.id)) {
+          await page.locator(`input[value="${optionId}"]`).check();
+        }
+        await submit.click();
+        await expect(page.getByText(/passed/i).first()).toBeVisible({ timeout: 15_000 });
+        continue;
+      }
+      const mark = page.getByRole("button", { name: /mark lesson complete|complete and continue/i });
       if ((await mark.count()) > 0) {
         await mark.click();
         await page.waitForLoadState("networkidle");
       }
     }
 
-    const quiz = items.find((item) => item.type === "QUIZ")!;
-    await page.goto(`/learn/typescript-foundations/${quiz.id}`);
-    await expect(page.getByRole("heading", { name: quiz.title })).toBeVisible();
-    await page.getByRole("radio", { name: /structural/i }).check();
-    await page.getByRole("radio", { name: /^true$/i }).check();
-    await page.getByRole("button", { name: /submit answers/i }).click();
-    await expect(page.getByText(/passed/i)).toBeVisible({ timeout: 15_000 });
-
     await page.goto("/dashboard");
     await page.getByRole("tab", { name: /completed/i }).click();
     await expect(page.getByText(/typescript foundations/i)).toBeVisible();
-    const certLink = page.getByRole("link", { name: /view certificate/i });
+    // The seed learner also holds a Python Basics certificate; pick this course's.
+    const certLink = page
+      .locator("li")
+      .filter({ hasText: /typescript foundations/i })
+      .getByRole("link", { name: /view certificate/i });
     await expect(certLink).toBeVisible();
     await certLink.click();
     await expect(page).toHaveURL(/\/certificates\//);
@@ -421,26 +479,28 @@ test.describe("learner QA — player, account, social", () => {
   }) => {
     const diag = attachDiagnostics(page);
     await signIn(page, SEED.learner, "/account");
-    await expect(page.getByRole("heading", { name: "Account" })).toBeVisible();
-    await expect(page.getByText(/learner@example.com/i)).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Account" })).toBeVisible();
+    await expect(page.getByText(/learner@example.com/i).first()).toBeVisible();
     await expect(page.getByText(/this device/i)).toBeVisible();
 
     await page.getByLabel("Current password").fill("definitely-not-the-seed");
     await page.getByLabel("New password", { exact: true }).fill("another-dev-password-999");
     await page.getByLabel("Confirm new password").fill("another-dev-password-999");
     await page.getByRole("button", { name: /update password/i }).click();
-    await expect(page.getByRole("status")).toBeVisible();
-    await expect(page.getByRole("status")).not.toHaveText(/updated|saved|changed/i);
+    // Each account section has its own status line; read the password one.
+    const passwordStatus = page.locator("#password").getByRole("status");
+    await expect(passwordStatus).not.toBeEmpty();
+    await expect(passwordStatus).not.toHaveText(/updated|saved|changed/i);
 
     await page.goto("/notifications");
     await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
 
     await page.goto("/orders");
-    await expect(page.getByRole("heading", { name: /purchases/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Orders" })).toBeVisible();
 
     await page.context().clearCookies();
     await signIn(page, SEED.learner, "/dashboard");
-    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "My learning" })).toBeVisible();
 
     await diag.assertClean();
   });

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { clampPage, pageCount, pageHref, parsePage, showingRange, skipTake } from "./pagination";
+import {
+  clampPage,
+  pageCount,
+  pageHref,
+  pageNavItems,
+  parsePage,
+  showingRange,
+  skipTake,
+} from "./pagination";
 
 /**
  * Shared ?page= math. Every list that grew a silent cap now pages through the
@@ -79,5 +87,52 @@ describe("pageHref", () => {
       pathname: "/courses",
       query: { q: "sql", sort: "relevance", page: "2" },
     });
+  });
+
+  it("can page with a custom key so review/qa pagers do not collide with catalog ?page=", () => {
+    expect(pageHref("/courses/sql", { foo: "1" }, 2, "reviewPage")).toEqual({
+      pathname: "/courses/sql",
+      query: { foo: "1", reviewPage: "2" },
+    });
+    expect(pageHref("/courses/sql", { foo: "1" }, 1, "reviewPage")).toEqual({
+      pathname: "/courses/sql",
+      query: { foo: "1" },
+    });
+  });
+});
+
+describe("pageNavItems", () => {
+  it("is empty when there is only one page", () => {
+    expect(pageNavItems(1, 1)).toEqual([]);
+  });
+
+  it("lists every page when there are seven or fewer", () => {
+    expect(pageNavItems(3, 7).map((item) => (item.kind === "page" ? item.page : item.kind))).toEqual([
+      1, 2, 3, 4, 5, 6, 7,
+    ]);
+  });
+
+  it("keeps first, current±1, and last with ellipses in the gaps", () => {
+    expect(pageNavItems(1, 20)).toEqual([
+      { kind: "page", page: 1 },
+      { kind: "page", page: 2 },
+      { kind: "ellipsis", key: "2-20" },
+      { kind: "page", page: 20 },
+    ]);
+    expect(pageNavItems(10, 20)).toEqual([
+      { kind: "page", page: 1 },
+      { kind: "ellipsis", key: "1-9" },
+      { kind: "page", page: 9 },
+      { kind: "page", page: 10 },
+      { kind: "page", page: 11 },
+      { kind: "ellipsis", key: "11-20" },
+      { kind: "page", page: 20 },
+    ]);
+    expect(pageNavItems(20, 20)).toEqual([
+      { kind: "page", page: 1 },
+      { kind: "ellipsis", key: "1-19" },
+      { kind: "page", page: 19 },
+      { kind: "page", page: 20 },
+    ]);
   });
 });

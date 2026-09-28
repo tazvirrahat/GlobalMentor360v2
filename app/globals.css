@@ -1,75 +1,88 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
 /*
- * GlobalMentor360 design system.
+ * GlobalMentor360 tokens. Source of truth:
+ * docs/superpowers/specs/2026-09-25-ui-ux-overhaul-design.md §4.
+ * lib/design-tokens.test.ts proves the contrast of every pairing and fails if
+ * a palette value here drifts.
  *
- * Single-org academy identity: deep maroon primary, dark plum hero surfaces,
- * warm pink accents. Light-first with dark full-bleed sections.
+ * Every colour means one thing:
+ *   ink       text, primary actions
+ *   mark      "you are here" only (current lesson or step), never a button
+ *   verified  completed, paid, verified, certificate
+ *   seal      certificate seal, destructive actions, errors
+ *   caution   pending (awaiting bKash verification, needs action)
+ *
+ * Light only. There is no dark theme, so there is no `dark:` variant either.
  */
 :root {
-  --background: #ffffff;
-  --foreground: #111827;
-  --card: #ffffff;
-  --card-foreground: #111827;
-  --popover: #ffffff;
-  --popover-foreground: #111827;
-  --primary: #880020;
-  --primary-foreground: #fff5f7;
-  --secondary: #f8fafc;
-  --secondary-foreground: #111827;
-  --muted: #f4f4f5;
-  --muted-foreground: #6b7280;
-  --accent: #fdf2f5;
-  --accent-foreground: #880020;
-  --destructive: #dc2626;
+  --paper: #fcfcfd;
+  --surface: #ffffff;
+  --ink: #1d2242;
+  --graphite: #5e6376;
+  --rule: #e3e5ec;
+  --control: #8a8fa3;
+  --wash: #f3f4f7;
+  --mark: #f6e35a;
+  --verified: #0b5d46;
+  --seal: #d2303f;
+  --caution: #8a5a00;
+  --caution-wash: #fbf1d6;
+
+  /* The shadcn contract, mapped onto the palette. */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: #ffffff;
+  --primary-hover: #2b3160;
+  --primary-active: #141830;
+  --secondary: var(--surface);
+  --secondary-foreground: var(--ink);
+  --muted: var(--wash);
+  --muted-foreground: var(--graphite);
+  /* No second call-to-action colour: accent is ink. */
+  --accent: var(--ink);
+  --accent-foreground: #ffffff;
+  --accent-hover: #2b3160;
+  --accent-active: #141830;
+  --destructive: var(--seal);
   --destructive-foreground: #ffffff;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
-  --ring: #c45b73;
-  --radius: 0.75rem;
+  --border: var(--rule);
+  --input: var(--control);
+  --ring: var(--ink);
+  --success: var(--verified);
+  --success-foreground: #ffffff;
+  --warning: var(--caution);
+  --warning-foreground: #ffffff;
+  --star: var(--ink);
+  --radius: 0.375rem;
 
-  /* Brand extras */
-  --brand: #880020;
-  --brand-dark: #4e0010;
-  --brand-ink: #2a0716;
-  --brand-pink: #ec6584;
-  --brand-pink-soft: #f49daf;
-  --brand-pink-faint: #f9c9d3;
-  --surface-alt: #f8fafc;
-
-  --chart-1: #880020;
-  --chart-2: #ec6584;
-  --chart-3: #f49daf;
-  --chart-4: #6b7280;
-  --chart-5: #111827;
-}
-
-.dark {
-  --background: #17060d;
-  --foreground: #f7f2f4;
-  --card: #23101a;
-  --card-foreground: #f7f2f4;
-  --popover: #23101a;
-  --popover-foreground: #f7f2f4;
-  --primary: #ec6584;
-  --primary-foreground: #2a0716;
-  --secondary: #2c1521;
-  --secondary-foreground: #f7f2f4;
-  --muted: #2c1521;
-  --muted-foreground: #b3a1a9;
-  --accent: #3a1c2b;
-  --accent-foreground: #f9c9d3;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: #3a2430;
-  --input: #3a2430;
-  --ring: #ec6584;
+  --chart-1: var(--ink);
+  --chart-2: var(--verified);
+  --chart-3: var(--graphite);
+  --chart-4: var(--caution);
+  --chart-5: var(--seal);
 }
 
 @theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-graphite: var(--graphite);
+  --color-rule: var(--rule);
+  --color-control: var(--control);
+  --color-wash: var(--wash);
+  --color-mark: var(--mark);
+  --color-verified: var(--verified);
+  --color-seal: var(--seal);
+  --color-caution: var(--caution);
+  --color-caution-wash: var(--caution-wash);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -78,38 +91,77 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-brand: var(--brand);
-  --color-brand-dark: var(--brand-dark);
-  --color-brand-ink: var(--brand-ink);
-  --color-brand-pink: var(--brand-pink);
-  --color-brand-pink-soft: var(--brand-pink-soft);
-  --color-brand-pink-faint: var(--brand-pink-faint);
-  --color-surface-alt: var(--surface-alt);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-star: var(--star);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 12px);
-  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+
+  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  /* Type scale. The floor is 13px: text-xs is 13px, not Tailwind's 12px. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.45;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem;
+  --text-base--line-height: 1.6;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.55;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.35;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.25;
+  --text-3xl: 2rem;
+  --text-3xl--line-height: 1.12;
+  --text-4xl: 2.75rem;
+  --text-4xl--line-height: 1.04;
+  --text-5xl: 3.5rem;
+  --text-5xl--line-height: 1.02;
+
+  /* Radius hierarchy: badge 4, control 6, panel 10. The certificate uses rounded-[2px]. */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.625rem;
+
+  /* Panels are drawn with borders, not soft shadows. Only popovers lift. */
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow-md: 0 8px 24px rgb(29 34 66 / 0.12);
+  --shadow-lg: 0 8px 24px rgb(29 34 66 / 0.12);
+  --shadow-xl: 0 8px 24px rgb(29 34 66 / 0.12);
 }
 
 @layer base {
+  html {
+    /* Sticky bars must never cover the focused element (WCAG 2.4.11). */
+    scroll-padding-top: 5rem;
+  }
   * {
     border-color: var(--color-border);
   }
@@ -117,23 +169,104 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-heading);
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  h1 {
+    letter-spacing: -0.025em;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  /* The browser-default focus for anything a component forgot. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 
-@utility text-gradient-brand {
-  background-image: linear-gradient(to right, var(--brand-pink), var(--brand-pink-soft));
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
+/* The one focus style. Components use `focus-ring` instead of ring-[3px]. */
+@utility focus-ring {
+  outline-style: none;
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }
 
-@utility bg-hero-gradient {
-  background-image: linear-gradient(to bottom right, var(--brand-ink) 0%, #3b0a22 50%, var(--brand-dark) 100%);
+/* For rows inside scroll containers, where an outside outline would be clipped. */
+@utility focus-ring-inset {
+  outline-style: none;
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+  }
 }
 
-@utility shadow-brand {
-  box-shadow:
-    0px 10px 15px -3px rgb(136 0 32 / 0.25),
-    0px 4px 6px -4px rgb(136 0 32 / 0.25);
+/*
+ * First tab stop in every shell (WCAG 2.4.1). Hidden until focused, then an ink
+ * pill above the sticky bars.
+ */
+@utility skip-link {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+  &:focus {
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 60;
+    width: auto;
+    height: auto;
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 1rem;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    border-radius: var(--radius-md);
+    background: var(--ink);
+    color: #ffffff;
+    font-weight: 600;
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+}
+
+/* Only the certificate gets a hard offset shadow. */
+@utility shadow-certificate {
+  box-shadow: 10px 10px 0 var(--verified);
+}
+@utility shadow-certificate-sm {
+  box-shadow: 6px 6px 0 var(--verified);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

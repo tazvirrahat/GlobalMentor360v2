@@ -1,79 +1,91 @@
 import type { Route } from "next";
-import type { ReactNode } from "react";
+import { Price } from "@/components/course/price";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FieldError } from "@/components/site/field-error";
 import { bkashAmountDue, type CheckoutQuote } from "@/lib/checkout";
-import { formatPrice } from "@/lib/format";
 import { BKASH_CURRENCY } from "@/lib/payments";
-import { cn } from "@/lib/utils";
 
 type OkQuote = Extract<CheckoutQuote, { ok: true }>;
 
-export function BkashQuoteCard({
-  title,
+/** A label/amount row of the order summary. */
+function Row({ label, children, strong = false }: { label: string; children: React.ReactNode; strong?: boolean }) {
+  return (
+    <div className={strong ? "flex justify-between gap-4 text-base font-semibold" : "flex justify-between gap-4"}>
+      <dt className={strong ? "text-ink" : "text-graphite"}>{label}</dt>
+      <dd className="text-right text-ink">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * Step 1 of a bKash checkout: what is being bought, a coupon, and the total.
+ * The coupon is a plain GET back to the same page (`?coupon=`); the server
+ * re-quotes, so a price is never taken from the form.
+ */
+export function BkashReview({
   quote,
   appliedCoupon,
   couponAction,
-  couponFieldsClassName,
   couponMessage,
-  className,
-  children,
 }: {
-  title: string;
   quote: OkQuote;
   appliedCoupon?: string;
   couponAction: Route;
-  couponFieldsClassName: string;
   couponMessage: string | null;
-  className?: string;
-  children: ReactNode;
 }) {
   return (
-    <Card className={cn("rounded-2xl", className)}>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Subtotal: {formatPrice(quote.subtotal, BKASH_CURRENCY)}
+    <div className="flex flex-col gap-5">
+      <ul className="flex flex-col divide-y divide-rule border-y border-rule">
+        {quote.lines.map((line) => (
+          <li key={line.courseId} className="flex items-start justify-between gap-4 py-3">
+            <span className="min-w-0 font-medium text-ink">{line.title}</span>
+            <Price amount={line.unitPrice} currency={BKASH_CURRENCY} className="shrink-0" />
+          </li>
+        ))}
+      </ul>
+
+      <form action={couponAction} className="flex flex-col gap-1.5">
+        <Label htmlFor="coupon">Coupon code</Label>
+        <div className="flex gap-2">
+          <Input
+            id="coupon"
+            name="coupon"
+            defaultValue={quote.coupon?.code ?? appliedCoupon ?? ""}
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            className="font-mono uppercase sm:max-w-60"
+            aria-invalid={couponMessage ? true : undefined}
+            aria-describedby={couponMessage ? "coupon-hint coupon-error" : "coupon-hint"}
+          />
+          <Button type="submit" variant="secondary">
+            Apply
+          </Button>
+        </div>
+        <p id="coupon-hint" className="text-sm text-graphite">
+          Optional. The total below updates before you send any money.
         </p>
-        {quote.discount > 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Discount{quote.coupon ? ` (${quote.coupon.code})` : ""}: −
-            {formatPrice(quote.discount, BKASH_CURRENCY)}
+        {couponMessage ? (
+          <p id="coupon-error" role="alert" className="text-sm font-medium text-seal">
+            {couponMessage}
           </p>
         ) : null}
-        <p className="text-sm text-muted-foreground">
-          Amount to send:{" "}
-          <strong className="text-lg text-brand">
-            {formatPrice(bkashAmountDue(quote), BKASH_CURRENCY)}
-          </strong>
-        </p>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-6">
-        <form action={couponAction} className="flex flex-col gap-2">
-          <Label htmlFor="coupon">Coupon (optional)</Label>
-          <div className={couponFieldsClassName}>
-            <Input
-              id="coupon"
-              name="coupon"
-              defaultValue={quote.coupon?.code ?? appliedCoupon ?? ""}
-              autoComplete="off"
-            />
-            <Button type="submit" variant="outline">
-              Apply
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Apply a code to see the amount you should send. A code that covers
-            the full price enrols you immediately — transfer details are not
-            needed then.
-          </p>
-          {couponMessage ? <FieldError message={couponMessage} /> : null}
-        </form>
-        {children}
-      </CardContent>
-    </Card>
+      </form>
+
+      <dl className="flex flex-col gap-1.5 text-sm">
+        <Row label="Subtotal">
+          <Price amount={quote.subtotal} currency={BKASH_CURRENCY} />
+        </Row>
+        {quote.discount > 0 ? (
+          <Row label={quote.coupon ? `Discount (${quote.coupon.code})` : "Discount"}>
+            −<Price amount={quote.discount} currency={BKASH_CURRENCY} />
+          </Row>
+        ) : null}
+        <Row label="Total" strong>
+          <Price amount={bkashAmountDue(quote)} currency={BKASH_CURRENCY} />
+        </Row>
+      </dl>
+    </div>
   );
 }

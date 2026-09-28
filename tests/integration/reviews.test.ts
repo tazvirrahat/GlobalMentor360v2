@@ -18,11 +18,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  */
 
 const { db } = await import("@/lib/db");
-const { saveReview, recomputeCourseRating } = await import("@/lib/reviews");
+const { saveReview, recomputeCourseRating, getCourseReviewPanel } = await import("@/lib/reviews");
 const { grantEnrollment, revokeEnrollment } = await import("@/lib/enrollment");
+const { listAdminReviews } = await import("@/lib/admin");
 
 const run = randomUUID().slice(0, 8);
 const courseIds: string[] = [];
+const extraUserIds: string[] = [];
 let instructorId: string;
 let learnerAId: string;
 let learnerBId: string;
@@ -83,11 +85,13 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.review.deleteMany({ where: { courseId: { in: courseIds } } });
   await db.analyticsEvent.deleteMany({
-    where: { userId: { in: [instructorId, learnerAId, learnerBId] } },
+    where: { userId: { in: [instructorId, learnerAId, learnerBId, ...extraUserIds] } },
   });
   await db.enrollment.deleteMany({ where: { courseId: { in: courseIds } } });
   await db.course.deleteMany({ where: { id: { in: courseIds } } });
-  await db.user.deleteMany({ where: { id: { in: [instructorId, learnerAId, learnerBId] } } });
+  await db.user.deleteMany({
+    where: { id: { in: [instructorId, learnerAId, learnerBId, ...extraUserIds] } },
+  });
   await db.$disconnect();
 });
 
@@ -227,5 +231,61 @@ describe("recomputeCourseRating", () => {
 
     expect(await recomputeCourseRating(courseId)).toMatchObject({ average: 5, count: 1 });
     expect(await aggregates(courseId)).toEqual({ ratingAverage: 5, ratingCount: 1 });
+  });
+});
+
+describe("getCourseReviewPanel", () => {
+  it("pages past the first 20 visible reviews instead of dropping them", async () => {
+    const courseId = await newCourse("pager");
+    const authors = await Promise.all(
+      Array.from({ length: 21 }, (_, index) =>
+        db.user.create({
+          data: {
+            name: `Review pager ${index} ${run}`,
+            email: `review-pager-${index}-${run}@example.test`,
+          },
+          select: { id: true },
+        }),
+      ),
+    );
+    extraUserIds.push(...authors.map((row) => row.id));
+
+    const now = Date.now();
+    await db.review.createMany({
+      data: authors.map((author, index) => ({
+        userId: author.id,
+        courseId,
+        rating: 5,
+        body: `Pager body ${index}`,
+        createdAt: new Date(now - index * 1000),
+      })),
+    });
+
+    const first = await getCourseReviewPanel(courseId, null, 1);
+    const second = await getCourseReviewPanel(courseId, null, 2);
+
+    expect(first.summary.count).toBe(21);
+    expect(first.reviews).toHaveLength(20);
+    expect(first.page).toBe(1);
+    expect(first.pageCount).toBe(2);
+    expect(second.reviews).toHaveLength(1);
+    expect(second.page).toBe(2);
+    expect(second.reviews[0]?.body).toBe("Pager body 20");
+    expect(first.reviews.map((row) => row.id)).not.toContain(second.reviews[0]?.id);
+  });
+});
+
+describe("listAdminReviews search", () => {
+  it("finds a review by course title, learner email or its text", async () => {
+    const courseId = await newCourse("search");
+    await grantEnrollment(learnerBId, courseId, "GRANT");
+    const saved = await saveReview({ userId: learnerBId, courseId, rating: 5, body: `Needle ${run} in the text` });
+    expect(saved.ok).toBe(true);
+
+    for (const query of [`review search ${run}`, `review-learner-b-${run}`, `needle ${run}`]) {
+      const { items } = await listAdminReviews(query);
+      expect(items.map((review) => review.courseId)).toContain(courseId);
+    }
+    expect((await listAdminReviews(`nothing-like-this-${run}`)).items).toHaveLength(0);
   });
 });

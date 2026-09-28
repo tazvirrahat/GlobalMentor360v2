@@ -3,6 +3,7 @@ import { sendEmail } from "@/lib/email";
 import { isEnrolled } from "@/lib/entitlement";
 import { notifyMany } from "@/lib/notifications";
 import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
+import { getSite } from "@/lib/site";
 
 // Re-exported so server callers have one import site; the composer imports from
 // lib/announcement-rules directly (see the note in that file).
@@ -177,7 +178,10 @@ export async function sendAnnouncement(input: {
 
   const recipients = await db.enrollment.findMany({
     where: { courseId: course.id, revokedAt: null },
-    select: { userId: true, user: { select: { email: true, name: true } } },
+    select: {
+      userId: true,
+      user: { select: { email: true, name: true, notifyAnnouncements: true, emailAnnouncements: true } },
+    },
     take: MAX_INLINE_RECIPIENTS + 1,
   });
 
@@ -208,8 +212,9 @@ export async function sendAnnouncement(input: {
     select: { id: true },
   });
 
+  // Each learner's switches from the account page: the bell, and email, separately.
   await notifyMany(
-    recipients.map((row) => row.userId),
+    recipients.filter((row) => row.user.notifyAnnouncements).map((row) => row.userId),
     "announcement",
     {
       title: input.subject,
@@ -218,11 +223,12 @@ export async function sendAnnouncement(input: {
     },
   );
 
-  const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  const base = getSite().url;
   let emailFailures = 0;
 
-  for (let index = 0; index < recipients.length; index += EMAIL_CONCURRENCY) {
-    const batch = recipients.slice(index, index + EMAIL_CONCURRENCY);
+  const emailRecipients = recipients.filter((row) => row.user.emailAnnouncements);
+  for (let index = 0; index < emailRecipients.length; index += EMAIL_CONCURRENCY) {
+    const batch = emailRecipients.slice(index, index + EMAIL_CONCURRENCY);
 
     const settled = await Promise.allSettled(
       batch.map((row) =>

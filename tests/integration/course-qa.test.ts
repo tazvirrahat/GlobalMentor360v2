@@ -26,7 +26,7 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { askQuestionAction, replyAction } = await import("@/app/learn/[slug]/qa-actions");
+const { askQuestionAction, replyAction } = await import("@/app/(learn)/learn/[slug]/qa-actions");
 const { getCourseQaPanel } = await import("@/lib/qa");
 const { db } = await import("@/lib/db");
 const { grantEnrollment, revokeEnrollment } = await import("@/lib/enrollment");
@@ -407,5 +407,30 @@ describe("getCourseQaPanel", () => {
 
     const panel = await getCourseQaPanel(courseId, itemId, instructorId);
     expect(panel.threads.map((thread) => thread.title)).toContain(title);
+  });
+
+  it("pages past the first 20 threads so older questions stay reachable", async () => {
+    const now = Date.now();
+    await db.questionThread.createMany({
+      data: Array.from({ length: 21 }, (_, index) => ({
+        courseId,
+        curriculumItemId: itemId,
+        userId: learnerId,
+        title: `Pager thread ${index} ${run}`,
+        body: "Pager body",
+        createdAt: new Date(now - index * 1000),
+      })),
+    });
+
+    const first = await getCourseQaPanel(courseId, itemId, learnerId, 1);
+    const second = await getCourseQaPanel(courseId, itemId, learnerId, 2);
+
+    expect(first.total).toBeGreaterThanOrEqual(21);
+    expect(first.threads).toHaveLength(20);
+    expect(first.page).toBe(1);
+    expect(first.pageCount).toBeGreaterThanOrEqual(2);
+    expect(second.page).toBe(2);
+    expect(second.threads.length).toBeGreaterThan(0);
+    expect(first.threads.map((thread) => thread.id)).not.toContain(second.threads[0]?.id);
   });
 });

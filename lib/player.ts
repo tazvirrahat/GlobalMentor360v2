@@ -1,0 +1,76 @@
+/** The player's tabs, in order. `?tab=` holds one of these. */
+export const PLAYER_TABS = ["overview", "transcript", "qa", "notes", "announcements"] as const;
+export type PlayerTab = (typeof PLAYER_TABS)[number];
+
+/** The tab to open: the one in the URL when this learner has it, else the first. */
+export function pickTab(raw: string | undefined, available: readonly PlayerTab[]): PlayerTab {
+  return available.find((tab) => tab === raw) ?? available[0] ?? "overview";
+}
+
+const two = (n: number) => String(n).padStart(2, "0");
+
+/** A video time as people write it: 1:15, or 1:02:05 past an hour. */
+export function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return h > 0 ? `${h}:${two(m)}:${two(s)}` : `${m}:${two(s)}`;
+}
+
+/**
+ * Reads "1:15", "1:02:05" or plain seconds ("75"). Empty means the start (0).
+ * Null when it is not a time, so the form can say so instead of guessing.
+ */
+export function parseClock(text: string): number | null {
+  const value = text.trim();
+  if (value === "") return 0;
+  if (/^\d+$/.test(value)) return Number(value);
+  const match = value.match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const [, h, m, s] = match;
+  const minutes = Number(m);
+  const secs = Number(s);
+  if (secs > 59 || (h !== undefined && minutes > 59)) return null;
+  return Number(h ?? 0) * 3600 + minutes * 60 + secs;
+}
+
+export type QualityOption = { value: number; label: string };
+
+/**
+ * The Quality menu from hls.js's levels: "Auto" (-1, adaptive) then one entry
+ * per height, highest first. Levels sharing a height (bitrate variants) keep
+ * the first; a level without a height is left out rather than labelled "0p".
+ */
+export function qualityOptions(levels: readonly { height: number }[]): QualityOption[] {
+  const seen = new Set<number>();
+  const picked: QualityOption[] = [];
+  levels.forEach((level, index) => {
+    if (!(level.height > 0) || seen.has(level.height)) return;
+    seen.add(level.height);
+    picked.push({ value: index, label: `${level.height}p` });
+  });
+  picked.sort((a, b) => Number.parseInt(b.label, 10) - Number.parseInt(a.label, 10));
+  return [{ value: -1, label: "Auto" }, ...picked];
+}
+
+/**
+ * The cue under the playhead, or -1 in a gap. `seconds` is whole seconds (the
+ * player clock floors), so a cue stays current through its last second.
+ */
+export function activeCueIndex(cues: readonly { start: number; end: number }[], seconds: number | null): number {
+  if (seconds === null) return -1;
+  let low = 0;
+  let high = cues.length - 1;
+  let found = -1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (cues[mid]!.start <= seconds) {
+      found = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return found >= 0 && seconds <= cues[found]!.end ? found : -1;
+}

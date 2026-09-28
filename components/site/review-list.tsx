@@ -2,25 +2,36 @@ import type { CourseReview } from "@/lib/reviews";
 import { StarRating } from "@/components/site/star-rating";
 import { formatDateMedium } from "@/lib/format";
 
-export function ReviewList({ reviews }: { reviews: CourseReview[] }) {
+function authorInitials(name: string) {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((part) => part[0] ?? "").join("").toUpperCase() || "?";
+}
+
+export function ReviewList({ reviews, timeZone }: { reviews: CourseReview[]; timeZone?: string }) {
   if (reviews.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-graphite">
         No written reviews yet. Enrolled learners can be the first.
       </p>
     );
   }
 
   return (
-    <ul className="flex flex-col divide-y">
+    <ul className="flex flex-col divide-y divide-rule">
       {reviews.map((review) => (
         <li key={review.id} className="flex flex-col gap-2 py-4 first:pt-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span
+              className="flex size-8 items-center justify-center rounded-full bg-wash text-xs font-semibold text-ink"
+              aria-hidden
+            >
+              {authorInitials(review.authorName)}
+            </span>
             <StarRating value={review.rating} starClassName="size-3.5" />
-            <span className="text-sm font-semibold">{review.authorName}</span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-sm font-semibold text-ink">{review.authorName}</span>
+            <span className="text-sm text-graphite">
               <time dateTime={review.createdAt.toISOString()}>
-                {formatDateMedium(review.createdAt)}
+                {formatDateMedium(review.createdAt, timeZone)}
               </time>
               {/* An edited review carries a date that is no longer when it was
                   written, and a reader weighing recency deserves to know. */}
@@ -28,9 +39,19 @@ export function ReviewList({ reviews }: { reviews: CourseReview[] }) {
             </span>
           </div>
           {review.body ? (
-            <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+            <p className="whitespace-pre-line text-base text-ink">
               {review.body}
             </p>
+          ) : null}
+          {review.response ? (
+            <div className="ml-4 flex flex-col gap-1 border-l-2 border-rule pl-4">
+              <p className="text-sm text-graphite">
+                <span className="font-semibold text-ink">Response from {review.response.responderName}</span>
+                {" · "}
+                <time dateTime={review.response.createdAt.toISOString()}>{formatDateMedium(review.response.createdAt, timeZone)}</time>
+              </p>
+              <p className="whitespace-pre-line text-base text-ink">{review.response.body}</p>
+            </div>
           ) : null}
         </li>
       ))}

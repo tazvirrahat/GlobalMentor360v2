@@ -79,7 +79,9 @@ The number learners send to comes from `BKASH_MERCHANT_NUMBER` in `.env`. When s
 | Stripe card | Learner pays on Stripe Checkout | No, if keys + webhook are set | `PURCHASE` |
 | Seed | `npm run db:seed` | No | `GRANT` (sample learner only) |
 
-`grantEnrollment(..., "GRANT")` exists as a function (the same function every rail uses). Seed and tests call it. **No admin page calls it.** You cannot currently “give this account this course” from the UI without a matching checkout.
+| Admin gives a course | Admin, from `/admin/users/<id>` → Give a course | Yes (audited `enrollment.grant`) | `GRANT` |
+
+`grantEnrollment(..., "GRANT")` is the same function every rail uses; the admin user page calls it for published courses the person does not already have.
 
 ### Refunds — also not a picker
 
@@ -131,29 +133,29 @@ Grouped by what you can actually click today.
 
 ### Learning
 
-- Player `/learn/[slug]/[itemId]`: video (HLS) and article lectures, quizzes.
+- Player `/learn/[slug]/[itemId]`: video (HLS), article, audio and PDF lectures, quizzes. Lecture resources (links and files) in the Overview tab. Transcript tab (from uploaded captions) with click-to-seek.
 - Sequential unlock: later required items stay locked until earlier ones are complete. Preview items stay playable even when locked for enrolled sequence.
-- Video: signed CloudFront URL, speed 0.75×–2× remembered in the browser, resume position, ~15s progress reports, auto-advance after a lecture/quiz when the next item unlocks. Lecture counts complete at 90% watched.
+- Video: signed CloudFront URL, speed 0.75×–2× and quality (HLS levels) remembered in the browser, resume position, ~15s progress reports, "Autoplay next lesson" (on by default; a 5-second countdown with Cancel). Lecture counts complete at 90% watched.
 - Quiz: single choice, multi-select, true/false; pass threshold default 70%; explanations after attempt. Empty quizzes auto-pass (studio warns before publish).
 - Notes (timestamp + body) and per-lesson bookmarks — enrolled learners only, in the player.
 - Captions: uploaded VTT, native `<track>` in the player.
 - Course Q&A (per lecture or whole course) in the player; instructor can reply; instructor badge.
 - Announcements in the player (latest 20).
-- Reviews: enrolled learners, 1–5 stars + optional text, editable by the author. Admin can hide/restore.
-- Progress % on `/dashboard` (in progress / completed). Certificate issued at 100%. Public verify page `/certificates/[serial]` and PDF download `/certificates/[serial]/pdf`.
-- In-app notification bell (enrollment, payment, Q&A reply, announcement).
+- Reviews: enrolled learners, 1–5 stars + optional text, editable by the author. Admin can hide/restore. Instructors reply from `/studio/reviews`; the reply shows under the review. "Highest rated" ranks by a recency-weighted score (a review's weight halves each year); the displayed average stays the plain mean.
+- Progress % on `/dashboard` (in progress / completed / archived, with Archive buttons). Certificate issued at 100%. Public verify page `/certificates/[serial]` and PDF download `/certificates/[serial]/pdf`.
+- In-app notification bell (enrollment, payment, Q&A reply, review reply, announcement, course review). Account › Preferences: time zone for dates, and switches for announcements (app / email), question replies and review replies.
 
 ### Studio (`/studio`)
 
 Staff with `INSTRUCTOR` or `ADMIN`. Header link “Studio”.
 
-- Create course (starts `DRAFT`).
-- Settings: title, subtitle, description, objectives/requirements/audience, level, language, **one price currency at a time** (set BDT or you cannot sell via bKash), publish/unpublish with a readiness checklist.
-- Curriculum: sections, add lecture or quiz, reorder, delete, toggle **Preview**.
-- Lecture: article body and/or video upload (S3 presign → MediaConvert → HLS). Status refresh + SQS drain on curriculum pages.
+- Create course (starts `DRAFT`). Instructors who are not admins **submit for review**; an admin approves (publishes) or returns it with a note from `/admin/courses`.
+- Settings: title, subtitle, description, category, course image, objectives/requirements/audience, FAQ, promo video, level, language, **one price currency at a time** (set BDT or you cannot sell via bKash), publish (or submit for review) with a readiness checklist.
+- Curriculum: sections, add lecture or quiz, reorder (buttons, or drag by the grip with a mouse), delete, toggle **Preview**.
+- Lecture: article body, video upload (resumable S3 multipart → MediaConvert → HLS), or an audio file / PDF; links and files as resources. Status refresh + SQS drain on curriculum pages.
 - Quiz builder: questions, options, explanations, pass threshold, time limit.
 - Caption upload (WebVTT) per video.
-- Q&A inbox `/studio/qa`.
+- Q&A inbox `/studio/qa`; reviews with replies `/studio/reviews`; per-course Analytics (enrollments by week, completion, rating by month, where learners stop); public instructor page edited at `/studio/profile`.
 - Announcements `/studio/announcements` (email + in-app; refuses above 500 recipients until a queue exists).
 - Coupons `/studio/coupons` (course-scoped; sitewide codes are admin-created). Apply at **bKash** checkout.
 
@@ -165,11 +167,13 @@ Same app. `/admin` redirects to payments.
 |---|---|
 | `/admin/payments` | Approve/reject pending bKash. This is how paid bKash access is granted. |
 | `/admin/refunds` | Mark a paid order refunded and revoke those enrollments. |
-| `/admin/users` | Search users; grant/remove `INSTRUCTOR` and `ADMIN`. Cannot enroll them in a course. |
-| `/admin/courses` | Search; publish/unpublish. |
+| `/admin/users` | Search users; grant/remove `INSTRUCTOR` and `ADMIN`. Each user's page: suspend/unsuspend (signs them out; sign-in then says the account is suspended) and Give a course. |
+| `/admin/courses` | Search; publish/unpublish; the review queue (approve / return with a note). Each course's page: feature on the home page, category, topics and skills. |
 | `/admin/reviews` | Hide/restore reviews. |
+| `/admin/taxonomy` | Categories (subjects and subcategories), topics, skills. |
+| `/admin/videos` | Videos by status, failed or stuck ones with Retry / Check status, the event queue's last drain. |
 
-No impersonate, no suspend button, no taxonomy editor, no “grant course” form.
+**View as (read-only):** from a user's page, "View as {name}" shows the whole site as that person for up to 30 minutes. Every change is blocked while viewing (the app refuses any request that could write), a banner at the top says who you are viewing and until when, and Stop viewing returns you to their page. Admins and suspended accounts can't be viewed as. Start and stop are recorded in the audit log.
 
 ### Video / AWS
 
@@ -195,20 +199,21 @@ What a published course can have, and where.
 | Notes | Player, enrolled only | — | — |
 | Bookmarks | Player, enrolled only | — | — |
 | Captions | On/off in video player | Upload VTT | — |
-| Auto-generated captions / transcripts | Not built | Not built | — |
-| Downloadable lecture files | Schema only | No upload UI | — |
-| Course cover / promo video | Gradient placeholder | No thumbnail uploader | — |
+| Auto-generated captions | Not built | Not built | — |
+| Transcript | Transcript tab (from uploaded captions) | Upload VTT | — |
+| Lecture resources (links, files) | Overview tab | Resources panel | — |
+| Course image / promo video | Image in lists and the buy box; "Watch the promo" | Details / Landing page fields | — |
 | Progress % | Dashboard + player | Enrollment count on studio list | — |
 | Reviews + histogram | Landing page | — | Hide/restore |
-| Instructor reply to a review | Not built | Not built | — |
+| Instructor reply to a review | Under the review | `/studio/reviews` | — |
 | Q&A | Player | `/studio/qa` | — |
 | Q&A upvote / search | Not built | Filter unanswered / course / date | — |
 | Announcements | Player + email | Composer | — |
 | Certificate | Dashboard, player banner, public URL, PDF | Counts toward completion | No reissue UI |
 | Wishlist | Not built (skipped) | — | — |
-| Archive course on dashboard | Tab exists if `archivedAt` is set; **no button to archive** | — | — |
+| Archive course on dashboard | Archive / Unarchive buttons | — | — |
 
-Playback extras that are **not** in: picture-in-picture UI, keyboard shortcut overlay, interactive transcript, DRM, watermarking.
+Playback extras that are **not** in: picture-in-picture UI, keyboard shortcut overlay, DRM, watermarking, captions on promo videos.
 
 ---
 
@@ -224,6 +229,8 @@ These need an account, a dashboard, or a decision from you. Do not paste keys, P
 6. **Your real bKash personal/merchant number** goes in `BKASH_MERCHANT_NUMBER` in `.env` (currently empty). Once set, checkout and cart show it in the transfer instructions; until then they tell learners the number will be shared by the academy / contact support.
 7. **GitHub is behind.** Local `main` is **27 commits ahead** of `origin/main`. There is also **uncommitted** work on disk (cart, admin users/refunds, captions, notes, coupons, etc.). A push without a commit does not upload that working tree. Push only when you intend GitHub to match this machine.
 8. **Production host** (domain, HTTPS, Postgres not on your laptop, `BETTER_AUTH_URL` / `NEXT_PUBLIC_APP_URL` pointing at the public origin). Local docker Postgres is not the internet.
+9. **A daily job for ratings.** "Highest rated" uses a recency-weighted score whose weights move with the date. Schedule `npm run ratings:recompute` once a day on the host (it is safe to run any time).
+10. **S3 bucket settings for uploads.** The bucket's CORS rule must allow `PUT` from the app's origin (video parts, resource files, course images, audio/PDF lessons all upload straight from the browser). Add a lifecycle rule that aborts incomplete multipart uploads after a few days, so abandoned video uploads do not keep costing storage.
 
 ---
 
@@ -233,7 +240,7 @@ Honest leftovers. None of these are required to sell a course via bKash if you a
 
 **Not built — people often assume they exist**
 
-- **Admin “enroll this user in this course” picker.** `EnrollmentSource.GRANT` and `grantEnrollment()` exist; there is no UI. FEATURES.md listed “grant enrollment” as later support tooling. If a learner paid in bKash but used the wrong account, you cannot retarget the approval. They must submit from the correct account (or you refund/reject and start over).
+- **Retargeting a bKash approval to another account.** An admin can give the right account the course (`/admin/users/<id>` → Give a course) and refund the wrong one, but an approval itself cannot be moved.
 - **Learner-visible reject reason.** Admin must type one; receipts do not show it.
 - **Wishlist** — skipped on purpose.
 - **Stripe on the cart, and Stripe coupons.** Cart is bKash-only. Stripe is one course, list USD price.
@@ -247,22 +254,19 @@ Honest leftovers. None of these are required to sell a course via bKash if you a
 **Schema or files that look finished but have no product UI**
 
 - Practice tests, assignments, assignment submissions, coding-exercise enum value.
-- `lecture_resources`, `transcripts`, `review_responses`, `review_votes`, `content_reports`.
-- `UserStatus` (`SUSPENDED` / `DELETED`) — no suspend control.
+- `review_votes`, `content_reports`.
+- `UserStatus.DELETED` — no delete-account flow.
 - Roles `SUPPORT`, `MODERATOR` — unused.
-- Instructor headline/bio — shown on the landing page if present; no studio profile editor.
-- Course thumbnails / `promoVideoId` — catalog uses a gradient + initials.
 - Certificate `pdfKey` — unused; PDF is generated on the fly.
 - `lib/video/bunny.ts` — leftover previous vendor; not selected.
-- Archive tab on My Learning — no archive action.
-- Analytics events are recorded in Postgres; **no** admin/instructor charts.
+- `users.locale` — kept for when the interface is translated; there is no language setting yet.
 - TECH-SPEC extras not in the app: Redis, BullMQ, PostHog, i18n, GDPR export/erasure, 2FA, SSO, native apps, mentorship/live class.
 
 **Partial / capped**
 
 - Announcement email: max 500 recipients per send.
 - Studio price form: one currency per save (USD and BDT can both exist; you set them separately). A course with only USD cannot be bought with bKash.
-- Cover images, keyboard shortcut help, note export, recency-weighted ratings.
+- Keyboard shortcut help, note export.
 
 ---
 

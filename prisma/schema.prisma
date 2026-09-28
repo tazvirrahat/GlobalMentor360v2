@@ -54,9 +54,16 @@ model User {
   bio           String?    @db.Text
   websiteUrl    String?
   locale        String     @default("en")
-  timezone      String     @default("UTC")
+  /// IANA zone for dates; null = the site's time zone (lib/site.ts).
+  timezone      String?
   status        UserStatus @default(ACTIVE)
   profilePublic Boolean    @default(true)
+  // Notification preferences (account page). Enrollments, payments, refunds
+  // and course-review decisions always notify and have no switch.
+  notifyAnnouncements Boolean @default(true)
+  emailAnnouncements  Boolean @default(true)
+  notifyQaReplies     Boolean @default(true)
+  notifyReviewReplies Boolean @default(true)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -212,6 +219,9 @@ model Course {
   // prisma/migrations/20260817000000_catalog_search. Prisma cannot express
   // generated columns here. `prisma db push` is unsafe against a migrated
   // database — it will drop search_vector. Use `prisma migrate deploy`.
+  // Also hand-written and invisible here: the partial index
+  // courses_review_queue_idx (20260925000200_course_review). A generated diff
+  // will offer to drop it; leave that statement out, as with search_vector.
   id                String       @id @default(uuid(7))
   title             String
   slug              String       @unique
@@ -227,8 +237,17 @@ model Course {
   // Denormalised aggregates, recomputed on review write. Display only.
   ratingAverage     Float        @default(0)
   ratingCount       Int          @default(0)
+  /// Recency-weighted mean for ranking ("Highest rated"): Σ wᵢrᵢ / Σ wᵢ, wᵢ = 0.5^(age / 365 d).
+  /// See recomputeCourseRating in lib/reviews.ts; kept fresh by `npm run ratings:recompute`.
+  ratingScore       Float        @default(0)
   enrollmentCount   Int          @default(0)
   publishedAt       DateTime?
+  // Review before publishing: when the instructor submitted it, and the
+  // admin's note when it was sent back. See lib/course-review.ts.
+  reviewRequestedAt DateTime?
+  /// Set by an admin to lead the home page's course list (newest first); null = not featured.
+  featuredAt        DateTime?
+  reviewNote        String?      @db.Text
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -239,6 +258,7 @@ model Course {
   objectives      CourseObjective[]
   requirements    CourseRequirement[]
   targetAudience  CourseTargetAudience[]
+  faqs            CourseFaq[]
   topics          CourseTopic[]
   skills          CourseSkill[]
   sections        Section[]
@@ -280,6 +300,19 @@ model CourseRequirement {
 
   @@index([courseId])
   @@map("course_requirements")
+}
+
+/// A question and answer on the course page's FAQ, written in the studio.
+model CourseFaq {
+  id       String @id @default(uuid(7))
+  courseId String
+  question String
+  answer   String @db.Text
+  position Int
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, position])
+  @@map("course_faqs")
 }
 
 model CourseTargetAudience {

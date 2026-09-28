@@ -20,6 +20,8 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
+  // No "view as" grant in these tests (see lib/impersonation).
+  cookies: async () => ({ get: () => undefined }),
 }));
 
 vi.mock("@/lib/auth", () => ({

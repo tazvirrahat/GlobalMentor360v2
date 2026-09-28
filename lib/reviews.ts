@@ -3,6 +3,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { ModerationStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { canReview } from "@/lib/entitlement";
+import { notify } from "@/lib/notifications";
+import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
+import { REVIEW_REPLY_MAX } from "@/lib/review-rules";
 
 /**
  * Course reviews and the rating aggregates every catalog surface renders.
@@ -61,15 +64,34 @@ export type RatingSummary = {
 };
 
 /**
+ * Recency weighting for ranking (spec §12 "recency weighting in the
+ * aggregate"). A review's weight halves every RATING_HALF_LIFE_DAYS, counted
+ * from its last edit, and Course.ratingScore = Σ wᵢ·rᵢ / Σ wᵢ over visible
+ * reviews. "Highest rated" sorts by that score, so a course whose recent
+ * learners are happier climbs and one coasting on old praise slips.
+ *
+ * The displayed average stays the flat mean below, for the reasons given
+ * there: it has to agree with the histogram under it, and it is only ever
+ * rewritten on a review write. The score, which only orders the catalog, is
+ * refreshed on every review write and daily by `npm run ratings:recompute`.
+ */
+export const RATING_HALF_LIFE_DAYS = 365;
+
+/** A review's weight at a given age: 1 when new, ½ after a half-life, ¼ after two. */
+export function recencyWeight(ageDays: number): number {
+  return 0.5 ** (Math.max(0, ageDays) / RATING_HALF_LIFE_DAYS);
+}
+
+/**
  * Turns grouped rating counts into the numbers the page renders.
  *
  * Pure, and separate from the query, because the interesting cases are the ones
  * a database round trip makes tedious to reach: no reviews at all, one review,
  * and a rating outside 1-5 that predates the guard above.
  *
- * A flat mean, and deferring recency weighting is a decision rather than an
- * oversight. FEATURES.md section F lists "rating aggregation, distribution
- * histogram, recency weighting" on one P0 line; the first two ship here.
+ * A flat mean on purpose. FEATURES.md section F lists "rating aggregation,
+ * distribution histogram, recency weighting" on one P0 line; the weighting
+ * lives in the ranking score above rather than in this headline number.
  *
  * The obstacle is not choosing a decay curve, it is where the number is stored.
  * A time-weighted mean is a function of now(), and Course.ratingAverage is only
@@ -84,9 +106,9 @@ export type RatingSummary = {
  * it, which counts every review once: a 4.6 above bars that visibly average 4.1
  * reads as a bug, and a star summary has no room to explain the difference.
  *
- * A flat mean is the number a learner believes they are being shown. Revisit
- * when there is a half-life someone can defend and a job that keeps the
- * denormalised column true between writes.
+ * A flat mean is the number a learner believes they are being shown; the
+ * weighted one orders the catalog (Course.ratingScore) and is kept true by the
+ * daily recompute.
  */
 export function summariseRatings(buckets: readonly RatingBucket[]): RatingSummary {
   const counts = new Map<number, number>();
@@ -196,13 +218,35 @@ export async function recomputeCourseRating(
       buckets.map((bucket) => ({ rating: bucket.rating, count: bucket._count._all })),
     );
 
+    // The ranking score (see RATING_HALF_LIFE_DAYS): computed in SQL so the
+    // weights use the database's clock, the same one the daily recompute uses.
+    const [score] = await tx.$queryRaw<{ score: number | null }[]>`
+      SELECT
+        SUM(r.rating * power(0.5, EXTRACT(EPOCH FROM ((now() AT TIME ZONE 'UTC') - r."updatedAt")) / 86400.0 / ${RATING_HALF_LIFE_DAYS}))
+          / NULLIF(SUM(power(0.5, EXTRACT(EPOCH FROM ((now() AT TIME ZONE 'UTC') - r."updatedAt")) / 86400.0 / ${RATING_HALF_LIFE_DAYS})), 0)
+          AS score
+      FROM reviews r
+      WHERE r."courseId" = ${courseId} AND r.status = 'VISIBLE'
+    `;
+
     await tx.course.update({
       where: { id: courseId },
-      data: { ratingAverage: summary.average, ratingCount: summary.count },
+      data: { ratingAverage: summary.average, ratingCount: summary.count, ratingScore: Number(score?.score ?? 0) },
     });
 
     return summary;
   });
+}
+
+/**
+ * Refreshes every published course's ranking score. The weights depend on
+ * the date, so a course nobody has reviewed lately drifts until this runs:
+ * schedule `npm run ratings:recompute` daily.
+ */
+export async function recomputeAllCourseRatings(): Promise<number> {
+  const courses = await db.course.findMany({ where: { ratingCount: { gt: 0 } }, select: { id: true } });
+  for (const course of courses) await recomputeCourseRating(course.id);
+  return courses.length;
 }
 
 export type ReviewWriteResult =
@@ -254,6 +298,8 @@ export async function saveReview(input: {
   return { ok: true, summary };
 }
 
+export type ReviewReply = { body: string; createdAt: Date; responderName: string };
+
 export type CourseReview = {
   id: string;
   rating: number;
@@ -261,6 +307,8 @@ export type CourseReview = {
   createdAt: Date;
   updatedAt: Date;
   authorName: string;
+  /** The instructor's reply, shown under the review. */
+  response: ReviewReply | null;
 };
 
 export type OwnReview = {
@@ -274,43 +322,31 @@ export type CourseReviewPanel = {
   reviews: CourseReview[];
   /** The signed-in learner's own review, if they have written one. */
   ownReview: OwnReview | null;
-  /** Visible reviews beyond the page rendered, so the count can be honest. */
-  hiddenByPageSize: number;
+  page: number;
+  pageCount: number;
 };
 
 /**
- * The landing page renders one review at a time but is a public, SEO-critical
- * page, so the query count has to be constant. A course with 4000 reviews costs
+ * The landing page renders one review page at a time but is a public, SEO-critical
+ * page, so the query count has to stay constant. A course with 4000 reviews costs
  * exactly what a course with four costs.
  */
-const REVIEW_PAGE_SIZE = 20;
+export const REVIEW_PAGE_SIZE = 20;
 
 /**
- * Everything the landing page's review section needs, in three queries that do
- * not multiply with the number of reviews (two when signed out).
+ * Everything the landing page's review section needs, in a constant number of
+ * queries that do not multiply with the number of reviews (two when signed out).
  */
 export async function getCourseReviewPanel(
   courseId: string,
   userId: string | null,
+  page?: string | number,
 ): Promise<CourseReviewPanel> {
-  const [buckets, rows, own] = await Promise.all([
+  const [buckets, own] = await Promise.all([
     db.review.groupBy({
       by: ["rating"],
       where: { courseId, status: "VISIBLE" },
       _count: { _all: true },
-    }),
-    db.review.findMany({
-      where: { courseId, status: "VISIBLE" },
-      orderBy: { createdAt: "desc" },
-      take: REVIEW_PAGE_SIZE,
-      select: {
-        id: true,
-        rating: true,
-        body: true,
-        createdAt: true,
-        updatedAt: true,
-        user: { select: { name: true } },
-      },
     }),
     // Deliberately unfiltered on status: a learner whose review was hidden still
     // gets their own text back in the form, rather than a blank box that looks
@@ -327,6 +363,25 @@ export async function getCourseReviewPanel(
     buckets.map((bucket) => ({ rating: bucket.rating, count: bucket._count._all })),
   );
 
+  const current = clampPage(page, summary.count, REVIEW_PAGE_SIZE);
+  const { skip, take } = skipTake(current, REVIEW_PAGE_SIZE);
+
+  const rows = await db.review.findMany({
+    where: { courseId, status: "VISIBLE" },
+    orderBy: { createdAt: "desc" },
+    skip,
+    take,
+    select: {
+      id: true,
+      rating: true,
+      body: true,
+      createdAt: true,
+      updatedAt: true,
+      user: { select: { name: true } },
+      response: { select: { body: true, createdAt: true, responder: { select: { name: true } } } },
+    },
+  });
+
   return {
     summary,
     reviews: rows.map((row) => ({
@@ -336,8 +391,160 @@ export async function getCourseReviewPanel(
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       authorName: row.user.name,
+      response: row.response
+        ? { body: row.response.body, createdAt: row.response.createdAt, responderName: row.response.responder.name }
+        : null,
     })),
     ownReview: own,
-    hiddenByPageSize: Math.max(0, summary.count - rows.length),
+    page: current,
+    pageCount: pageCount(summary.count, REVIEW_PAGE_SIZE),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Instructor replies (review_responses: one per review)
+// ---------------------------------------------------------------------------
+
+type ReplyResult = { ok: true } | { ok: false; message: string };
+
+/** The review, found through the course's instructor, so nobody else can reply. */
+function ownedReview(instructorId: string, reviewId: string) {
+  return db.review.findFirst({
+    where: { id: reviewId, course: { instructorId } },
+    select: { id: true, userId: true, course: { select: { title: true, slug: true } }, response: { select: { id: true } } },
+  });
+}
+
+/**
+ * The course's instructor replies to a review, or edits their reply. The
+ * reviewer is notified of the first reply (not of edits).
+ */
+export async function saveReviewResponse(instructorId: string, reviewId: string, rawBody: string): Promise<ReplyResult> {
+  const body = rawBody.trim();
+  if (!body) return { ok: false, message: "Write a reply first." };
+  if (body.length > REVIEW_REPLY_MAX) return { ok: false, message: `Replies can be up to ${REVIEW_REPLY_MAX} characters.` };
+  const review = await ownedReview(instructorId, reviewId);
+  if (!review) return { ok: false, message: "Review not found." };
+
+  await db.reviewResponse.upsert({
+    where: { reviewId: review.id },
+    create: { reviewId: review.id, responderId: instructorId, body },
+    update: { body },
+  });
+  if (!review.response) {
+    await notify(review.userId, "review_reply", {
+      title: "The instructor replied to your review",
+      body: review.course.title,
+      href: `/courses/${review.course.slug}#reviews`,
+    });
+  }
+  return { ok: true };
+}
+
+export async function deleteReviewResponse(instructorId: string, reviewId: string): Promise<ReplyResult> {
+  const review = await ownedReview(instructorId, reviewId);
+  if (!review) return { ok: false, message: "Review not found." };
+  await db.reviewResponse.deleteMany({ where: { reviewId: review.id } });
+  return { ok: true };
+}
+
+export type InstructorReview = {
+  id: string;
+  rating: number;
+  body: string | null;
+  createdAt: Date;
+  authorName: string;
+  course: { title: string; slug: string };
+  response: { body: string; createdAt: Date } | null;
+};
+
+export const INSTRUCTOR_REVIEW_PAGE_SIZE = 20;
+
+/** Visible reviews of an instructor's courses, newest first; optionally only those without a reply. */
+export async function listInstructorReviews(
+  instructorId: string,
+  options: { unansweredOnly?: boolean; page?: string | number } = {},
+): Promise<Paged<InstructorReview> & { unanswered: number }> {
+  const base = { status: "VISIBLE" as const, course: { instructorId } };
+  const where = options.unansweredOnly ? { ...base, response: { is: null } } : base;
+  const [total, unanswered] = await Promise.all([
+    db.review.count({ where }),
+    db.review.count({ where: { ...base, response: { is: null } } }),
+  ]);
+  const current = clampPage(options.page, total, INSTRUCTOR_REVIEW_PAGE_SIZE);
+  const { skip, take } = skipTake(current, INSTRUCTOR_REVIEW_PAGE_SIZE);
+  const rows = await db.review.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    skip,
+    take,
+    select: {
+      id: true,
+      rating: true,
+      body: true,
+      createdAt: true,
+      user: { select: { name: true } },
+      course: { select: { title: true, slug: true } },
+      response: { select: { body: true, createdAt: true } },
+    },
+  });
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      rating: row.rating,
+      body: row.body,
+      createdAt: row.createdAt,
+      authorName: row.user.name,
+      course: row.course,
+      response: row.response,
+    })),
+    total,
+    page: current,
+    pageCount: pageCount(total, INSTRUCTOR_REVIEW_PAGE_SIZE),
+    unanswered,
+  };
+}
+
+export type HomeTestimonial = {
+  id: string;
+  rating: number;
+  body: string;
+  authorName: string;
+  courseTitle: string;
+};
+
+/** Recent visible reviews with a body, for the marketing home only. */
+export async function listHomeTestimonials(take = 3, minRating = 1): Promise<HomeTestimonial[]> {
+  const rows = await db.review.findMany({
+    where: {
+      status: "VISIBLE",
+      body: { not: null },
+      rating: { gte: minRating },
+      course: { status: "PUBLISHED" },
+    },
+    orderBy: { createdAt: "desc" },
+    take: take * 4,
+    select: {
+      id: true,
+      rating: true,
+      body: true,
+      user: { select: { name: true } },
+      course: { select: { title: true } },
+    },
+  });
+
+  const out: HomeTestimonial[] = [];
+  for (const row of rows) {
+    const body = row.body?.trim();
+    if (!body) continue;
+    out.push({
+      id: row.id,
+      rating: row.rating,
+      body,
+      authorName: row.user.name,
+      courseTitle: row.course.title,
+    });
+    if (out.length >= take) break;
+  }
+  return out;
 }

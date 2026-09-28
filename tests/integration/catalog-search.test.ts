@@ -56,6 +56,8 @@ let paidDearId: string;
 let frenchId: string;
 let draftId: string;
 let mixedPriceId: string;
+let childCategoryCourseId: string;
+const categoryIds: string[] = [];
 
 beforeAll(async () => {
   instructorId = (
@@ -85,11 +87,25 @@ beforeAll(async () => {
   await db.price.create({
     data: { courseId: mixedPriceId, currency: "BDT", amount: 0, isActive: true },
   });
+
+  // A subject with a subcategory: the course sits in the child only.
+  const parent = await db.category.create({
+    data: { name: `Subject ${run}`, slug: `subject-${run}` },
+    select: { id: true },
+  });
+  const child = await db.category.create({
+    data: { name: `Topic ${run}`, slug: `topic-${run}`, parentId: parent.id },
+    select: { id: true },
+  });
+  categoryIds.push(child.id, parent.id);
+  childCategoryCourseId = await makeCourse({ label: "catalog-child", priceUsd: 1500 });
+  await db.course.update({ where: { id: childCategoryCourseId }, data: { primaryCategoryId: child.id } });
 });
 
 afterAll(async () => {
   await db.price.deleteMany({ where: { courseId: { in: courseIds } } });
   await db.course.deleteMany({ where: { id: { in: courseIds } } });
+  for (const id of categoryIds) await db.category.deleteMany({ where: { id } });
   await db.user.deleteMany({ where: { id: instructorId } });
   await db.$disconnect();
 });
@@ -141,6 +157,15 @@ describe("filters", () => {
     expect(wellRated).not.toContain(paidCheapId);
   });
 
+  it("includes a subcategory's courses when filtering by its parent subject", async () => {
+    // Both read paths: the plain Prisma query and the full-text SQL one.
+    expect(mine(await listPublishedCourses({ categorySlug: `subject-${run}` }))).toEqual([childCategoryCourseId]);
+    expect(mine(await listPublishedCourses({ categorySlug: `topic-${run}` }))).toEqual([childCategoryCourseId]);
+    expect(
+      mine(await listPublishedCourses({ categorySlug: `subject-${run}`, query: "catalog-child" })),
+    ).toEqual([childCategoryCourseId]);
+  });
+
   it("searches the instructor's name, not just the course text", async () => {
     const found = mine(await listPublishedCourses({ query: `Catalog Instructor ${run}` }));
     expect(found.length).toBeGreaterThan(0);
@@ -162,10 +187,12 @@ describe("sort", () => {
   });
 
   it("orders by enrollment count and by rating", async () => {
-    const popular = mine(await listPublishedCourses({ sort: "popular" }));
+    // Scope to this run: a 0-enrollment fixture otherwise falls off page 1 of
+    // a shared catalog larger than CATALOG_PAGE_SIZE.
+    const popular = mine(await listPublishedCourses({ sort: "popular", query: run }));
     expect(popular.indexOf(paidDearId)).toBeLessThan(popular.indexOf(paidCheapId));
 
-    const rated = mine(await listPublishedCourses({ sort: "rating" }));
+    const rated = mine(await listPublishedCourses({ sort: "rating", query: run }));
     expect(rated.indexOf(paidDearId)).toBeLessThan(rated.indexOf(paidCheapId));
   });
 });
@@ -183,5 +210,51 @@ describe("bounds", () => {
     expect(mine(first)).toContain(paidDearId);
     expect(first.total).toBeGreaterThanOrEqual(1);
     expect(first.items.length).toBeLessThanOrEqual(first.total);
+  });
+});
+
+describe("duration filter", () => {
+  let halfHourId: string;
+  let twoHourId: string;
+
+  /** One section of article lectures whose durations add up to `minutes`. */
+  async function addLectures(courseId: string, minutes: number[]) {
+    const section = await db.section.create({ data: { courseId, title: "Only section", position: 0 }, select: { id: true } });
+    for (const [position, length] of minutes.entries()) {
+      await db.curriculumItem.create({
+        data: {
+          sectionId: section.id,
+          title: `Lecture ${position + 1}`,
+          type: "LECTURE",
+          position,
+          lecture: { create: { contentType: "ARTICLE", articleBody: "Text.", durationSeconds: length * 60 } },
+        },
+      });
+    }
+  }
+
+  beforeAll(async () => {
+    halfHourId = await makeCourse({ label: "catalog-halfhour", priceUsd: 1000 });
+    await addLectures(halfHourId, [10, 20]);
+    twoHourId = await makeCourse({ label: "catalog-twohour", priceUsd: 1000 });
+    await addLectures(twoHourId, [60, 45, 15]);
+  });
+
+  it("puts each course in the bucket its summed lecture time falls in", async () => {
+    const short = mine(await listPublishedCourses({ duration: "short" }));
+    const medium = mine(await listPublishedCourses({ duration: "medium" }));
+    const long = mine(await listPublishedCourses({ duration: "long" }));
+    expect(short).toContain(halfHourId);
+    expect(short).not.toContain(twoHourId);
+    expect(medium).toContain(twoHourId);
+    expect(medium).not.toContain(halfHourId);
+    expect(long).not.toContain(halfHourId);
+    expect(long).not.toContain(twoHourId);
+  });
+
+  it("combines with search and other filters", async () => {
+    const hits = mine(await listPublishedCourses({ query: `catalog-twohour ${run}`, duration: "medium" }));
+    expect(hits).toEqual([twoHourId]);
+    expect(mine(await listPublishedCourses({ duration: "medium", price: "free" }))).not.toContain(twoHourId);
   });
 });

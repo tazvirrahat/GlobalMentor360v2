@@ -9,6 +9,7 @@
  */
 
 import { formatDateLong } from "@/lib/format";
+import { getSite } from "@/lib/site";
 
 function pdfEscape(text: string): string {
   let out = "";
@@ -68,7 +69,7 @@ function contentStream(input: CertificatePdfInput): string {
   ops.push("0.533 0 0.125 rg");
   ops.push("0 540 792 72 re f");
   ops.push("1 1 1 rg");
-  text(18, 48, 568, "GlobalMentor360");
+  text(18, 48, 568, getSite().name);
   text(11, 48, 548, "Certificate of completion");
 
   ops.push("0.067 0.067 0.09 rg");

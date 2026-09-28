@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { CourseLevel } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { durationBucket, type DurationBucket } from "@/lib/catalog-duration";
 import { formatHoursMinutes } from "@/lib/format";
 import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
 import { BKASH_CURRENCY, STRIPE_CURRENCY } from "@/lib/payments";
@@ -73,7 +74,7 @@ export function isFreeCourse(prices: readonly { amount: number }[]): boolean {
 export type CatalogSort = "newest" | "popular" | "rating" | "price-low" | "price-high" | "relevance";
 
 export type CatalogFilters = {
-  /** Full-text / trigram search across title, subtitle, description and instructor. */
+  /** Full-text / trigram search across title, subtitle, description, instructor, topics and skills. */
   query?: string;
   level?: CourseLevel;
   categorySlug?: string;
@@ -83,15 +84,17 @@ export type CatalogFilters = {
   price?: "free" | "paid";
   /** Minimum star rating, 1-5. Reads the denormalised aggregate. */
   minRating?: number;
+  /** Course length bucket, from the summed lecture durations. */
+  duration?: DurationBucket;
   sort?: CatalogSort;
   page?: string | number;
 };
 
 /**
  * One catalog page. The public /courses route pages with ?page= rather than
- * silently dropping everything past the first 48.
+ * silently dropping everything past the first 24.
  */
-export const CATALOG_PAGE_SIZE = 48;
+export const CATALOG_PAGE_SIZE = 24;
 
 /**
  * Only the orderings Prisma can apply without a search.
@@ -103,11 +106,12 @@ export const CATALOG_PAGE_SIZE = 48;
  */
 const DB_ORDER: Record<
   Exclude<CatalogSort, "price-low" | "price-high" | "relevance">,
-  Prisma.CourseOrderByWithRelationInput
+  Prisma.CourseOrderByWithRelationInput | Prisma.CourseOrderByWithRelationInput[]
 > = {
   newest: { publishedAt: "desc" },
   popular: { enrollmentCount: "desc" },
-  rating: { ratingAverage: "desc" },
+  // Recency-weighted (lib/reviews.ts RATING_HALF_LIFE_DAYS), then how many rated.
+  rating: [{ ratingScore: "desc" }, { ratingCount: "desc" }],
 };
 
 const CATALOG_SELECT = {
@@ -115,6 +119,7 @@ const CATALOG_SELECT = {
   title: true,
   slug: true,
   subtitle: true,
+  thumbnailUrl: true,
   level: true,
   ratingAverage: true,
   ratingCount: true,
@@ -158,6 +163,7 @@ function catalogFilterSql(input: {
   language?: string;
   price?: "free" | "paid";
   minRating?: number;
+  duration?: DurationBucket;
 }): Prisma.Sql {
   const parts: Prisma.Sql[] = [Prisma.sql`c.status = 'PUBLISHED'`];
 
@@ -171,10 +177,13 @@ function catalogFilterSql(input: {
     parts.push(Prisma.sql`c."ratingAverage" >= ${input.minRating}`);
   }
   if (input.categorySlug) {
+    // A subject ("Development") includes its subcategories' courses.
     parts.push(
       Prisma.sql`EXISTS (
         SELECT 1 FROM categories cat
-        WHERE cat.id = c."primaryCategoryId" AND cat.slug = ${input.categorySlug}
+        LEFT JOIN categories parent ON parent.id = cat."parentId"
+        WHERE cat.id = c."primaryCategoryId"
+          AND (cat.slug = ${input.categorySlug} OR parent.slug = ${input.categorySlug})
       )`,
     );
   }
@@ -194,6 +203,19 @@ function catalogFilterSql(input: {
       )`,
     );
   }
+  if (input.duration) {
+    // The same total the course row shows: every lecture's duration summed.
+    const { minSeconds, maxSeconds } = durationBucket(input.duration);
+    const total = Prisma.sql`(
+      SELECT COALESCE(SUM(l."durationSeconds"), 0)
+      FROM sections s
+      JOIN curriculum_items ci ON ci."sectionId" = s.id
+      JOIN lectures l ON l."curriculumItemId" = ci.id
+      WHERE s."courseId" = c.id
+    )`;
+    parts.push(Prisma.sql`${total} >= ${minSeconds}`);
+    if (maxSeconds !== null) parts.push(Prisma.sql`${total} < ${maxSeconds}`);
+  }
   if (input.search) {
     const pattern = ilikePattern(input.search);
     parts.push(
@@ -203,6 +225,15 @@ function catalogFilterSql(input: {
         OR COALESCE(c.subtitle, '') ILIKE ${pattern}
         OR COALESCE(c.description, '') ILIKE ${pattern}
         OR u.name ILIKE ${pattern}
+        -- A course's topics and skills (admin-set) count too, so "Related topics" links find it.
+        OR EXISTS (
+          SELECT 1 FROM course_topics ct JOIN topics t ON t.id = ct."topicId"
+          WHERE ct."courseId" = c.id AND t.name ILIKE ${pattern}
+        )
+        OR EXISTS (
+          SELECT 1 FROM course_skills cs JOIN skills k ON k.id = cs."skillId"
+          WHERE cs."courseId" = c.id AND k.name ILIKE ${pattern}
+        )
       )`,
     );
   }
@@ -219,7 +250,7 @@ function catalogOrderClause(sort: CatalogSort, search: string): Prisma.Sql {
     return Prisma.sql`ORDER BY c."enrollmentCount" DESC, c."publishedAt" DESC NULLS LAST`;
   }
   if (sort === "rating") {
-    return Prisma.sql`ORDER BY c."ratingAverage" DESC, c."publishedAt" DESC NULLS LAST`;
+    return Prisma.sql`ORDER BY c."ratingScore" DESC, c."ratingCount" DESC, c."publishedAt" DESC NULLS LAST`;
   }
   return Prisma.sql`ORDER BY c."publishedAt" DESC NULLS LAST`;
 }
@@ -234,7 +265,15 @@ function catalogPrismaWhere(filters: {
   return {
     status: "PUBLISHED",
     ...(filters.level ? { level: filters.level } : {}),
-    ...(filters.categorySlug ? { primaryCategory: { slug: filters.categorySlug } } : {}),
+    // A subject ("Development") includes its subcategories' courses.
+    ...(filters.categorySlug
+      ? {
+          OR: [
+            { primaryCategory: { slug: filters.categorySlug } },
+            { primaryCategory: { parent: { slug: filters.categorySlug } } },
+          ],
+        }
+      : {}),
     ...(filters.language ? { language: filters.language } : {}),
     ...(filters.minRating ? { ratingAverage: { gte: filters.minRating } } : {}),
     // "free" is every active price being zero, matching isFreeCourse — a course
@@ -275,6 +314,7 @@ export type CatalogCourse = ReturnType<typeof mapCatalogCourse> & {
   title: string;
   slug: string;
   subtitle: string | null;
+  thumbnailUrl: string | null;
   level: CourseLevel;
   ratingAverage: number;
   ratingCount: number;
@@ -297,6 +337,7 @@ async function searchPublishedCourseTotal(input: {
   language?: string;
   price?: "free" | "paid";
   minRating?: number;
+  duration?: DurationBucket;
 }): Promise<number> {
   const whereSql = catalogFilterSql(input);
   const countRows = await db.$queryRaw<{ total: number }[]>`
@@ -315,6 +356,7 @@ async function searchPublishedCourseIds(input: {
   language?: string;
   price?: "free" | "paid";
   minRating?: number;
+  duration?: DurationBucket;
   sort: CatalogSort;
   skip: number;
   take: number;
@@ -333,13 +375,16 @@ async function searchPublishedCourseIds(input: {
 }
 
 export async function listPublishedCourses(filters: CatalogFilters = {}): Promise<CatalogPage> {
-  const { query, level, categorySlug, language, price, minRating } = filters;
+  const { query, level, categorySlug, language, price, minRating, duration } = filters;
   const search = query ? sanitizeSearchQuery(query) : "";
   const sort = filters.sort ?? (search ? "relevance" : "newest");
   const prismaWhere = catalogPrismaWhere({ level, categorySlug, language, price, minRating });
-  const searchFilters = { search, level, categorySlug, language, price, minRating };
+  const searchFilters = { search, level, categorySlug, language, price, minRating, duration };
+  // Prisma cannot filter on a summed child column, so a duration filter takes
+  // the raw-SQL path, which already carries every other filter.
+  const useSql = Boolean(search) || Boolean(duration);
 
-  const total = search
+  const total = useSql
     ? await searchPublishedCourseTotal(searchFilters)
     : await db.course.count({ where: prismaWhere });
   const current = clampPage(filters.page ?? 1, total, CATALOG_PAGE_SIZE);
@@ -356,7 +401,7 @@ export async function listPublishedCourses(filters: CatalogFilters = {}): Promis
     sort === "price-low" || sort === "price-high" || sort === "relevance" ? "newest" : sort;
 
   let ordered;
-  if (search) {
+  if (useSql) {
     const ids = await searchPublishedCourseIds({ ...searchFilters, sort, skip, take });
     if (ids.length === 0) return empty;
     const courses = await db.course.findMany({
@@ -397,6 +442,36 @@ export async function listPublishedCourses(filters: CatalogFilters = {}): Promis
   };
 }
 
+/** One instructor's published courses in the catalog row shape, most popular first (the instructor page). */
+export async function listInstructorPublishedCourses(instructorId: string, take = 50): Promise<CatalogCourse[]> {
+  const rows = await db.course.findMany({
+    where: { instructorId, status: "PUBLISHED" },
+    orderBy: [{ enrollmentCount: "desc" }, { publishedAt: "desc" }],
+    take,
+    select: CATALOG_SELECT,
+  });
+  return rows.map(mapCatalogCourse);
+}
+
+/**
+ * The home page's course list: courses an admin featured (newest feature
+ * first), then the most popular, without repeats. Only published courses.
+ */
+export async function listHomeCourses(limit = 6): Promise<CatalogCourse[]> {
+  const featured = (
+    await db.course.findMany({
+      where: { status: "PUBLISHED", featuredAt: { not: null } },
+      orderBy: { featuredAt: "desc" },
+      take: limit,
+      select: CATALOG_SELECT,
+    })
+  ).map(mapCatalogCourse);
+  if (featured.length >= limit) return featured;
+  const seen = new Set(featured.map((course) => course.id));
+  const popular = (await listPublishedCourses({ sort: "popular" })).items.filter((course) => !seen.has(course.id));
+  return [...featured, ...popular].slice(0, limit);
+}
+
 /** The languages actually present in the catalog, so the filter offers no dead options. */
 export async function listCatalogLanguages(): Promise<string[]> {
   const rows = await db.course.findMany({
@@ -427,17 +502,23 @@ export async function getPublishedCourseBySlug(slug: string) {
       slug: true,
       subtitle: true,
       description: true,
+      thumbnailUrl: true,
+      promoVideo: { select: { status: true } },
       level: true,
       language: true,
       ratingAverage: true,
       ratingCount: true,
       enrollmentCount: true,
       publishedAt: true,
-      instructor: { select: { name: true, headline: true, bio: true } },
+      updatedAt: true,
+      instructor: { select: { name: true, headline: true, bio: true, slug: true, profilePublic: true } },
       primaryCategory: { select: { name: true, slug: true } },
       objectives: { orderBy: { position: "asc" }, select: { text: true } },
       requirements: { orderBy: { position: "asc" }, select: { text: true } },
       targetAudience: { orderBy: { position: "asc" }, select: { text: true } },
+      faqs: { orderBy: { position: "asc" }, select: { id: true, question: true, answer: true } },
+      topics: { orderBy: { topic: { name: "asc" } }, select: { topic: { select: { name: true, slug: true } } } },
+      skills: { orderBy: { skill: { name: "asc" } }, select: { skill: { select: { name: true, slug: true } } } },
       prices: {
         where: { isActive: true },
         orderBy: { currency: "asc" },

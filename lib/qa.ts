@@ -30,7 +30,7 @@ export * from "@/lib/qa-rules";
  */
 
 /** One page of threads. The player already runs several queries; this must not grow with the course. */
-const THREAD_PAGE_SIZE = 20;
+export const THREAD_PAGE_SIZE = 20;
 /** Last N replies per thread. Older ones are counted, not loaded. */
 export const REPLY_PAGE_SIZE = 50;
 
@@ -62,8 +62,9 @@ export type QaThread = {
 
 export type QaPanel = {
   threads: QaThread[];
-  /** Visible threads beyond the page rendered, so the count can be honest. */
-  hiddenByPageSize: number;
+  total: number;
+  page: number;
+  pageCount: number;
 };
 
 type ThreadRow = {
@@ -139,7 +140,7 @@ export function assembleThreads(
  * round trip, then every visible reply to that page in a second. Nothing here
  * runs per thread or per reply.
  */
-const EMPTY_QA_PANEL: QaPanel = { threads: [], hiddenByPageSize: 0 };
+export const EMPTY_QA_PANEL: QaPanel = { threads: [], total: 0, page: 1, pageCount: 1 };
 
 async function canReadCourseQa(userId: string, courseId: string): Promise<boolean> {
   if (await isEnrolled(userId, courseId)) return true;
@@ -162,6 +163,7 @@ export async function getCourseQaPanel(
   /** The lecture being shown, or null to list only the course-wide threads. */
   curriculumItemId: string | null,
   userId: string,
+  page?: string | number,
 ): Promise<QaPanel> {
   if (!(await canReadCourseQa(userId, courseId))) return EMPTY_QA_PANEL;
 
@@ -178,28 +180,33 @@ export async function getCourseQaPanel(
       : { OR: [{ curriculumItemId: null }, { curriculumItemId }] }),
   };
 
-  const [threadRows, total] = await Promise.all([
-    db.questionThread.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: THREAD_PAGE_SIZE,
-      select: {
-        id: true,
-        title: true,
-        body: true,
-        createdAt: true,
-        curriculumItemId: true,
-        user: { select: { name: true } },
-      },
-    }),
-    db.questionThread.count({ where }),
-  ]);
+  const requested = parsePage(page);
+  const total = await db.questionThread.count({ where });
+  const current = clampPage(requested, total, THREAD_PAGE_SIZE);
+  const { skip, take } = skipTake(current, THREAD_PAGE_SIZE);
+
+  const threadRows = await db.questionThread.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    skip,
+    take,
+    select: {
+      id: true,
+      title: true,
+      body: true,
+      createdAt: true,
+      curriculumItemId: true,
+      user: { select: { name: true } },
+    },
+  });
 
   const { replies, earlierByThread } = await loadRecentReplies(threadRows.map((row) => row.id));
 
   return {
     threads: assembleThreads(threadRows, replies, earlierByThread),
-    hiddenByPageSize: Math.max(0, total - threadRows.length),
+    total,
+    page: current,
+    pageCount: pageCount(total, THREAD_PAGE_SIZE),
   };
 }
 
@@ -401,7 +408,7 @@ export async function postReply(input: {
 const VISIBLE_INSTRUCTOR_REPLY = { isInstructor: true, status: "VISIBLE" } as const;
 
 /** Threads per page in the inbox. An instructor with 5,000 must not render them all. */
-export const INBOX_PAGE_SIZE = 25;
+export const INBOX_PAGE_SIZE = 20;
 
 export type InboxThread = {
   id: string;

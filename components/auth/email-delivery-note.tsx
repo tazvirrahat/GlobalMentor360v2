@@ -10,7 +10,7 @@
 export function EmailDeliveryNote() {
   if (process.env.NODE_ENV === "development") {
     return (
-      <p className="mt-2 text-xs text-muted-foreground">
+      <p className="mt-2 text-sm text-graphite">
         Local development: if nothing arrives, the link is printed in the server
         terminal. SES sandbox cannot mail arbitrary addresses.
       </p>
@@ -18,10 +18,9 @@ export function EmailDeliveryNote() {
   }
 
   return (
-    <p className="mt-2 text-xs text-muted-foreground">
-      If it doesn&rsquo;t arrive, check spam. Until email sending is fully enabled,
-      some addresses will not receive mail — contact the academy if you need the
-      link.
+    <p className="mt-2 text-sm text-graphite">
+      If it doesn&rsquo;t arrive, check your spam folder. Some addresses can&rsquo;t receive our email yet;
+      contact us if you need the link.
     </p>
   );
 }

@@ -14,6 +14,7 @@ export type CartLine = {
   courseId: string;
   title: string;
   slug: string;
+  thumbnailUrl: string | null;
   addedAt: Date;
   prices: { amount: number; currency: string }[];
   isFree: boolean;
@@ -44,10 +45,12 @@ export async function addToCart(userId: string, courseId: string): Promise<{ ok:
   }
 
   const id = await cartIdFor(userId);
-  await db.cartItem.upsert({
-    where: { cartId_courseId: { cartId: id, courseId } },
-    create: { cartId: id, courseId },
-    update: {},
+  // INSERT … ON CONFLICT DO NOTHING. An upsert on the compound key is not run
+  // natively by Prisma: it reads, then inserts, so a double-click raced into a
+  // unique violation on (cartId, courseId).
+  await db.cartItem.createMany({
+    data: [{ cartId: id, courseId }],
+    skipDuplicates: true,
   });
 
   return { ok: true };
@@ -101,6 +104,7 @@ export async function getCart(userId: string): Promise<{ id: string; items: Cart
               id: true,
               title: true,
               slug: true,
+              thumbnailUrl: true,
               prices: {
                 where: { isActive: true },
                 orderBy: { currency: "asc" },
@@ -121,6 +125,7 @@ export async function getCart(userId: string): Promise<{ id: string; items: Cart
       courseId: item.course.id,
       title: item.course.title,
       slug: item.course.slug,
+      thumbnailUrl: item.course.thumbnailUrl,
       addedAt: item.addedAt,
       prices: item.course.prices,
       isFree: isFreeCourse(item.course.prices),

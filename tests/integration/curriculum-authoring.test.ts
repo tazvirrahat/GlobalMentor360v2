@@ -26,8 +26,10 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { addItem, moveItem, updateLecture } = await import("@/app/studio/curriculum-actions");
-const { saveQuestion } = await import("@/app/studio/assessment-actions");
+const { addItem, moveItem, moveSection, renameSection, updateLecture } = await import(
+  "@/app/(app)/studio/curriculum-actions"
+);
+const { saveQuestion } = await import("@/app/(app)/studio/assessment-actions");
 const { db } = await import("@/lib/db");
 const { getPlayerCourse, markLectureComplete, submitQuizAttempt } = await import("@/lib/progress");
 const { grantEnrollment } = await import("@/lib/enrollment");
@@ -515,6 +517,75 @@ describe("moveItem", () => {
       select: { title: true },
     });
     expect(after.map((row) => row.title)).toEqual([secondTitle, firstTitle]);
+  });
+});
+
+describe("moveSection and renameSection", () => {
+  it("swaps a section with its neighbour and stops at the ends", async () => {
+    const course = await db.course.create({
+      data: {
+        title: `Section Order ${run}`,
+        slug: `section-order-${run}`,
+        instructorId: hoisted.instructorId,
+      },
+      select: { id: true },
+    });
+    extraCourseIds.push(course.id);
+    const [a, b] = await Promise.all([
+      db.section.create({ data: { courseId: course.id, title: "A", position: 0 }, select: { id: true } }),
+      db.section.create({ data: { courseId: course.id, title: "B", position: 1 }, select: { id: true } }),
+    ]);
+
+    const moved = await moveSection({ status: "idle" }, form({ sectionId: b.id, direction: "up" }));
+    expect(moved).toEqual({ status: "done", message: "Moved." });
+    const order = await db.section.findMany({
+      where: { courseId: course.id },
+      orderBy: { position: "asc" },
+      select: { title: true, position: true },
+    });
+    expect(order).toEqual([
+      { title: "B", position: 0 },
+      { title: "A", position: 1 },
+    ]);
+
+    const atEnd = await moveSection({ status: "idle" }, form({ sectionId: a.id, direction: "down" }));
+    expect(atEnd).toEqual({ status: "done", message: "Already at the end." });
+  });
+
+  it("renames a section and refuses a blank title", async () => {
+    const renamed = await renameSection({ status: "idle" }, form({ sectionId, title: "  Getting started  " }));
+    expect(renamed.status).toBe("done");
+    const row = await db.section.findUniqueOrThrow({ where: { id: sectionId }, select: { title: true } });
+    expect(row.title).toBe("Getting started");
+
+    const blank = await renameSection({ status: "idle" }, form({ sectionId, title: "   " }));
+    expect(blank.status).toBe("error");
+  });
+
+  it("does not move or rename another instructor's section", async () => {
+    const other = await db.user.create({
+      data: { name: `Other ${run}`, email: `other-instr-${run}@example.test` },
+      select: { id: true },
+    });
+    const course = await db.course.create({
+      data: { title: `Not Mine ${run}`, slug: `not-mine-${run}`, instructorId: other.id },
+      select: { id: true },
+    });
+    const section = await db.section.create({
+      data: { courseId: course.id, title: "Theirs", position: 0 },
+      select: { id: true },
+    });
+    try {
+      expect((await moveSection({ status: "idle" }, form({ sectionId: section.id, direction: "down" }))).status).toBe(
+        "error",
+      );
+      expect((await renameSection({ status: "idle" }, form({ sectionId: section.id, title: "Mine now" }))).status).toBe(
+        "error",
+      );
+    } finally {
+      await db.course.delete({ where: { id: course.id } });
+      await db.user.delete({ where: { id: other.id } });
+    }
   });
 });
 

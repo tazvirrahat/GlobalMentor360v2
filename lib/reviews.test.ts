@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidRating, reviewSubmissionSchema, summariseRatings } from "./reviews";
+import { isValidRating, RATING_HALF_LIFE_DAYS, recencyWeight, reviewSubmissionSchema, summariseRatings } from "./reviews";
 
 /**
  * Course.ratingAverage / ratingCount are display-only aggregates recomputed from
@@ -145,5 +145,14 @@ describe("summariseRatings", () => {
     expect(summary.average).toBe(2);
     expect(summary.count).toBe(1);
     expect(summary.distribution[3]).toEqual({ rating: 2, count: 1, percent: 100 });
+  });
+});
+
+describe("recencyWeight", () => {
+  it("halves every half-life and never exceeds 1", () => {
+    expect(recencyWeight(0)).toBe(1);
+    expect(recencyWeight(RATING_HALF_LIFE_DAYS)).toBeCloseTo(0.5);
+    expect(recencyWeight(2 * RATING_HALF_LIFE_DAYS)).toBeCloseTo(0.25);
+    expect(recencyWeight(-10)).toBe(1);
   });
 });

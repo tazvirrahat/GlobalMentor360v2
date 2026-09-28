@@ -35,7 +35,7 @@ export async function uniqueSlug(base: string): Promise<string> {
 }
 
 /** Studio course list. Same size as the other bounded admin/studio tables. */
-export const STUDIO_COURSE_PAGE_SIZE = 40;
+export const STUDIO_COURSE_PAGE_SIZE = 20;
 
 export async function listInstructorCourses(instructorId: string, page?: string | number) {
   // Ownership stays in the `where`. An ADMIN who also teaches sees their own
@@ -83,10 +83,15 @@ export async function getOwnedCourse(courseId: string, instructorId: string) {
       language: true,
       status: true,
       primaryCategoryId: true,
+      thumbnailUrl: true,
+      promoVideo: { select: { id: true, status: true, failureReason: true } },
+      reviewNote: true,
+      reviewRequestedAt: true,
       prices: { where: { isActive: true }, select: { currency: true, amount: true } },
       objectives: { orderBy: { position: "asc" }, select: { id: true, text: true } },
       requirements: { orderBy: { position: "asc" }, select: { id: true, text: true } },
       targetAudience: { orderBy: { position: "asc" }, select: { id: true, text: true } },
+      faqs: { orderBy: { position: "asc" }, select: { id: true, question: true, answer: true } },
     },
   });
 }
@@ -97,6 +102,7 @@ export async function getOwnedCurriculum(courseId: string, instructorId: string)
     select: {
       id: true,
       title: true,
+      slug: true,
       status: true,
       sections: {
         orderBy: { position: "asc" },
@@ -178,6 +184,8 @@ export async function getOwnedItemForEditing(
             select: {
               id: true,
               status: true,
+              provider: true,
+              originalKey: true,
               captions: { orderBy: { language: "asc" }, select: { id: true, language: true } },
             },
           },
@@ -308,12 +316,12 @@ export async function readinessChecks(courseId: string): Promise<ReadinessCheck[
     {
       label: "Has at least one section",
       ok: course.sections.length > 0,
-      hint: "Add a section in the curriculum builder.",
+      hint: "Add a section on the Curriculum tab.",
     },
     {
       label: "Has at least one lecture",
       ok: itemCount > 0,
-      hint: "Add a lecture to a section.",
+      hint: "Add a lecture to a section on the Curriculum tab.",
     },
     {
       label: "Every quiz has questions",

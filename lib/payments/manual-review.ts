@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { grantEnrollment } from "@/lib/enrollment";
 import { clampPage, pageCount, skipTake, type Paged } from "@/lib/pagination";
 import { sendPaymentReceipt } from "@/lib/receipts";
+import { notify } from "@/lib/notifications";
 
 /**
  * Reported when the status filter on a write below matches zero rows.
@@ -17,7 +18,7 @@ const LOST_RACE = "Another admin reviewed this payment first — nothing changed
 
 export type ManualPaymentReview = { ok: true; message: string } | { ok: false; message: string };
 
-export const MANUAL_PAYMENT_QUEUE_PAGE_SIZE = 40;
+export const MANUAL_PAYMENT_QUEUE_PAGE_SIZE = 20;
 
 const PENDING_QUEUE_SELECT = {
   id: true,
@@ -158,14 +159,14 @@ export async function rejectManualPayment(input: {
   const notes = input.notes.trim();
 
   if (!notes) {
-    // Stored on the payment for staff. Receipts and the learner order page do
-    // not include verificationNotes, so this copy must not claim they do.
+    // The learner sees this reason on their receipt and in a notification, so
+    // it has to exist and say what to fix.
     return { ok: false, message: "Give a reason." };
   }
 
   const payment = await db.payment.findUnique({
     where: { id: input.paymentId },
-    select: { id: true, status: true, orderId: true },
+    select: { id: true, status: true, orderId: true, userId: true },
   });
 
   if (!payment) return { ok: false, message: "Payment not found." };
@@ -205,5 +206,13 @@ export async function rejectManualPayment(input: {
   });
 
   if (!rejected) return { ok: false, message: LOST_RACE };
+
+  // After the commit: a notification is a courtesy, never part of the decision.
+  await notify(payment.userId, "payment", {
+    title: "Payment not accepted",
+    body: notes,
+    href: `/orders/${payment.orderId}`,
+  }).catch((error) => console.error("reject notification failed", error));
+
   return { ok: true, message: "Rejected." };
 }

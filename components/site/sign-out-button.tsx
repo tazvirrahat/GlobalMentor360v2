@@ -6,7 +6,7 @@ import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/lib/auth-client";
 
-export function SignOutButton() {
+export function SignOutButton({ variant = "outline" }: { variant?: "outline" | "ghost" }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
@@ -18,7 +18,7 @@ export function SignOutButton() {
   }
 
   return (
-    <Button type="button" variant="outline" onClick={onClick} disabled={pending}>
+    <Button type="button" variant={variant} onClick={onClick} disabled={pending} className="cursor-pointer">
       <LogOut className="size-4" aria-hidden />
       {pending ? "Signing out…" : "Sign out"}
     </Button>

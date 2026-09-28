@@ -1,4 +1,5 @@
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
+import { getSite } from "@/lib/site";
 
 /**
  * The one place the app sends email. Auth (verification, password reset) calls
@@ -123,11 +124,12 @@ function requireHttpUrl(candidate: string): string {
 }
 
 function renderHtml(input: EmailInput, actionUrl: string | null): string {
+  const site = getSite();
   const button = actionUrl
     ? `<p style="margin:28px 0">
          <a href="${escapeHtml(actionUrl)}"
-            style="background:#880020;color:#ffffff;text-decoration:none;
-                   padding:12px 28px;border-radius:12px;font-weight:600;display:inline-block">
+            style="background:#1d2242;color:#ffffff;text-decoration:none;
+                   padding:12px 28px;border-radius:6px;font-weight:600;display:inline-block">
            ${escapeHtml(input.actionLabel ?? "Open")}
          </a>
        </p>
@@ -140,15 +142,13 @@ function renderHtml(input: EmailInput, actionUrl: string | null): string {
 <html>
   <body style="margin:0;padding:0;background:#f8fafc;font-family:system-ui,-apple-system,sans-serif">
     <div style="max-width:520px;margin:0 auto;padding:32px 20px">
-      <p style="font-weight:800;font-size:18px;color:#111827">
-        GlobalMentor<span style="color:#880020">360</span>
-      </p>
+      <p style="font-weight:700;font-size:18px;color:#1d2242">${escapeHtml(site.name)}</p>
       <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:28px">
         <p style="color:#111827;font-size:15px;line-height:1.6;white-space:pre-line">${escapeHtml(input.text)}</p>
         ${button}
       </div>
       <p style="color:#9ca3af;font-size:12px;margin-top:16px">
-        You received this because of activity on your GlobalMentor360 account.
+        You received this because of activity on your ${escapeHtml(site.name)} account.
       </p>
     </div>
   </body>

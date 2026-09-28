@@ -46,6 +46,8 @@ export type PlayerItem = {
     id: string;
     contentType: string;
     articleBody: string | null;
+    /** The lecture's "about" text; loaded for the current item only. */
+    description: string | null;
     durationSeconds: number;
     asset: {
       id: string;
@@ -418,6 +420,7 @@ async function loadCurrentItemBody(itemId: string) {
           id: true,
           contentType: true,
           articleBody: true,
+          description: true,
           durationSeconds: true,
           asset: { select: { id: true, providerAssetId: true, status: true } },
         },
@@ -615,7 +618,7 @@ export async function getPlayerCourse(
         lecture: body?.lecture
           ? body.lecture
           : item.lecture
-            ? { ...item.lecture, articleBody: null }
+            ? { ...item.lecture, articleBody: null, description: null }
             : null,
         assessment: body?.assessment
           ? {

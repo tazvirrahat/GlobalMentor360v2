@@ -1,7 +1,10 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { APIError } from "better-auth/api";
+import { ACCOUNT_SUSPENDED } from "@/lib/auth-errors";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
+import { getSite } from "@/lib/site";
 
 export const auth = betterAuth({
   database: prismaAdapter(db, { provider: "postgresql" }),
@@ -20,7 +23,7 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       await sendEmail({
         to: user.email,
-        subject: "Reset your GlobalMentor360 password",
+        subject: `Reset your ${getSite().name} password`,
         text: `Hi ${user.name},\n\nSomeone asked to reset the password for this account. If that was you, use the button below. The link expires in one hour.\n\nIf you didn't ask, ignore this email — nothing changes.`,
         actionUrl: url,
         actionLabel: "Reset password",
@@ -35,7 +38,7 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       await sendEmail({
         to: user.email,
-        subject: "Verify your email for GlobalMentor360",
+        subject: `Verify your email for ${getSite().name}`,
         text: `Hi ${user.name},\n\nConfirm this address to activate your account. The link expires in one hour.`,
         actionUrl: url,
         actionLabel: "Verify email",
@@ -59,14 +62,15 @@ export const auth = betterAuth({
     additionalFields: {
       headline: { type: "string", required: false },
       locale: { type: "string", required: false, defaultValue: "en" },
-      timezone: { type: "string", required: false, defaultValue: "UTC" },
+      // null = the site's time zone; set from the account page.
+      timezone: { type: "string", required: false },
     },
     changeEmail: {
       enabled: true,
       sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
         await sendEmail({
           to: user.email,
-          subject: "Confirm your GlobalMentor360 email change",
+          subject: `Confirm your ${getSite().name} email change`,
           text: `Hi ${user.name},\n\nWe received a request to change this account's email to ${newEmail}. Confirm the change with the button below. The link expires in one hour.\n\nIf you didn't ask, ignore this email — the address stays as it is.`,
           actionUrl: url,
           actionLabel: "Confirm email change",
@@ -76,6 +80,22 @@ export const auth = betterAuth({
   },
 
   databaseHooks: {
+    session: {
+      create: {
+        // A suspended account cannot sign in. Throwing (not returning false)
+        // gives the sign-in form a code it can explain; getCurrentUser also
+        // ignores non-ACTIVE accounts, so an old session is useless too.
+        before: async (session) => {
+          const owner = await db.user.findUnique({ where: { id: session.userId }, select: { status: true } });
+          if (owner && owner.status !== "ACTIVE") {
+            throw new APIError("FORBIDDEN", {
+              code: ACCOUNT_SUSPENDED,
+              message: "This account is suspended. Contact support if you think this is a mistake.",
+            });
+          }
+        },
+      },
+    },
     user: {
       create: {
         // Every account is a learner. Instructor and admin are granted separately —

@@ -26,7 +26,7 @@ vi.mock("@/lib/email", () => ({
   sendEmail: (input: unknown) => hoisted.sendEmail(input),
 }));
 
-const { approvePayment } = await import("@/app/admin/payments/actions");
+const { approvePayment } = await import("@/app/(app)/admin/payments/actions");
 const { db } = await import("@/lib/db");
 const { bkashManualRail } = await import("@/lib/payments/bkash-manual");
 const { isEnrolled } = await import("@/lib/entitlement");

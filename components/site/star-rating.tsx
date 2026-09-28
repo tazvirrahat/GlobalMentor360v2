@@ -23,7 +23,7 @@ export function StarRating({
 
   return (
     <span
-      className={cn("flex items-center gap-0.5 text-amber-600", className)}
+      className={cn("flex items-center gap-0.5 text-star", className)}
       role="img"
       aria-label={`${value.toFixed(1)} out of 5 stars`}
     >
@@ -34,7 +34,7 @@ export function StarRating({
           className={cn(
             "size-4",
             starClassName,
-            star <= filled ? "fill-current" : "text-muted-foreground/40",
+            star <= filled ? "fill-current" : "text-control",
           )}
         />
       ))}
@@ -74,7 +74,7 @@ export function CompactRating({
 
   return (
     <span
-      className={cn("flex items-center gap-1 font-semibold", className)}
+      className={cn("flex items-center gap-1 font-semibold text-star", className)}
       role="img"
       aria-label={`${average.toFixed(1)} out of 5 stars, ${ratings}`}
     >

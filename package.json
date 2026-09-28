@@ -12,11 +12,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:db": "npm run test:db:payments && npm run test:db:prices && npm run test:db:schema && npm run test:db:flows",
-    "test:db:payments": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360 -q < prisma/tests/payment-constraints.sql",
-    "test:db:prices": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360 -q < prisma/tests/price-constraints.sql",
-    "test:db:schema": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360 -q < prisma/tests/schema-hardening.sql",
+    "test:db:payments": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360_test -q < prisma/tests/payment-constraints.sql",
+    "test:db:prices": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360_test -q < prisma/tests/price-constraints.sql",
+    "test:db:schema": "docker exec -i globalmentor360-db psql -U postgres -d globalmentor360_test -q < prisma/tests/schema-hardening.sql",
     "test:db:flows": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
+    "ui-audit": "node scripts/ui-audit/audit.mjs",
+    "ui-audit:keyboard": "node scripts/ui-audit/keyboard.mjs",
+    "ui-audit:summary": "node scripts/ui-audit/summarise.mjs",
     "verify:apis": "tsx scripts/verify-apis.ts",
     "verify:apis:full": "tsx scripts/verify-apis-full.ts",
     "db:generate": "prisma generate",
@@ -24,6 +27,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
+    "db:test:prepare": "tsx scripts/test-db-prepare.ts",
+    "ratings:recompute": "tsx scripts/recompute-ratings.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {
@@ -42,6 +47,7 @@
     "dotenv": "^17.4.2",
     "hls.js": "^1.6.17",
     "lucide-react": "^1.30.0",
+    "motion": "^13.1.0",
     "next": "^16.3.0",
     "pg": "^8.22.0",
     "radix-ui": "^1.6.7",
@@ -59,11 +65,15 @@
     "@types/pg": "^8.20.4",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "axe-core": "^4.13.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.0",
     "prisma": "^7.9.1",
     "tsx": "^4.23.9",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
+  },
+  "allowScripts": {
+    "motion@13.1.0": true
   }
 }

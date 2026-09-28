@@ -1,12 +1,17 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ListPartsCommand,
   NotFound,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as presignS3Request } from "@aws-sdk/s3-request-presigner";
 import { CreateJobCommand, MediaConvertClient, type Output } from "@aws-sdk/client-mediaconvert";
@@ -145,6 +150,23 @@ function sqs(config: AwsBaseConfig): SQSClient {
     credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
   });
   return sqsSingleton;
+}
+
+/**
+ * The app's S3 bucket and client, for other stored files that live beside the
+ * video originals (lecture resources). Throws the same "not configured" error
+ * as the video pipeline when the AWS variables are unset.
+ */
+export function appBucket(): { client: S3Client; bucket: string } {
+  const config = readBaseConfig();
+  return { client: s3(config), bucket: config.bucket };
+}
+
+/** True when the S3 variables are set, without throwing. */
+export function isAppBucketConfigured(): boolean {
+  return Boolean(
+    process.env.AWS_REGION && process.env.AWS_S3_BUCKET && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -439,6 +461,104 @@ export const awsProvider: VideoProvider = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Resumable (multipart) uploads of an original. The key is always
+// uploads/{assetId}/original, derived here from the asset id, never taken
+// from the browser.
+// ---------------------------------------------------------------------------
+
+function s3Failure(action: string, error: unknown): VideoProviderError {
+  if (error instanceof VideoProviderError) return error;
+  return new VideoProviderError(`S3 ${action} failed: ${error instanceof Error ? error.message : String(error)}`);
+}
+
+/** Reserves an asset id and opens a multipart upload for its original. */
+export async function createResumableUpload(contentType: string | undefined): Promise<{
+  providerAssetId: string;
+  originalKey: string;
+  uploadId: string;
+}> {
+  const config = readBaseConfig();
+  const providerAssetId = randomUUID();
+  const key = originalKey(providerAssetId);
+  const type = contentType?.startsWith("video/") ? contentType : "video/mp4";
+  try {
+    const created = await s3(config).send(new CreateMultipartUploadCommand({ Bucket: config.bucket, Key: key, ContentType: type }));
+    if (!created.UploadId) throw new VideoProviderError("S3 did not return an upload id.");
+    return { providerAssetId, originalKey: key, uploadId: created.UploadId };
+  } catch (error) {
+    throw s3Failure("CreateMultipartUpload", error);
+  }
+}
+
+/** Presigned PUT URLs for some parts. The bucket's CORS rule must allow PUT from the app origin. */
+export async function signUploadParts(key: string, uploadId: string, partNumbers: number[]): Promise<Record<number, string>> {
+  const config = readBaseConfig();
+  const client = s3(config);
+  const urls: Record<number, string> = {};
+  for (const partNumber of partNumbers) {
+    urls[partNumber] = await presignS3Request(
+      client,
+      new UploadPartCommand({ Bucket: config.bucket, Key: key, UploadId: uploadId, PartNumber: partNumber }),
+      { expiresIn: UPLOAD_URL_TTL_SECONDS },
+    );
+  }
+  return urls;
+}
+
+/** The parts S3 already holds, read on the server so the browser never has to see ETags. */
+export async function listUploadedParts(key: string, uploadId: string): Promise<{ partNumber: number; etag: string; size: number }[]> {
+  const config = readBaseConfig();
+  const client = s3(config);
+  const parts: { partNumber: number; etag: string; size: number }[] = [];
+  let marker: string | undefined;
+  try {
+    for (;;) {
+      const page = await client.send(
+        new ListPartsCommand({ Bucket: config.bucket, Key: key, UploadId: uploadId, PartNumberMarker: marker }),
+      );
+      for (const part of page.Parts ?? []) {
+        if (part.PartNumber && part.ETag) parts.push({ partNumber: part.PartNumber, etag: part.ETag, size: part.Size ?? 0 });
+      }
+      if (!page.IsTruncated || !page.NextPartNumberMarker) break;
+      marker = page.NextPartNumberMarker;
+    }
+  } catch (error) {
+    throw s3Failure("ListParts", error);
+  }
+  return parts.sort((a, b) => a.partNumber - b.partNumber);
+}
+
+export async function completeResumableUpload(
+  key: string,
+  uploadId: string,
+  parts: { partNumber: number; etag: string }[],
+): Promise<void> {
+  const config = readBaseConfig();
+  try {
+    await s3(config).send(
+      new CompleteMultipartUploadCommand({
+        Bucket: config.bucket,
+        Key: key,
+        UploadId: uploadId,
+        MultipartUpload: { Parts: parts.map((part) => ({ PartNumber: part.partNumber, ETag: part.etag })) },
+      }),
+    );
+  } catch (error) {
+    throw s3Failure("CompleteMultipartUpload", error);
+  }
+}
+
+/** Best effort: an abandoned multipart upload only costs storage until a lifecycle rule clears it. */
+export async function abortResumableUpload(key: string, uploadId: string): Promise<void> {
+  try {
+    const config = readBaseConfig();
+    await s3(config).send(new AbortMultipartUploadCommand({ Bucket: config.bucket, Key: key, UploadId: uploadId }));
+  } catch (error) {
+    console.error("video: could not abort a multipart upload", error);
+  }
+}
+
 /**
  * Short-poll the MediaConvert job-state queue and apply COMPLETE/ERROR the
  * same way /api/video/webhook does. Local-dev path: AWS cannot POST to
@@ -448,7 +568,32 @@ export const awsProvider: VideoProvider = {
 export async function drainMediaConvertEventQueue(): Promise<number> {
   const queueUrl = process.env.AWS_VIDEO_EVENT_QUEUE_URL?.trim();
   if (!queueUrl) return 0;
+  try {
+    const applied = await drainQueue(queueUrl);
+    drainStore.__videoLastDrain = { at: new Date(), applied, error: null };
+    return applied;
+  } catch (error) {
+    drainStore.__videoLastDrain = { at: new Date(), applied: 0, error: error instanceof Error ? error.message : String(error) };
+    throw error;
+  }
+}
 
+export type DrainRecord = { at: Date; applied: number; error: string | null };
+
+// On globalThis so dev reloads and separate route bundles see the same record.
+// Per server process: another instance has its own (Admin › Videos says so).
+const drainStore = globalThis as unknown as { __videoLastDrain?: DrainRecord };
+
+/** The last drain this server process ran, for Admin › Videos. */
+export function lastDrain(): DrainRecord | null {
+  return drainStore.__videoLastDrain ?? null;
+}
+
+export function isVideoEventQueueConfigured(): boolean {
+  return Boolean(process.env.AWS_VIDEO_EVENT_QUEUE_URL?.trim());
+}
+
+async function drainQueue(queueUrl: string): Promise<number> {
   const config = readBaseConfig();
   const client = sqs(config);
   let applied = 0;

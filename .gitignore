@@ -6,6 +6,7 @@ node_modules/
 # next.js
 .next/
 .next-verify/
+.next-e2e/
 out/
 next-env.d.ts
 
@@ -57,3 +58,11 @@ finish-move.ps1
 
 # claude worktrees
 .claude/
+
+.cursor
+
+# Design review screenshots (large binaries, regenerate with scripts/design-shots*.mjs)
+design-review/
+
+# Brainstorming companion mockups
+.superpowers/
