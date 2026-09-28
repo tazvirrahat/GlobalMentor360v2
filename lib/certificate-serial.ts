@@ -11,7 +11,14 @@ export function normalizeSerial(raw: string, prefix: string): string | null {
 
   // A pasted link: take the segment after /certificates/.
   const fromUrl = text.match(/\/certificates\/([^/?#\s]+)/i);
-  if (fromUrl) text = decodeURIComponent(fromUrl[1]!);
+  if (fromUrl) {
+    // Malformed percent-encoding ("/certificates/%ZZ") throws; it is not a serial either.
+    try {
+      text = decodeURIComponent(fromUrl[1]!);
+    } catch {
+      return null;
+    }
+  }
 
   const compact = text.toUpperCase().replace(/[\s-]+/g, "");
   const upperPrefix = prefix.toUpperCase();

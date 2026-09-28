@@ -45,7 +45,10 @@ export default defineConfig({
   webServer: {
     command: `npx next dev --port ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse: a server already on this port may not have the test
+    // DATABASE_URL and dist dir set below, and the suite would then write its
+    // fixtures into the dev database. A busy port fails the run instead.
+    reuseExistingServer: false,
     timeout: 180_000,
     env: {
       DATABASE_URL,
