@@ -1,9 +1,11 @@
 import type { Route } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { resolveViewAs } from "@/lib/impersonation";
 import { safeReturnPath } from "@/lib/urls";
+import { VIEW_AS_COOKIE } from "@/lib/view-as-cookie";
 import type { Role, UserStatus } from "@/generated/prisma/enums";
 
 export { safeReturnPath };
@@ -12,6 +14,8 @@ export type SessionUser = {
   id: string;
   email: string;
   name: string;
+  /** Set while an admin is viewing the site as this person (read-only; see lib/impersonation). */
+  viewingAs?: { adminId: string; expiresAt: Date };
 };
 
 /** Current session, or null when signed out. Safe to call from any server component. */
@@ -33,6 +37,14 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     select: { id: true, email: true, name: true, status: true },
   });
   if (!row || !isActiveUserStatus(row.status)) return null;
+
+  // An admin viewing the site as someone: everything downstream sees that
+  // person. proxy.ts keeps it read-only.
+  const grant = (await cookies()).get(VIEW_AS_COOKIE)?.value;
+  if (grant) {
+    const viewAs = await resolveViewAs(row.id, grant);
+    if (viewAs) return { ...viewAs.target, viewingAs: { adminId: viewAs.adminId, expiresAt: viewAs.expiresAt } };
+  }
 
   return {
     id: row.id,

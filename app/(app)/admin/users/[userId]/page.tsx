@@ -11,6 +11,7 @@ import { getAdminUser } from "@/lib/admin";
 import { formatDateMedium } from "@/lib/format";
 import { requireRole } from "@/lib/session";
 import { updateUserRoleAction } from "../../actions";
+import { viewAsAction } from "./actions";
 import { GrantCourseForm, StatusForm } from "./user-actions";
 
 export const metadata = { title: "User | Admin" };
@@ -24,7 +25,7 @@ type Params = { params: Promise<{ userId: string }>; searchParams: Promise<{ err
 
 /** One person for an admin: roles, whether they can sign in, and their courses. */
 export default async function AdminUserPage({ params, searchParams }: Params) {
-  await requireRole("ADMIN");
+  const admin = await requireRole("ADMIN");
   const { userId } = await params;
   const { error } = await searchParams;
   const user = await getAdminUser(userId);
@@ -40,7 +41,7 @@ export default async function AdminUserPage({ params, searchParams }: Params) {
         description={user.email}
         meta={suspended ? <Badge variant="destructive">Suspended</Badge> : null}
       />
-      {error ? <FlashAlert title="Could not update role">{error}</FlashAlert> : null}
+      {error ? <FlashAlert title="Could not do that">{error}</FlashAlert> : null}
 
       <Panel title="Account">
         <dl className="grid gap-4 sm:grid-cols-3">
@@ -94,6 +95,20 @@ export default async function AdminUserPage({ params, searchParams }: Params) {
       >
         <StatusForm userId={user.id} suspended={suspended} />
       </Panel>
+
+      {!suspended && !roles.has("ADMIN") && user.id !== admin.id ? (
+        <Panel
+          title="View as"
+          description="See the site exactly as they see it, for up to 30 minutes. Nothing can be changed while you look, and it is recorded."
+        >
+          <form action={viewAsAction}>
+            <input type="hidden" name="userId" value={user.id} />
+            <Button type="submit" variant="secondary">
+              View as {user.name}
+            </Button>
+          </form>
+        </Panel>
+      ) : null}
 
       <Panel title="Courses" description="Everything they are enrolled in. Giving a course opens it without payment and is recorded.">
         {user.enrollments.length === 0 ? (
