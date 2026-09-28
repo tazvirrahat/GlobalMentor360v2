@@ -173,7 +173,7 @@ Same app. `/admin` redirects to payments.
 | `/admin/taxonomy` | Categories (subjects and subcategories), topics, skills. |
 | `/admin/videos` | Videos by status, failed or stuck ones with Retry / Check status, the event queue's last drain. |
 
-No impersonation (waiting on your decision about its scope).
+**View as (read-only):** from a user's page, "View as {name}" shows the whole site as that person for up to 30 minutes. Every change is blocked while viewing (the app refuses any request that could write), a banner at the top says who you are viewing and until when, and Stop viewing returns you to their page. Admins and suspended accounts can't be viewed as. Start and stop are recorded in the audit log.
 
 ### Video / AWS
 
