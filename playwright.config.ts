@@ -57,6 +57,19 @@ export default defineConfig({
       NEXT_PUBLIC_APP_URL: BASE_URL,
       // Console mail fallback; never SES from a test run.
       EMAIL_FROM: "",
+      // No S3, MediaConvert or CloudFront either: the studio specs assert the
+      // "needs cloud storage" state, which is the only upload outcome a test can
+      // assert without a real bucket. The suite decides this, not whatever the
+      // developer happens to have in .env.
+      AWS_S3_BUCKET: "",
+      AWS_ACCESS_KEY_ID: "",
+      AWS_SECRET_ACCESS_KEY: "",
+      AWS_MEDIACONVERT_ENDPOINT: "",
+      AWS_MEDIACONVERT_ROLE_ARN: "",
+      AWS_CLOUDFRONT_DOMAIN: "",
+      AWS_CLOUDFRONT_KEY_PAIR_ID: "",
+      AWS_CLOUDFRONT_PRIVATE_KEY: "",
+      AWS_VIDEO_EVENT_QUEUE_URL: "",
     },
   },
 });

@@ -415,7 +415,10 @@ test.describe("admin exploratory QA", () => {
     await expect(page.getByRole("button", { name: "Stop featuring" })).toBeVisible({ timeout: 15_000 });
 
     await page.goto("/");
-    const list = page.getByRole("region", { name: "Popular courses" }).getByRole("listitem");
+    // The home page lists courses by subject; the first tab is every course, featured first.
+    const list = page
+      .getByRole("region", { name: /a course for your next step/i })
+      .getByRole("listitem");
     await expect(list.first()).toContainText("SQL for Analysts");
 
     // Put the seed back.

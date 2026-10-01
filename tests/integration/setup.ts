@@ -27,6 +27,26 @@ process.env.STRIPE_WEBHOOK_SECRET = "whsec_integration_suite_secret";
 // false, so sendEmail uses the console fallback instead of AWS.
 process.env.EMAIL_FROM = "";
 
+// Never call S3, MediaConvert or CloudFront either. The upload and video suites
+// assert the "storage is not configured" refusal, which is the only outcome they
+// can assert without a real bucket — so the suite must decide that, not whatever
+// a developer happens to have in .env. Unconditional for the same two reasons as
+// the Stripe keys above: the tests and the code must read the same values, and a
+// real key in someone's environment must never be picked up by a test run.
+for (const key of [
+  "AWS_S3_BUCKET",
+  "AWS_ACCESS_KEY_ID",
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_MEDIACONVERT_ENDPOINT",
+  "AWS_MEDIACONVERT_ROLE_ARN",
+  "AWS_CLOUDFRONT_DOMAIN",
+  "AWS_CLOUDFRONT_KEY_PAIR_ID",
+  "AWS_CLOUDFRONT_PRIVATE_KEY",
+  "AWS_VIDEO_EVENT_QUEUE_URL",
+]) {
+  process.env[key] = "";
+}
+
 // Never the dev database: testDatabaseUrl() throws unless the name ends in _test.
 // `npm run db:test:prepare` creates, migrates and seeds it. `npm run test` is the
 // unit suite and needs no database at all.
